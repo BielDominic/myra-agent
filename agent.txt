@@ -1,0 +1,208 @@
+  from fastapi import FastAPI
+from pydantic import BaseModel
+from playwright.sync_api import sync_playwright
+
+app = FastAPI()
+
+browser = None
+page = None
+playwright = None
+
+
+class OpenURL(BaseModel):
+    url: str
+
+
+class SearchGoogle(BaseModel):
+    query: str
+
+
+class ClickElement(BaseModel):
+    text: str
+
+
+class TypeText(BaseModel):
+    text: str
+    field_text: str
+
+
+class PressKey(BaseModel):
+    key: str
+
+
+class Wait(BaseModel):
+    seconds: float
+
+
+def start_browser():
+    global browser, page, playwright
+    if browser is not None:
+        try:
+            if browser.is_connected() and page is not None and not page.is_closed():
+                return
+        except Exception:
+            pass
+    try:
+        if browser is not None:
+            browser.close()
+    except Exception:
+        pass
+    try:
+        if playwright is not None:
+            playwright.stop()
+    except Exception:
+        pass
+    playwright = sync_playwright().start()
+    browser = playwright.chromium.launch(headless=False, slow_mo=500)
+    page = browser.new_page()
+
+
+@app.get("/")
+def home():
+    return {"status": "online", "agent": "computer-agent"}
+
+
+@app.post("/open_url")
+def open_url(data: OpenURL):
+    start_browser()
+    print(f"[OPEN_URL] url={data.url}")
+    try:
+        page.goto(data.url, timeout=15000)
+        return {"status": "ok", "result": f"Abri {data.url}"}
+    except Exception as e:
+        print(f"[OPEN_URL] ERRO: {e}")
+        return {"status": "erro", "result": f"Falha ao abrir {data.url}"}
+
+
+@app.post("/search_google")
+def search_google(data: SearchGoogle):
+    start_browser()
+    print(f"[SEARCH_GOOGLE] query={data.query}")
+    try:
+        page.goto("https://www.google.com", timeout=15000)
+        page.locator("textarea[name='q']").fill(data.query)
+        page.locator("textarea[name='q']").press("Enter")
+        page.wait_for_timeout(5000)
+        return {"status": "ok", "result": f"Pesquisei por: {data.query}"}
+    except Exception as e:
+        print(f"[SEARCH_GOOGLE] ERRO: {e}")
+        return {"status": "erro", "result": "Falha na busca"}
+
+
+@app.post("/click_element")
+def click_element(data: ClickElement):
+    start_browser()
+    print(f"[CLICK_ELEMENT] text={data.text!r}")
+    try:
+        candidatos = [
+            page.get_by_role("link", name=data.text),
+            page.get_by_role("button", name=data.text),
+            page.get_by_text(data.text, exact=False),
+        ]
+        for loc in candidatos:
+            try:
+                if loc.count() > 0:
+                    loc.first.click(timeout=5000)
+                    page.wait_for_timeout(1500)
+                    return {"status": "ok", "result": f"Cliquei em {data.text}. URL: {page.url}"}
+            except Exception:
+                continue
+        return {"status": "erro", "result": f"Nenhum elemento clicavel com texto {data.text}"}
+    except Exception as e:
+        return {"status": "erro", "result": "Erro ao clicar"}
+
+
+@app.post("/type_text")
+def type_text(data: TypeText):
+    start_browser()
+    print(f"[TYPE_TEXT] text={data.text!r} field_text={data.field_text!r}")
+    try:
+        loc = page.get_by_placeholder(data.field_text)
+        if loc.count() == 0:
+            return {"status": "erro", "result": f"Nenhum campo com placeholder {data.field_text}"}
+        loc.first.fill(data.text)
+        return {"status": "ok", "result": f"Digitei {data.text} em {data.field_text}"}
+    except Exception as e:
+        return {"status": "erro", "result": "Erro ao digitar"}
+
+
+@app.post("/press_key")
+def press_key(data: PressKey):
+    start_browser()
+    print(f"[PRESS_KEY] key={data.key!r}")
+    try:
+        page.keyboard.press(data.key)
+        return {"status": "ok", "result": f"Pressionei {data.key}"}
+    except Exception as e:
+        return {"status": "erro", "result": "Erro"}
+
+
+@app.post("/go_back")
+def go_back():
+    start_browser()
+    print("[GO_BACK]")
+    try:
+        page.go_back(timeout=10000)
+        page.wait_for_timeout(1000)
+        return {"status": "ok", "result": "Voltei uma pagina"}
+    except Exception as e:
+        return {"status": "erro", "result": "Erro ao voltar"}
+
+
+@app.post("/wait")
+def wait(data: Wait):
+    start_browser()
+    print(f"[WAIT] seconds={data.seconds}")
+    page.wait_for_timeout(int(data.seconds * 1000))
+    return {"status": "ok", "result": f"Esperei {data.seconds}s"}
+
+
+@app.post("/read_page")
+def read_page():
+    start_browser()
+    print("[READ_PAGE]")
+    try:
+        texto = page.inner_text("body")[:2000]
+    except Exception:
+        texto = ""
+    clicaveis = []
+    vistos = set()
+    try:
+        for a in page.locator("a").all()[:30]:
+            try:
+                txt = a.inner_text().strip()
+                href = a.get_attribute("href") or ""
+                if txt and txt not in vistos:
+                    vistos.add(txt)
+                    clicaveis.append(f"- LINK {txt} -> {href}")
+            except Exception:
+                pass
+    except Exception:
+        pass
+    try:
+        for b in page.locator("button").all()[:20]:
+            try:
+                txt = b.inner_text().strip()
+                if txt and txt not in vistos:
+                    vistos.add(txt)
+                    clicaveis.append(f"- BOTAO {txt}")
+            except Exception:
+                pass
+    except Exception:
+        pass
+    try:
+        for i in page.locator("input, textarea").all()[:15]:
+            try:
+                ph = i.get_attribute("placeholder") or ""
+                nome = i.get_attribute("name") or ""
+                tipo = i.get_attribute("type") or "text"
+                if ph or nome:
+                    info = f"- CAMPO placeholder={ph} name={nome} type={tipo}"
+                    if info not in vistos:
+                        vistos.add(info)
+                        clicaveis.append(info)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return {"status": "ok", "result": texto, "clicaveis": clicaveis}

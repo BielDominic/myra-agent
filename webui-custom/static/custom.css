@@ -1,0 +1,32 @@
+﻿/* Computer Agent - Tema customizado */
+
+:root {
+    --primary: #7c3aed;
+    --primary-hover: #6d28d9;
+}
+
+body {
+    background: #0a0a0f !important;
+}
+
+.user-message {
+    background: #1a1a2e !important;
+    border-left: 3px solid #7c3aed;
+}
+
+.assistant-message {
+    background: #0f0f1a !important;
+    border-left: 3px solid #06b6d4;
+}
+
+button {
+    border-radius: 8px !important;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-thumb {
+    background: #7c3aed;
+    border-radius: 4px;
+}

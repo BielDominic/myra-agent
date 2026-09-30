@@ -1,0 +1,40 @@
+﻿# Ambiente virtual Python
+venv/
+
+# Modelos de visão (muito grandes)
+llm-eyes/
+
+# Perfis do Chrome (MUITO grandes - milhares de arquivos)
+chrome_profile/
+chromium_profile/
+
+# Screenshots (muito grandes)
+screenshots/
+
+# Workspace do agente
+workspace/
+
+# Cache do Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs
+*.log
+
+# Notas pessoais
+notes.txt
+
+# Backups
+agent_backup*.py
+backup_*/
+
+# Favicons originais
+webui-custom/Favicons/MYRALOGO.jpeg
+webui-custom/Favicons/MYRALOGO_transparente.png
+
+# Docker
+*.db
+
+# SearXNG
+searxng_config/

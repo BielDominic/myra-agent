@@ -1,0 +1,20 @@
+Como usar a partir de agora
+Toda vez que ligar o PC:
+
+Abra o Docker Desktop (espera subir)
+
+Abra o PowerShell em C:\computer-agent
+
+Rode:
+
+powershell
+.\start.ps1
+Pronto. O script sobe tudo que estiver parado e confirma.
+
+Para conversar com o agente:
+
+Abra http://localhost:3000
+
+New Chat → Local Agent
+
+Digite em português: Abra o Google, Clique no link, etc.
