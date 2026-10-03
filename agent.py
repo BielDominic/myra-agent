@@ -11,6 +11,7 @@ import time
 import json
 import urllib.request
 import urllib.parse
+import urllib.error
 import re as _re
 from email.message import EmailMessage
 from email.header import decode_header
@@ -29,14 +30,24 @@ WORKSPACE_DIR = r"C:\computer-agent\workspace"
 SCREENSHOTS_DIR = r"C:\computer-agent\screenshots"
 LLM_EYES_URL = "http://127.0.0.1:8081/v1/chat/completions"
 
+OPENWEBUI_URL = "http://127.0.0.1:8080"
+OPENWEBUI_API_KEY = os.environ.get("OPENWEBUI_API_KEY", "")
+
 GMAIL_USER = os.environ.get("GMAIL_USER", "")
 GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
+
+# Cidade padrao (deteccao por IP nao acerta cidades pequenas)
+CIDADE_PADRAO = "Tarmonbarry, Ireland"
 
 # ============================================================
 # CONFIRMACAO PENDENTE (FASE 8)
 # ============================================================
-pending_confirmation = None  # {"acao": ..., "detalhes": ..., "timestamp": ..., "confirmada": False}
-CONFIRMATION_TIMEOUT = 300  # 5 minutos em segundos
+pending_confirmation = None
+CONFIRMATION_TIMEOUT = 300
+
+# Cache em memoria para chats
+_chat_cache = {"data": None, "timestamp": 0}
+CHAT_CACHE_TTL = 5
 
 
 class OpenURL(BaseModel):
@@ -71,6 +82,7 @@ class Confirmation(BaseModel):
     detalhes: str = ""
     acao_pendente: str = ""
     parametros: dict = {}
+
 
 class EmailList(BaseModel):
     quantidade: int = 5
@@ -127,7 +139,7 @@ class SaveNote(BaseModel):
 
 
 class GetWeather(BaseModel):
-    cidade: str = "Dublin"
+    cidade: str = ""
 
 
 class RunPython(BaseModel):
@@ -172,6 +184,150 @@ class MoveFile(BaseModel):
 class SearchInFiles(BaseModel):
     termo: str
     extensao: str = ".txt"
+
+
+# ============================================================
+# AUTOMACAO DO PC (FASE 16) - models
+# ============================================================
+
+class PCMoveMouse(BaseModel):
+    x: int
+    y: int
+    duration: float = 0.3
+
+
+class PCClick(BaseModel):
+    x: int = None
+    y: int = None
+    button: str = "left"
+
+
+class PCClickXY(BaseModel):
+    x: int = None
+    y: int = None
+
+
+class PCTypeText(BaseModel):
+    text: str
+    interval: float = 0.02
+
+
+class PCPressKey(BaseModel):
+    key: str
+
+
+class PCHotkey(BaseModel):
+    keys: list
+
+
+class PCScroll(BaseModel):
+    amount: int
+
+
+class PCScreenshot(BaseModel):
+    salvar: bool = True
+
+
+class PCFocusWindow(BaseModel):
+    titulo: str
+
+
+# ============================================================
+# GERENCIAMENTO DE CHATS (FASE 10) - models
+# ============================================================
+
+class ChatList(BaseModel):
+    quantidade: int = 20
+
+
+class ChatDelete(BaseModel):
+    indice: int = 0
+    chat_id: str = None
+
+
+class ChatDeleteBySearch(BaseModel):
+    termo: str
+    limite: int = 20
+
+
+class ChatDeleteAll(BaseModel):
+    confirmar: bool = False
+
+
+class ChatRename(BaseModel):
+    indice: int = 0
+    chat_id: str = None
+    novo_titulo: str
+
+
+# ============================================================
+# CODEAGENT (FASE 17) - models
+# ============================================================
+
+class CodeInput(BaseModel):
+    codigo: str
+    contexto: str = ""
+
+
+class CodeGenerate(BaseModel):
+    descricao: str
+    linguagem: str = "python"
+
+
+class CodeRefactor(BaseModel):
+    codigo: str
+    objetivo: str
+
+
+class CodeConvert(BaseModel):
+    codigo: str
+    linguagem_origem: str = "python"
+    linguagem_destino: str
+
+
+class CodeRunFile(BaseModel):
+    caminho: str
+    args: list = []
+    timeout: int = 30
+
+
+class CodeRun(BaseModel):
+    codigo: str
+    timeout: int = 15
+
+
+class CodeTest(BaseModel):
+    codigo: str
+    framework: str = "pytest"
+
+
+class CodeDoc(BaseModel):
+    codigo: str
+    formato: str = "google"
+
+
+class CodeDiff(BaseModel):
+    codigo_antigo: str
+    codigo_novo: str
+
+
+class CodeSQL(BaseModel):
+    descricao: str
+    dialeto: str = "postgresql"
+
+
+class CodeRegex(BaseModel):
+    descricao: str
+
+
+class CodeBenchmark(BaseModel):
+    codigo: str
+    repeticoes: int = 100
+
+
+class CodeScaffold(BaseModel):
+    tipo: str
+    nome: str = "meu_projeto"
 
 
 def _contexto_vivo():
@@ -315,6 +471,28 @@ def _decodificar(valor):
         return resultado
     except Exception:
         return valor
+
+
+def _detectar_cidade_por_ip() -> str:
+    """Retorna a cidade configurada manualmente.
+
+    Deteccao por IP nao acerta cidades pequenas na Irlanda (ISPs registram
+    todos os IPs em Dublin). A cidade fica fixa em CIDADE_PADRAO.
+    """
+    return CIDADE_PADRAO
+
+
+def _fix_encoding(texto: str) -> str:
+    """Corrige encoding bagunçado (UTF-8 interpretado como Latin-1)."""
+    if not texto:
+        return texto
+    try:
+        return texto.encode("latin-1").decode("utf-8")
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        try:
+            return texto.encode("utf-8").decode("latin-1")
+        except Exception:
+            return texto
 
 
 @app.get("/")
@@ -733,11 +911,9 @@ def request_confirmation(data: Confirmation):
     global pending_confirmation
     print(f"[REQUEST_CONFIRMATION] acao={data.acao!r} detalhes={data.detalhes!r}")
 
-    # BLOQUEIO ANTI-LOOP: se ja existe uma pendencia recente, NAO cria outra
     if pending_confirmation is not None:
         idade = time.time() - pending_confirmation["timestamp"]
         if idade < CONFIRMATION_TIMEOUT:
-            # Pendencia ainda valida - NAO cria nova
             acao_pendente = pending_confirmation["acao"]
             detalhes_pendentes = pending_confirmation.get("detalhes", "")
             msg = (
@@ -749,7 +925,6 @@ def request_confirmation(data: Confirmation):
             print(f"[REQUEST_CONFIRMATION] BLOQUEADO (loop detectado)")
             return {"status": "bloqueado", "result": msg}
         else:
-            # Pendencia expirou - limpa e cria nova
             pending_confirmation = None
 
     pending_confirmation = {
@@ -798,7 +973,6 @@ def cancel_confirmation():
 
 @app.post("/confirm_and_execute")
 def confirm_and_execute():
-    """Executa a acao que estava pendente de confirmacao."""
     global pending_confirmation
     print("[CONFIRM_AND_EXECUTE]")
 
@@ -813,7 +987,7 @@ def confirm_and_execute():
     params = pending_confirmation.get("parametros", {})
 
     if not acao:
-        return {"status": "erro", "result": "Nenhuma acao pendente configurada. Use request_confirmation com acao_pendente e parametros."}
+        return {"status": "erro", "result": "Nenhuma acao pendente configurada."}
 
     print(f"[CONFIRM_AND_EXECUTE] Executando {acao} com {params}")
 
@@ -851,7 +1025,6 @@ def _conectar_imap():
 
 
 def _get_trash_folder(mail):
-    """Detecta o nome da pasta Lixeira do Gmail (Trash, Lixeira, Papelera, etc)."""
     try:
         status, pastas = mail.list()
         if status != "OK":
@@ -859,29 +1032,7 @@ def _get_trash_folder(mail):
 
         for pasta in pastas:
             nome = pasta.decode("utf-8", errors="ignore")
-            # Procura por \Trash (flag oficial do IMAP)
             if "\\Trash" in nome:
-                # Extrai o nome entre as ultimas aspas
-                partes = nome.split('"')
-                if len(partes) >= 2:
-                    return partes[-2]
-        return "[Gmail]/Trash"
-    except Exception:
-        return "[Gmail]/Trash"
-
-
-def _get_trash_folder(mail):
-    """Detecta o nome da pasta Lixeira do Gmail (Trash, Lixeira, Papelera, etc)."""
-    try:
-        status, pastas = mail.list()
-        if status != "OK":
-            return "[Gmail]/Trash"
-
-        for pasta in pastas:
-            nome = pasta.decode("utf-8", errors="ignore")
-            # Procura por \Trash (flag oficial do IMAP)
-            if "\\Trash" in nome:
-                # Extrai o nome entre as ultimas aspas
                 partes = nome.split('"')
                 if len(partes) >= 2:
                     return partes[-2]
@@ -954,9 +1105,7 @@ def email_read(data: EmailRead):
 
 @app.post("/email_send")
 def email_send(data: EmailSend):
-    global pending_confirmation
-    print(f"[EMAIL_SEND] para={data.para!r} assunto={data.assunto!r} corpo={data.corpo[:50]!r}")
-
+    print(f"[EMAIL_SEND] para={data.para!r} assunto={data.assunto!r}")
     try:
         msg = EmailMessage()
         msg["From"] = GMAIL_USER
@@ -976,7 +1125,7 @@ def email_send(data: EmailSend):
 
 @app.post("/email_mark_read")
 def email_mark_read(data: EmailMark):
-    print(f"[EMAIL_MARK_READ] indice={data.indice} pasta={data.pasta}")
+    print(f"[EMAIL_MARK_READ] indice={data.indice}")
     try:
         mail = _conectar_imap()
         mail.select(data.pasta)
@@ -985,7 +1134,7 @@ def email_mark_read(data: EmailMark):
         ids_recentes = ids[::-1]
 
         if data.indice >= len(ids_recentes):
-            return {"status": "erro", "result": f"Indice {data.indice} fora do range (tem {len(ids_recentes)} emails)"}
+            return {"status": "erro", "result": f"Indice {data.indice} fora do range"}
 
         eid = ids_recentes[data.indice]
         mail.store(eid, "+FLAGS", "\\Seen")
@@ -998,7 +1147,7 @@ def email_mark_read(data: EmailMark):
 
 @app.post("/email_mark_unread")
 def email_mark_unread(data: EmailMark):
-    print(f"[EMAIL_MARK_UNREAD] indice={data.indice} pasta={data.pasta}")
+    print(f"[EMAIL_MARK_UNREAD] indice={data.indice}")
     try:
         mail = _conectar_imap()
         mail.select(data.pasta)
@@ -1007,7 +1156,7 @@ def email_mark_unread(data: EmailMark):
         ids_recentes = ids[::-1]
 
         if data.indice >= len(ids_recentes):
-            return {"status": "erro", "result": f"Indice {data.indice} fora do range (tem {len(ids_recentes)} emails)"}
+            return {"status": "erro", "result": f"Indice {data.indice} fora do range"}
 
         eid = ids_recentes[data.indice]
         mail.store(eid, "-FLAGS", "\\Seen")
@@ -1020,24 +1169,23 @@ def email_mark_unread(data: EmailMark):
 
 @app.post("/email_move")
 def email_move(data: EmailMove):
-    print(f"[EMAIL_MOVE] indice={data.indice} origem={data.pasta_origem} destino={data.pasta_destino}")
+    print(f"[EMAIL_MOVE] indice={data.indice}")
     try:
         mail = _conectar_imap()
-        trash = _get_trash_folder(mail)
         mail.select(data.pasta_origem)
         status, mensagens = mail.search(None, "ALL")
         ids = mensagens[0].split()
         ids_recentes = ids[::-1]
 
         if data.indice >= len(ids_recentes):
-            return {"status": "erro", "result": f"Indice {data.indice} fora do range (tem {len(ids_recentes)} emails)"}
+            return {"status": "erro", "result": f"Indice {data.indice} fora do range"}
 
         eid = ids_recentes[data.indice]
         mail.copy(eid, data.pasta_destino)
         mail.store(eid, "+FLAGS", "\\Deleted")
         mail.expunge()
         mail.logout()
-        return {"status": "ok", "result": f"Email {data.indice} movido de {data.pasta_origem} para {data.pasta_destino}"}
+        return {"status": "ok", "result": f"Email {data.indice} movido para {data.pasta_destino}"}
     except Exception as e:
         print(f"[EMAIL_MOVE] ERRO: {e}")
         return {"status": "erro", "result": f"Erro: {type(e).__name__}: {e}"}
@@ -1045,9 +1193,7 @@ def email_move(data: EmailMove):
 
 @app.post("/email_delete")
 def email_delete(data: EmailDelete):
-    global pending_confirmation
-    print(f"[EMAIL_DELETE] indice={data.indice} pasta={data.pasta}")
-
+    print(f"[EMAIL_DELETE] indice={data.indice}")
     try:
         mail = _conectar_imap()
         trash = _get_trash_folder(mail)
@@ -1057,14 +1203,14 @@ def email_delete(data: EmailDelete):
         ids_recentes = ids[::-1]
 
         if data.indice >= len(ids_recentes):
-            return {"status": "erro", "result": f"Indice {data.indice} fora do range (tem {len(ids_recentes)} emails)"}
+            return {"status": "erro", "result": f"Indice {data.indice} fora do range"}
 
         eid = ids_recentes[data.indice]
         mail.copy(eid, trash)
         mail.store(eid, "+FLAGS", "\\Deleted")
         mail.expunge()
         mail.logout()
-        return {"status": "ok", "result": f"Email {data.indice} movido para a Lixeira (Trash)"}
+        return {"status": "ok", "result": f"Email {data.indice} movido para a Lixeira"}
     except Exception as e:
         print(f"[EMAIL_DELETE] ERRO: {e}")
         return {"status": "erro", "result": f"Erro: {type(e).__name__}: {e}"}
@@ -1072,11 +1218,10 @@ def email_delete(data: EmailDelete):
 
 @app.post("/email_search")
 def email_search(data: EmailSearch):
-    print(f"[EMAIL_SEARCH] termo={data.termo!r} pasta={data.pasta}")
+    print(f"[EMAIL_SEARCH] termo={data.termo!r}")
     try:
         mail = _conectar_imap()
         mail.select(data.pasta)
-        # Busca por assunto OU corpo
         status, mensagens = mail.search(None, f'(OR SUBJECT "{data.termo}" BODY "{data.termo}")')
         if status != "OK" or not mensagens[0]:
             mail.logout()
@@ -1105,9 +1250,7 @@ def email_search(data: EmailSearch):
 
 @app.post("/email_reply")
 def email_reply(data: EmailReply):
-    global pending_confirmation
-    print(f"[EMAIL_REPLY] indice={data.indice} pasta={data.pasta}")
-
+    print(f"[EMAIL_REPLY] indice={data.indice}")
     try:
         mail = _conectar_imap()
         mail.select(data.pasta)
@@ -1116,7 +1259,7 @@ def email_reply(data: EmailReply):
         ids_recentes = ids[::-1]
 
         if data.indice >= len(ids_recentes):
-            return {"status": "erro", "result": f"Indice {data.indice} fora do range (tem {len(ids_recentes)} emails)"}
+            return {"status": "erro", "result": f"Indice {data.indice} fora do range"}
 
         eid = ids_recentes[data.indice]
         status, dados = mail.fetch(eid, "(RFC822)")
@@ -1128,7 +1271,6 @@ def email_reply(data: EmailReply):
 
         mail.logout()
 
-        # Envia a resposta via SMTP
         msg = EmailMessage()
         msg["From"] = GMAIL_USER
         msg["To"] = de_original
@@ -1193,14 +1335,17 @@ def read_notes():
 
 @app.post("/get_weather")
 def get_weather(data: GetWeather):
-    print(f"[GET_WEATHER] cidade={data.cidade}")
+    cidade = data.cidade.strip() if data.cidade else ""
+    if not cidade:
+        cidade = _detectar_cidade_por_ip()
+    print(f"[GET_WEATHER] cidade={cidade}")
     try:
-        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(data.cidade)}&count=1&language=pt&format=json"
+        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(cidade)}&count=1&language=pt&format=json"
         with urllib.request.urlopen(geo_url, timeout=10) as r:
             geo = json.loads(r.read().decode())
 
         if not geo.get("results"):
-            return {"status": "erro", "result": f"Cidade '{data.cidade}' nao encontrada"}
+            return {"status": "erro", "result": f"Cidade '{cidade}' nao encontrada"}
 
         lat = geo["results"][0]["latitude"]
         lon = geo["results"][0]["longitude"]
@@ -1397,7 +1542,7 @@ def web_search(data: WebSearch):
 
 
 # ============================================================
-# SCREENSHOT
+# SCREENSHOT (navegador - Playwright)
 # ============================================================
 
 @app.post("/screenshot")
@@ -1429,14 +1574,20 @@ def screenshot():
 
 @app.post("/see")
 def see(data: SeeImage):
-    start_browser()
-    print("[SEE] analisando screenshot...")
+    print("[SEE] analisando tela do PC (nao navegador)...")
     try:
         os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
-        agora = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        arquivo = os.path.join(SCREENSHOTS_DIR, f"see_{agora}.png")
-        page.screenshot(path=arquivo, full_page=False)
-        print(f"[SEE] screenshot salvo em {arquivo}")
+
+        # Tira screenshot da TELA DO PC usando mss (nao do navegador)
+        resultado = _pc_screenshot_fn(salvar=True)
+        if resultado.get("status") != "ok":
+            return {"status": "erro", "result": f"Falha ao capturar tela: {resultado.get('result')}"}
+
+        arquivo = resultado.get("path")
+        if not arquivo or not os.path.exists(arquivo):
+            return {"status": "erro", "result": "Screenshot nao foi salvo corretamente"}
+
+        print(f"[SEE] screenshot do PC salvo em {arquivo}")
 
         import base64 as _base64
         with open(arquivo, "rb") as f:
@@ -1469,15 +1620,11 @@ def see(data: SeeImage):
         msg = resposta["choices"][0]["message"]
         conteudo = msg.get("content", "") or msg.get("reasoning_content", "")
 
-        # Corrige encoding duplamente codificado (UTF-8 -> Latin-1 -> UTF-8)
         if conteudo:
             substituicoes = {
                 "Ã©": "é", "Ã¡": "á", "Ã£": "ã", "Ã¢": "â", "Ãª": "ê",
                 "Ã": "í", "Ã³": "ó", "Ã´": "ô", "Ãµ": "õ", "Ãº": "ú",
                 "Ã¼": "ü", "Ã§": "ç", "Ã±": "ñ",
-                "Ã‰": "É", "Ã": "Á", "Ãƒ": "Ã", "ÃŠ": "Ê",
-                "Ã": "Í", "Ã“": "Ó", "Ã”": "Ô", "Ã•": "Õ", "Ãš": "Ú",
-                "Ã‡": "Ç", "Ã‚": "Â",
             }
             for errado, certo in substituicoes.items():
                 conteudo = conteudo.replace(errado, certo)
@@ -1488,15 +1635,14 @@ def see(data: SeeImage):
         print(f"[SEE] ERRO: {e}")
         return {"status": "erro", "result": f"Erro: {type(e).__name__}: {e}"}
 
+
 # ============================================================
 # FASE 15 - Ferramentas de arquivo avancadas
 # ============================================================
 
 @app.post("/delete_file")
 def delete_file(data: DeleteFile):
-    global pending_confirmation
     print(f"[DELETE_FILE] caminho={data.caminho}")
-
     try:
         caminho_completo = os.path.join(WORKSPACE_DIR, data.caminho)
         if not os.path.abspath(caminho_completo).startswith(os.path.abspath(WORKSPACE_DIR)):
@@ -1532,9 +1678,7 @@ def create_dir(data: CreateDir):
 
 @app.post("/move_file")
 def move_file(data: MoveFile):
-    global pending_confirmation
     print(f"[MOVE_FILE] origem={data.origem} destino={data.destino}")
-
     try:
         origem_completa = os.path.join(WORKSPACE_DIR, data.origem)
         destino_completo = os.path.join(WORKSPACE_DIR, data.destino)
@@ -1557,7 +1701,7 @@ def move_file(data: MoveFile):
 
 @app.post("/search_in_files")
 def search_in_files(data: SearchInFiles):
-    print(f"[SEARCH_IN_FILES] termo={data.termo!r} extensao={data.extensao!r}")
+    print(f"[SEARCH_IN_FILES] termo={data.termo!r}")
     try:
         os.makedirs(WORKSPACE_DIR, exist_ok=True)
         termo_lower = data.termo.lower()
@@ -1598,7 +1742,7 @@ def search_in_files(data: SearchInFiles):
 
 @app.post("/email_delete_by_search")
 def email_delete_by_search(data: EmailDeleteBySearch):
-    print(f"[EMAIL_DELETE_BY_SEARCH] termo={data.termo!r} pasta={data.pasta} limite={data.limite}")
+    print(f"[EMAIL_DELETE_BY_SEARCH] termo={data.termo!r}")
     try:
         mail = _conectar_imap()
         mail.select(data.pasta)
@@ -1627,3 +1771,553 @@ def email_delete_by_search(data: EmailDeleteBySearch):
     except Exception as e:
         print(f"[EMAIL_DELETE_BY_SEARCH] ERRO: {e}")
         return {"status": "erro", "result": f"Erro: {type(e).__name__}: {e}"}
+
+
+# ============================================================
+# FASE 16 - AUTOMACAO DO PC (mouse, teclado, tela, janelas)
+# ============================================================
+
+from computer.controller import (
+    move_mouse as _pc_move_mouse,
+    click as _pc_click_fn,
+    double_click as _pc_double_click_fn,
+    right_click as _pc_right_click_fn,
+    type_text as _pc_type_text_fn,
+    press_key as _pc_press_key_fn,
+    hotkey as _pc_hotkey_fn,
+    scroll as _pc_scroll_fn,
+)
+from computer.screen import screenshot as _pc_screenshot_fn
+from computer.windows import (
+    get_windows as _pc_get_windows,
+    get_active_window as _pc_get_active_window,
+    focus_window as _pc_focus_window,
+)
+
+
+@app.post("/pc_move_mouse")
+def pc_move_mouse(data: PCMoveMouse):
+    print(f"[PC_MOVE_MOUSE] x={data.x} y={data.y}")
+    return _pc_move_mouse(data.x, data.y, data.duration)
+
+
+@app.post("/pc_click")
+def pc_click(data: PCClick):
+    print(f"[PC_CLICK] x={data.x} y={data.y} button={data.button}")
+    return _pc_click_fn(data.x, data.y, data.button)
+
+
+@app.post("/pc_double_click")
+def pc_double_click(data: PCClickXY):
+    print(f"[PC_DOUBLE_CLICK] x={data.x} y={data.y}")
+    return _pc_double_click_fn(data.x, data.y)
+
+
+@app.post("/pc_right_click")
+def pc_right_click(data: PCClickXY):
+    print(f"[PC_RIGHT_CLICK] x={data.x} y={data.y}")
+    return _pc_right_click_fn(data.x, data.y)
+
+
+@app.post("/pc_type_text")
+def pc_type_text(data: PCTypeText):
+    print(f"[PC_TYPE_TEXT] len={len(data.text)}")
+    return _pc_type_text_fn(data.text, data.interval)
+
+
+@app.post("/pc_press_key")
+def pc_press_key(data: PCPressKey):
+    print(f"[PC_PRESS_KEY] key={data.key}")
+    return _pc_press_key_fn(data.key)
+
+
+@app.post("/pc_hotkey")
+def pc_hotkey(data: PCHotkey):
+    print(f"[PC_HOTKEY] keys={data.keys}")
+    return _pc_hotkey_fn(*data.keys)
+
+
+@app.post("/pc_scroll")
+def pc_scroll(data: PCScroll):
+    print(f"[PC_SCROLL] amount={data.amount}")
+    return _pc_scroll_fn(data.amount)
+
+
+@app.post("/pc_screenshot")
+def pc_screenshot(data: PCScreenshot = None):
+    salvar = data.salvar if data else True
+    print(f"[PC_SCREENSHOT] salvar={salvar}")
+    return _pc_screenshot_fn(salvar)
+
+
+@app.post("/pc_get_windows")
+def pc_get_windows():
+    print("[PC_GET_WINDOWS]")
+    return _pc_get_windows()
+
+
+@app.post("/pc_get_active_window")
+def pc_get_active_window():
+    print("[PC_GET_ACTIVE_WINDOW]")
+    return _pc_get_active_window()
+
+
+@app.post("/pc_focus_window")
+def pc_focus_window(data: PCFocusWindow):
+    print(f"[PC_FOCUS_WINDOW] titulo={data.titulo}")
+    return _pc_focus_window(data.titulo)
+
+
+# ============================================================
+# FASE 10 - GERENCIAMENTO DE CHATS DO OPEN WEBUI
+# ============================================================
+
+def _owui_request(method: str, path: str, json_body: dict = None):
+    """Faz request autenticado pra API do Open WebUI."""
+    url = f"{OPENWEBUI_URL}{path}"
+    headers = {
+        "Authorization": f"Bearer {OPENWEBUI_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    data = json.dumps(json_body).encode() if json_body else None
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            body = r.read().decode()
+            return {"ok": True, "data": json.loads(body) if body else None}
+    except urllib.error.HTTPError as e:
+        return {"ok": False, "status": e.code, "error": e.read().decode()[:500]}
+    except Exception as e:
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
+@app.post("/pc_get_chats")
+def pc_get_chats(data: ChatList):
+    global _chat_cache
+    print(f"[PC_GET_CHATS] quantidade={data.quantidade}")
+
+    agora = time.time()
+    if _chat_cache["data"] is None or (agora - _chat_cache["timestamp"]) > CHAT_CACHE_TTL:
+        r = _owui_request("GET", "/api/v1/chats/")
+        if not r["ok"]:
+            return {"status": "erro", "result": f"Erro ao listar: {r.get('error')}"}
+        _chat_cache["data"] = r["data"]
+        _chat_cache["timestamp"] = agora
+        print(f"[PC_GET_CHATS] cache atualizado ({len(r['data'])} chats)")
+    else:
+        print(f"[PC_GET_CHATS] usando cache")
+
+    chats = _chat_cache["data"][:data.quantidade]
+    titulos = []
+    for c in chats:
+        titulos.append(_fix_encoding(c['title'])[:60])
+    texto = "\n".join(titulos) if titulos else "(nenhum chat)"
+    return {"status": "ok", "result": texto}
+
+
+@app.post("/pc_remove_chat")
+def pc_remove_chat(data: ChatDelete):
+    global _chat_cache
+    print(f"[PC_REMOVE_CHAT] indice={data.indice} chat_id={data.chat_id}")
+
+    if data.chat_id:
+        cid = data.chat_id
+    else:
+        r = _owui_request("GET", "/api/v1/chats/")
+        if not r["ok"]:
+            return {"status": "erro", "result": f"Erro ao listar: {r.get('error')}"}
+        chats = r["data"]
+        if data.indice >= len(chats):
+            return {"status": "erro", "result": f"Indice {data.indice} fora do range (tem {len(chats)})"}
+        cid = chats[data.indice]["id"]
+
+    r = _owui_request("DELETE", f"/api/v1/chats/{cid}")
+    if not r["ok"]:
+        return {"status": "erro", "result": f"Erro ao apagar: {r.get('error')}"}
+    _chat_cache["data"] = None
+    return {"status": "ok", "result": f"Chat apagado: {cid[:8]}..."}
+
+
+@app.post("/pc_remove_chats_by_search")
+def pc_remove_chats_by_search(data: ChatDeleteBySearch):
+    global _chat_cache
+    print(f"[PC_REMOVE_CHATS_BY_SEARCH] termo={data.termo!r} limite={data.limite}")
+    r = _owui_request("GET", "/api/v1/chats/")
+    if not r["ok"]:
+        return {"status": "erro", "result": f"Erro ao listar: {r.get('error')}"}
+
+    termo_lower = data.termo.lower()
+    alvos = [c for c in r["data"] if termo_lower in _fix_encoding(c["title"]).lower()][:data.limite]
+
+    if not alvos:
+        return {"status": "ok", "result": f"Nenhum chat com {data.termo!r}"}
+
+    apagados = 0
+    for c in alvos:
+        rr = _owui_request("DELETE", f"/api/v1/chats/{c['id']}")
+        if rr["ok"]:
+            apagados += 1
+
+    _chat_cache["data"] = None
+    return {"status": "ok", "result": f"{apagados} chat(s) apagados (busca: {data.termo!r})"}
+
+
+@app.post("/pc_remove_all_chats")
+def pc_remove_all_chats(data: ChatDeleteAll):
+    global _chat_cache
+    print(f"[PC_REMOVE_ALL_CHATS] confirmar={data.confirmar}")
+
+    if not data.confirmar:
+        return {"status": "erro", "result": "ATENCAO: para apagar TODOS os chats, chame de novo com confirmar=true"}
+
+    r = _owui_request("GET", "/api/v1/chats/")
+    if not r["ok"]:
+        return {"status": "erro", "result": f"Erro ao listar: {r.get('error')}"}
+
+    apagados = 0
+    for c in r["data"]:
+        rr = _owui_request("DELETE", f"/api/v1/chats/{c['id']}")
+        if rr["ok"]:
+            apagados += 1
+
+    _chat_cache["data"] = None
+    return {"status": "ok", "result": f"{apagados} chat(s) apagados (TODOS)"}
+
+
+@app.post("/pc_rename_chat")
+def pc_rename_chat(data: ChatRename):
+    global _chat_cache
+    print(f"[PC_RENAME_CHAT] indice={data.indice} novo={data.novo_titulo!r}")
+
+    if data.chat_id:
+        cid = data.chat_id
+    else:
+        r = _owui_request("GET", "/api/v1/chats/")
+        if not r["ok"]:
+            return {"status": "erro", "result": f"Erro ao listar: {r.get('error')}"}
+        chats = r["data"]
+        if data.indice >= len(chats):
+            return {"status": "erro", "result": f"Indice {data.indice} fora do range"}
+        cid = chats[data.indice]["id"]
+
+    r_get = _owui_request("GET", f"/api/v1/chats/{cid}")
+    if not r_get["ok"] or not r_get.get("data"):
+        return {"status": "erro", "result": f"Erro ao carregar chat: {r_get.get('error')}"}
+
+    chat_obj = r_get["data"]
+
+    if "chat" in chat_obj and isinstance(chat_obj["chat"], dict):
+        chat_obj["chat"]["title"] = data.novo_titulo
+    chat_obj["title"] = data.novo_titulo
+
+    payload = {"chat": chat_obj.get("chat", chat_obj), "title": data.novo_titulo}
+
+    r_post = _owui_request("POST", f"/api/v1/chats/{cid}", payload)
+    if not r_post["ok"]:
+        return {"status": "erro", "result": f"Erro ao renomear: {r_post.get('error')}"}
+    _chat_cache["data"] = None
+    return {"status": "ok", "result": f"Chat renomeado para {data.novo_titulo!r}"}
+
+
+# ============================================================
+# FASE 17 - CODEAGENT (geracao e analise de codigo via LLM)
+# ============================================================
+
+CODE_MODEL_PRIMARY = "R4C3R/qwen2.5-coder-3b-heretic:latest"
+CODE_MODEL_FALLBACK = "qwen2.5-coder:7b"
+CODE_WORKSPACE = os.path.join(WORKSPACE_DIR, "code")
+OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
+
+
+def _llm_generate(prompt: str, system: str = "") -> dict:
+    """Chama o Ollama pra gerar codigo. Tenta primario, cai pro fallback."""
+    modelos = [CODE_MODEL_PRIMARY, CODE_MODEL_FALLBACK]
+
+    for modelo in modelos:
+        try:
+            payload = {
+                "model": modelo,
+                "prompt": prompt,
+                "system": system or "Voce e um programador senior. Responda com codigo limpo e comentado em portugues.",
+                "stream": False,
+                "options": {"temperature": 0.2, "num_ctx": 8192},
+            }
+            req = urllib.request.Request(
+                OLLAMA_URL,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=180) as r:
+                resposta = json.loads(r.read().decode())
+                texto = resposta.get("response", "")
+                if texto:
+                    return {"status": "ok", "result": texto, "modelo_usado": modelo}
+        except Exception as e:
+            print(f"[LLM_GENERATE] modelo {modelo} falhou: {e}")
+            continue
+
+    return {"status": "erro", "result": "Nenhum modelo disponivel. Rode 'ollama pull qwen2.5-coder:7b'"}
+
+
+@app.post("/code_generate")
+def code_generate(data: CodeGenerate):
+    print(f"[CODE_GENERATE] {data.linguagem}: {data.descricao[:80]}")
+    prompt = f"Crie um codigo {data.linguagem} que faca o seguinte:\n\n{data.descricao}\n\nResponda APENAS com o codigo, sem explicacoes antes ou depois."
+    return _llm_generate(prompt)
+
+
+@app.post("/code_explain")
+def code_explain(data: CodeInput):
+    print(f"[CODE_EXPLAIN] len={len(data.codigo)}")
+    prompt = f"Explique o seguinte codigo de forma clara e didatica, linha por linha quando relevante:\n\n```\n{data.codigo}\n```"
+    return _llm_generate(prompt)
+
+
+@app.post("/code_analyze")
+def code_analyze(data: CodeInput):
+    print(f"[CODE_ANALYZE] len={len(data.codigo)}")
+    prompt = f"Analise o codigo abaixo e identifique:\n1. Bugs ou erros logicos\n2. Problemas de seguranca\n3. Problemas de performance\n4. Boas praticas violadas\n5. Sugestoes de melhoria\n\n```\n{data.codigo}\n```"
+    return _llm_generate(prompt)
+
+
+@app.post("/code_review")
+def code_review(data: CodeInput):
+    print(f"[CODE_REVIEW] len={len(data.codigo)}")
+    prompt = f"Faca um code review profissional do codigo abaixo. Aponte pontos fortes e fracos, sugira melhorias com exemplos.\n\n```\n{data.codigo}\n```"
+    return _llm_generate(prompt)
+
+
+@app.post("/code_refactor")
+def code_refactor(data: CodeRefactor):
+    print(f"[CODE_REFACTOR] objetivo={data.objetivo[:80]}")
+    prompt = f"Refatore o codigo abaixo com o seguinte objetivo: {data.objetivo}\n\n```\n{data.codigo}\n```\n\nResponda com o codigo refatorado e uma breve explicacao das mudancas."
+    return _llm_generate(prompt)
+
+
+@app.post("/code_optimize")
+def code_optimize(data: CodeInput):
+    print(f"[CODE_OPTIMIZE] len={len(data.codigo)}")
+    prompt = f"Otimize o codigo abaixo para melhor performance, mantendo o comportamento. Explique as otimizacoes.\n\n```\n{data.codigo}\n```"
+    return _llm_generate(prompt)
+
+
+@app.post("/code_convert")
+def code_convert(data: CodeConvert):
+    print(f"[CODE_CONVERT] {data.linguagem_origem} -> {data.linguagem_destino}")
+    prompt = f"Converta o codigo {data.linguagem_origem} abaixo para {data.linguagem_destino}, mantendo a funcionalidade:\n\n```\n{data.codigo}\n```"
+    return _llm_generate(prompt)
+
+
+@app.post("/code_test")
+def code_test(data: CodeTest):
+    print(f"[CODE_TEST] framework={data.framework}")
+    prompt = f"Crie testes unitarios usando {data.framework} para o codigo abaixo. Cubra casos normais, extremos e de erro.\n\n```\n{data.codigo}\n```"
+    return _llm_generate(prompt)
+
+
+@app.post("/code_document")
+def code_document(data: CodeDoc):
+    print(f"[CODE_DOCUMENT] formato={data.formato}")
+    prompt = f"Adicione documentacao no formato {data.formato} (docstrings e comentarios) ao codigo abaixo, sem alterar a logica:\n\n```\n{data.codigo}\n```"
+    return _llm_generate(prompt)
+
+
+@app.post("/code_diff")
+def code_diff(data: CodeDiff):
+    print("[CODE_DIFF]")
+    prompt = f"Compare os dois codigos abaixo e explique as diferencas:\n\n=== ANTES ===\n```\n{data.codigo_antigo}\n```\n\n=== DEPOIS ===\n```\n{data.codigo_novo}\n```"
+    return _llm_generate(prompt)
+
+
+@app.post("/code_sql")
+def code_sql(data: CodeSQL):
+    print(f"[CODE_SQL] dialeto={data.dialeto}")
+    prompt = f"Crie uma query SQL ({data.dialeto}) para:\n\n{data.descricao}\n\nExplique brevemente a query."
+    return _llm_generate(prompt)
+
+
+@app.post("/code_regex")
+def code_regex(data: CodeRegex):
+    print(f"[CODE_REGEX] descricao={data.descricao[:80]}")
+    prompt = f"Crie uma expressao regular (regex) que atenda a seguinte descricao:\n\n{data.descricao}\n\nExplique cada parte da regex."
+    return _llm_generate(prompt)
+
+
+@app.post("/code_scaffold")
+def code_scaffold(data: CodeScaffold):
+    print(f"[CODE_SCAFFOLD] tipo={data.tipo} nome={data.nome}")
+    prompt = f"Crie a estrutura inicial (scaffold) de um projeto do tipo '{data.tipo}' chamado '{data.nome}'. Liste os arquivos necessarios e o conteudo de cada um."
+    return _llm_generate(prompt)
+
+
+@app.post("/code_run")
+def code_run(data: CodeRun):
+    print(f"[CODE_RUN] len={len(data.codigo)} timeout={data.timeout}")
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as f:
+            f.write(data.codigo)
+            arquivo = f.name
+
+        resultado = subprocess.run(
+            ["python", arquivo],
+            capture_output=True,
+            text=True,
+            timeout=data.timeout,
+        )
+
+        os.unlink(arquivo)
+
+        saida = resultado.stdout[:5000] if resultado.stdout else ""
+        erro = resultado.stderr[:2000] if resultado.stderr else ""
+        exit_code = resultado.returncode
+
+        partes = [f"EXIT CODE: {exit_code}"]
+        if saida:
+            partes.append(f"STDOUT:\n{saida}")
+        if erro:
+            partes.append(f"STDERR:\n{erro}")
+
+        return {
+            "status": "ok" if exit_code == 0 else "erro",
+            "result": "\n\n".join(partes),
+        }
+    except subprocess.TimeoutExpired:
+        return {"status": "erro", "result": f"Timeout: codigo demorou mais de {data.timeout}s"}
+    except Exception as e:
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+@app.post("/code_run_file")
+def code_run_file(data: CodeRunFile):
+    print(f"[CODE_RUN_FILE] {data.caminho}")
+    try:
+        os.makedirs(CODE_WORKSPACE, exist_ok=True)
+        caminho_completo = os.path.join(CODE_WORKSPACE, data.caminho)
+
+        if not os.path.abspath(caminho_completo).startswith(os.path.abspath(CODE_WORKSPACE)):
+            return {"status": "erro", "result": "Acesso negado: fora do workspace de codigo"}
+
+        if not os.path.exists(caminho_completo):
+            return {"status": "erro", "result": f"Arquivo nao encontrado: {data.caminho}"}
+
+        cmd = ["python", caminho_completo] + data.args
+        resultado = subprocess.run(cmd, capture_output=True, text=True, timeout=data.timeout)
+
+        saida = resultado.stdout[:5000] if resultado.stdout else ""
+        erro = resultado.stderr[:2000] if resultado.stderr else ""
+
+        partes = [f"EXIT CODE: {resultado.returncode}"]
+        if saida:
+            partes.append(f"STDOUT:\n{saida}")
+        if erro:
+            partes.append(f"STDERR:\n{erro}")
+
+        return {"status": "ok" if resultado.returncode == 0 else "erro", "result": "\n\n".join(partes)}
+    except subprocess.TimeoutExpired:
+        return {"status": "erro", "result": f"Timeout: {data.timeout}s"}
+    except Exception as e:
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+@app.post("/code_benchmark")
+def code_benchmark(data: CodeBenchmark):
+    print(f"[CODE_BENCHMARK] repeticoes={data.repeticoes}")
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as f:
+            f.write(data.codigo)
+            arquivo = f.name
+
+        tempos = []
+        for _ in range(min(data.repeticoes, 1000)):
+            inicio = time.time()
+            subprocess.run(["python", arquivo], capture_output=True, timeout=30)
+            tempos.append(time.time() - inicio)
+
+        os.unlink(arquivo)
+
+        if not tempos:
+            return {"status": "erro", "result": "Nenhuma execucao completada"}
+
+        media = sum(tempos) / len(tempos)
+        minimo = min(tempos)
+        maximo = max(tempos)
+
+        resultado = (
+            f"Execucoes: {len(tempos)}\n"
+            f"Media: {media*1000:.2f}ms\n"
+            f"Minimo: {minimo*1000:.2f}ms\n"
+            f"Maximo: {maximo*1000:.2f}ms"
+        )
+        return {"status": "ok", "result": resultado}
+    except Exception as e:
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+@app.post("/code_dependencies")
+def code_dependencies(data: CodeInput):
+    print(f"[CODE_DEPENDENCIES] len={len(data.codigo)}")
+    prompt = f"Analise o codigo abaixo e liste TODAS as dependencias externas necessarias (bibliotecas, modulos, pacotes). Formato: lista com comando 'pip install' pronto.\n\n```\n{data.codigo}\n```"
+    return _llm_generate(prompt)
+
+
+@app.post("/code_snippet")
+def code_snippet(data: CodeGenerate):
+    print(f"[CODE_SNIPPET] {data.descricao[:80]}")
+    prompt = f"Crie um pequeno trecho de codigo {data.linguagem} pronto para colar que: {data.descricao}\n\nResponda APENAS com o codigo."
+    return _llm_generate(prompt)
+
+
+@app.post("/code_readme")
+def code_readme(data: CodeInput):
+    print(f"[CODE_README] len={len(data.codigo)}")
+    prompt = f"Gere um arquivo README.md profissional para o seguinte codigo:\n\n```\n{data.codigo}\n```"
+    return _llm_generate(prompt)
+
+
+@app.post("/code_metrics")
+def code_metrics(data: CodeInput):
+    print(f"[CODE_METRICS] len={len(data.codigo)}")
+    linhas = data.codigo.split("\n")
+    total_linhas = len(linhas)
+    linhas_vazias = sum(1 for l in linhas if not l.strip())
+    linhas_comentario = sum(1 for l in linhas if l.strip().startswith("#"))
+    linhas_codigo = total_linhas - linhas_vazias - linhas_comentario
+    caracteres = len(data.codigo)
+
+    resultado = (
+        f"Total de linhas: {total_linhas}\n"
+        f"Linhas de codigo: {linhas_codigo}\n"
+        f"Linhas em branco: {linhas_vazias}\n"
+        f"Linhas de comentario: {linhas_comentario}\n"
+        f"Total de caracteres: {caracteres}"
+    )
+    return {"status": "ok", "result": resultado}
+
+
+@app.post("/code_lint")
+def code_lint(data: CodeInput):
+    print(f"[CODE_LINT] len={len(data.codigo)}")
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as f:
+            f.write(data.codigo)
+            arquivo = f.name
+
+        resultado = subprocess.run(["python", "-m", "py_compile", arquivo], capture_output=True, text=True, timeout=10)
+        os.unlink(arquivo)
+
+        if resultado.returncode == 0:
+            return {"status": "ok", "result": "OK - Sem erros de sintaxe."}
+        else:
+            return {"status": "erro", "result": f"Erros encontrados:\n{resultado.stderr[:2000]}"}
+    except Exception as e:
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+# ============================================================
+# ENTRYPOINT
+# ============================================================
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

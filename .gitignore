@@ -1,40 +1,101 @@
-﻿# Ambiente virtual Python
+﻿# ============================================
+# AMBIENTE VIRTUAL PYTHON
+# ============================================
 venv/
+.venv/
 
-# Modelos de visão (muito grandes)
+# ============================================
+# MODELOS DE VISAO (muito grandes)
+# ============================================
 llm-eyes/
 
-# Perfis do Chrome (MUITO grandes - milhares de arquivos)
+# ============================================
+# PERFIS DO CHROME (MUITO grandes)
+# ============================================
 chrome_profile/
 chromium_profile/
 
-# Screenshots (muito grandes)
+# ============================================
+# SCREENSHOTS (muito grandes)
+# ============================================
 screenshots/
 
-# Workspace do agente
+# ============================================
+# WORKSPACE DO AGENTE
+# ============================================
 workspace/
 
-# Cache do Python
+# ============================================
+# CACHE DO PYTHON
+# ============================================
 __pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
 
-# Logs
+# ============================================
+# LOGS
+# ============================================
 *.log
 
-# Notas pessoais
+# ============================================
+# NOTAS PESSOAIS
+# ============================================
 notes.txt
 
-# Backups
-agent_backup*.py
+# ============================================
+# BACKUPS
+# ============================================
+backups/
 backup_*/
+agent_backup*.py
 
-# Favicons originais
+# ============================================
+# VARIAVEIS DE AMBIENTE (SEGURANCA!)
+# ============================================
+.env
+.env.local
+*.key
+*.pem
+*_secret.*
+
+# ============================================
+# FAVICONS ORIGINAIS
+# ============================================
 webui-custom/Favicons/MYRALOGO.jpeg
 webui-custom/Favicons/MYRALOGO_transparente.png
 
-# Docker
+# ============================================
+# DOCKER / BANCO DE DADOS
+# ============================================
 *.db
+*.sqlite
 
-# SearXNG
+# ============================================
+# SEARXNG
+# ============================================
 searxng_config/
+searxng/
+
+# ============================================
+# IDE
+# ============================================
+.vscode/
+.idea/
+*.swp
+
+# ============================================
+# SISTEMA OPERACIONAL
+# ============================================
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# Backups de arquivos e arquivos indesejados
+*_backup_*.py
+*_backup.py
+agent.p
