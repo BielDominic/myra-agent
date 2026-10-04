@@ -527,3 +527,59 @@ class Tools:
         Retorna o resumo JA PRONTO (curto, otimo para mostrar direto)."""
         r = self._post("/youtube_summarize", {"url": url, "max_pontos": max_pontos})
         return r.get("result", "sem resultado")
+
+    # ============================================================
+    # TASK RUN (FASE 22-light) - agente autonomo simples
+    # ============================================================
+
+    def task_run(
+        self,
+        objetivo: str = Field(
+            ...,
+            description=(
+                "O que deve ser feito, em linguagem natural. "
+                "Ex: 'pesquise os melhores cursos de IA em Dublin e diga 3 nomes', "
+                "'que horas sao agora?', 'resuma o video https://youtube.com/watch?v=...'"
+            ),
+        ),
+        max_passos: int = Field(
+            5,
+            description="Limite de passos do plano (padrao: 5). Aumente para tarefas mais complexas.",
+        ),
+    ) -> str:
+        """Executa uma tarefa COMPLETA de forma autonoma: planeja os passos,
+        escolhe as ferramentas certas, executa cada passo, e sintetiza a resposta final.
+
+        Use quando o usuario pedir para VOCE RESOLVER algo de ponta a ponta,
+        sem precisar chamar ferramenta por ferramenta.
+
+        Exemplos:
+        - "pesquise X e me diga Y"
+        - "veja o tempo em Dublin e me avise se devo levar guarda-chuva"
+        - "resuma esse video do YouTube"
+
+        Para tarefas simples de 1 passo (ex: "que horas sao"), prefira chamar
+        a ferramenta especifica direto (get_current_time). Use task_run quando
+        o objetivo envolver 2+ etapas ou quando o usuario pedir algo mais elaborado.
+        """
+        r = self._post(
+            "/task_simple",
+            {"objetivo": objetivo, "max_passos": max_passos},
+        )
+
+        if r.get("status") == "erro":
+            erro = r.get("erro") or r.get("result") or "erro desconhecido"
+            return f"ERRO ao executar task: {erro}"
+
+        plano = r.get("plano", [])
+        if plano:
+            ferramentas = " -> ".join(p.get("ferramenta", "?") for p in plano)
+        else:
+            ferramentas = "(plano vazio)"
+
+        resultado = r.get("resultado_final") or "(sem resultado)"
+
+        return (
+            f"**Plano executado:** {ferramentas}\n\n"
+            f"**Resultado:**\n{resultado}"
+        )
