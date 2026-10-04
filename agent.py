@@ -330,6 +330,21 @@ class CodeScaffold(BaseModel):
     nome: str = "meu_projeto"
 
 
+# ============================================================
+# YOUTUBE (FASE 20) - models
+# ============================================================
+
+class YouTubeTranscript(BaseModel):
+    url: str
+    idiomas: list = ["en", "pt"]
+
+
+class YouTubeSummarize(BaseModel):
+    url: str
+    idiomas: list = ["en", "pt"]
+    max_pontos: int = 5
+
+
 def _contexto_vivo():
     global context, page
     try:
@@ -2311,6 +2326,194 @@ def code_lint(data: CodeInput):
         else:
             return {"status": "erro", "result": f"Erros encontrados:\n{resultado.stderr[:2000]}"}
     except Exception as e:
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+# ============================================================
+# FASE 20 - YOUTUBE TRANSCRIPT (via yt-dlp - mais robusto)
+# ============================================================
+
+YOUTUBE_ID_REGEX = _re.compile(r"(?:v=|youtu\.be/|youtube\.com/embed/|shorts/)([A-Za-z0-9_-]{11})")
+
+
+def _yt_extract_video_id(url_or_id: str) -> str:
+    """Extrai o ID do video a partir de uma URL do YouTube ou ID bruto."""
+    candidate = url_or_id.strip()
+    if len(candidate) == 11 and _re.fullmatch(r"[A-Za-z0-9_-]{11}", candidate):
+        return candidate
+    match = YOUTUBE_ID_REGEX.search(candidate)
+    if not match:
+        raise ValueError("Nao consegui extrair o video ID da URL/ID fornecida.")
+    return match.group(1)
+
+
+def _yt_download_transcript(url: str, idiomas: list) -> dict:
+    """Baixa a transcricao de um video via yt-dlp e retorna dict padronizado."""
+    video_id = _yt_extract_video_id(url)
+    idiomas_str = ",".join(idiomas) if idiomas else "en,pt"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_template = os.path.join(tmpdir, f"yt_{video_id}")
+
+        cmd = [
+            "yt-dlp",
+            "--write-auto-sub",
+            "--write-sub",
+            "--sub-lang", idiomas_str,
+            "--sub-format", "vtt",
+            "--skip-download",
+            "--no-warnings",
+            "--output", output_template,
+            url,
+        ]
+
+        resultado = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+
+        if resultado.returncode != 0:
+            return {"status": "erro", "result": f"yt-dlp falhou: {resultado.stderr[:500]}"}
+
+        arquivos_vtt = [f for f in os.listdir(tmpdir) if f.endswith(".vtt")]
+
+        if not arquivos_vtt:
+            return {"status": "erro", "result": "Nenhuma legenda encontrada para este video."}
+
+        arquivo_escolhido = None
+        idioma_usado = None
+        for lang in idiomas:
+            for arq in arquivos_vtt:
+                if f".{lang}." in arq:
+                    arquivo_escolhido = arq
+                    idioma_usado = lang
+                    break
+            if arquivo_escolhido:
+                break
+
+        if not arquivo_escolhido:
+            arquivo_escolhido = arquivos_vtt[0]
+            partes = arquivos_vtt[0].split(".")
+            idioma_usado = partes[-2] if len(partes) >= 2 else "desconhecido"
+
+        caminho_vtt = os.path.join(tmpdir, arquivo_escolhido)
+        with open(caminho_vtt, "r", encoding="utf-8") as f:
+            conteudo = f.read()
+
+        linhas = conteudo.split("\n")
+        texto_final = []
+        for linha in linhas:
+            linha_strip = linha.strip()
+            if linha_strip.startswith("WEBVTT"):
+                continue
+            if "-->" in linha_strip:
+                continue
+            if linha_strip.startswith("Kind:"):
+                continue
+            if linha_strip.startswith("Language:"):
+                continue
+            if not linha_strip:
+                continue
+            linha_limpa = _re.sub(r"<[^>]+>", "", linha_strip)
+            if linha_limpa.strip():
+                texto_final.append(linha_limpa.strip())
+
+        texto_unico = []
+        anterior = None
+        for linha in texto_final:
+            if linha != anterior:
+                texto_unico.append(linha)
+                anterior = linha
+
+        full_text = "\n".join(texto_unico)
+
+        if not full_text.strip():
+            return {"status": "erro", "result": "A legenda foi baixada mas esta vazia."}
+
+        return {
+            "status": "ok",
+            "video_id": video_id,
+            "idioma": idioma_usado,
+            "full_text": full_text,
+            "total_caracteres": len(full_text),
+        }
+
+
+@app.post("/youtube_transcript")
+def youtube_transcript(data: YouTubeTranscript):
+    print(f"[YOUTUBE_TRANSCRIPT] url={data.url} (via yt-dlp)")
+
+    try:
+        idiomas = data.idiomas if data.idiomas else ["en", "pt"]
+        resultado = _yt_download_transcript(data.url, idiomas)
+
+        if resultado.get("status") != "ok":
+            return {"status": "erro", "result": resultado.get("result", "Erro desconhecido")}
+
+        full_text = resultado["full_text"]
+        total_chars = resultado["total_caracteres"]
+
+        # Limita a 5000 caracteres pra nao estourar num_ctx
+        if total_chars > 5000:
+            full_text = full_text[:5000] + f"\n\n... [truncado em 5000 de {total_chars} caracteres]"
+
+        print(f"[YOUTUBE_TRANSCRIPT] OK: idioma={resultado['idioma']}, {total_chars} chars")
+
+        return {
+            "status": "ok",
+            "result": full_text,
+            "video_id": resultado["video_id"],
+            "idioma": resultado["idioma"],
+            "total_caracteres": total_chars,
+        }
+
+    except Exception as e:
+        print(f"[YOUTUBE_TRANSCRIPT] ERRO: {e}")
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+@app.post("/youtube_summarize")
+def youtube_summarize(data: YouTubeSummarize):
+    """Baixa transcricao E resume via LLM. Retorna o resumo pronto (texto curto)."""
+    print(f"[YOUTUBE_SUMMARIZE] url={data.url} (via yt-dlp + LLM)")
+
+    try:
+        idiomas = data.idiomas if data.idiomas else ["en", "pt"]
+        resultado = _yt_download_transcript(data.url, idiomas)
+
+        if resultado.get("status") != "ok":
+            return {"status": "erro", "result": resultado.get("result", "Erro desconhecido")}
+
+        full_text = resultado["full_text"]
+        video_id = resultado["video_id"]
+        idioma = resultado["idioma"]
+
+        # Trunca pra caber no contexto do LLM
+        max_chars = 6000
+        texto_para_resumir = full_text[:max_chars] if len(full_text) > max_chars else full_text
+
+        prompt = (
+            f"Resuma a transcricao abaixo em no maximo {data.max_pontos} pontos principais. "
+            f"Responda em portugues, de forma clara e objetiva. Inclua o tema geral do video.\n\n"
+            f"TRANSCRICAO:\n{texto_para_resumir}"
+        )
+
+        resumo = _llm_generate(prompt)
+
+        if resumo.get("status") != "ok":
+            return {"status": "erro", "result": f"Falha ao resumir: {resumo.get('result')}"}
+
+        texto_resumo = resumo["result"]
+
+        print(f"[YOUTUBE_SUMMARIZE] OK: video={video_id}, resumo com {len(texto_resumo)} chars")
+
+        return {
+            "status": "ok",
+            "result": texto_resumo,
+            "video_id": video_id,
+            "idioma_transcricao": idioma,
+            "modelo_resumo": resumo.get("modelo_usado", "desconhecido"),
+        }
+
+    except Exception as e:
+        print(f"[YOUTUBE_SUMMARIZE] ERRO: {e}")
         return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
 
 
