@@ -1,6 +1,6 @@
 """
-FASE 22-light — Task simples com planner + retry.
-Sem banco, sem scheduler. So planeja, executa e sintetiza.
+FASE 24.1 — Loop de autonomia adaptativo.
+Cada iteracao: LLM decide 1 passo -> executa -> observa -> repete.
 """
 import json
 import re
@@ -10,29 +10,29 @@ import urllib.request
 OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
 MODELO_PLANNER = "qwen2.5:7b"
 
-# Ferramentas que o loop pode chamar. Mapeia nome -> funcao Python.
 FERRAMENTAS_DISPONIVEIS = {}
-
-# Descricoes de quando usar cada ferramenta.
-# Isso ajuda o LLM a escolher a ferramenta certa pra cada objetivo.
 FERRAMENTAS_DESCRICOES = {}
+
+MAX_PASSOS_PADRAO = 15
+MAX_ERROS_CONSECUTIVOS = 3
+MAX_REPETICOES_MESMA_ACAO = 2
+TAMANHO_MAX_RESULTADO_HISTORICO = 800
+TAMANHO_MAX_CONTEXTO_SINTESE = 6000
 
 
 def registrar_ferramenta(nome: str, fn, descricao: str = ""):
-    """Registra uma ferramenta pro loop poder chamar."""
     FERRAMENTAS_DISPONIVEIS[nome] = fn
     if descricao:
         FERRAMENTAS_DESCRICOES[nome] = descricao
 
 
 def _llm(prompt: str, system: str = "", timeout: int = 120) -> str:
-    """Chama o Ollama e retorna o texto puro."""
     payload = {
         "model": MODELO_PLANNER,
         "prompt": prompt,
         "system": system,
         "stream": False,
-        "options": {"temperature": 0.1, "num_ctx": 4096},
+        "options": {"temperature": 0.1, "num_ctx": 8192},
     }
     req = urllib.request.Request(
         OLLAMA_URL,
@@ -46,7 +46,6 @@ def _llm(prompt: str, system: str = "", timeout: int = 120) -> str:
 
 
 def _extrair_json(texto: str):
-    """Extrai o primeiro JSON valido do texto."""
     try:
         return json.loads(texto)
     except Exception:
@@ -67,104 +66,105 @@ def _extrair_json(texto: str):
     return None
 
 
-def _planejar(objetivo: str) -> list:
-    """Pede ao LLM um plano de ate 5 passos."""
+def _formatar_historico(historico: list) -> str:
+    if not historico:
+        return "(nenhum passo executado ainda)"
+    linhas = []
+    for h in historico:
+        linhas.append(f"--- PASSO {h['passo']} ---")
+        linhas.append(f"Ferramenta: {h['ferramenta']}")
+        linhas.append(f"Args: {json.dumps(h['args'], ensure_ascii=False)}")
+        if h["ok"]:
+            res = h["resultado"]
+            if isinstance(res, dict):
+                res_str = res.get("result", json.dumps(res, ensure_ascii=False))
+            else:
+                res_str = str(res)
+            if len(res_str) > TAMANHO_MAX_RESULTADO_HISTORICO:
+                res_str = res_str[:TAMANHO_MAX_RESULTADO_HISTORICO] + "...(truncado)"
+            linhas.append(f"Resultado: {res_str}")
+        else:
+            linhas.append(f"ERRO: {h['erro']}")
+        linhas.append("")
+    return "\n".join(linhas)
+
+
+def _decidir_proximo_passo(objetivo: str, historico: list) -> dict:
     if FERRAMENTAS_DESCRICOES:
-        nomes = "\n".join(
+        ferramentas_str = "\n".join(
             f"- {nome}: {FERRAMENTAS_DESCRICOES.get(nome, 'sem descricao')}"
             for nome in sorted(FERRAMENTAS_DISPONIVEIS.keys())
         )
     else:
-        nomes = ", ".join(sorted(FERRAMENTAS_DISPONIVEIS.keys()))
+        ferramentas_str = ", ".join(sorted(FERRAMENTAS_DISPONIVEIS.keys()))
+
+    historico_str = _formatar_historico(historico)
 
     system = (
-        "Voce e um planejador de tarefas. Dado um objetivo, voce escolhe "
-        "as ferramentas certas e retorna um plano em JSON. "
+        "Voce e um agente autonomo que decide UM passo por vez. "
+        "Olhe o objetivo e o historico, e escolha a MELHOR proxima acao. "
         "Responda SEMPRE com JSON puro, sem texto antes ou depois."
     )
 
     prompt = f"""OBJETIVO: {objetivo}
 
+HISTORICO DE PASSOS JA EXECUTADOS:
+{historico_str}
+
 FERRAMENTAS DISPONIVEIS:
-{nomes}
+{ferramentas_str}
 
 REGRAS:
-- Maximo 5 passos.
-- Cada passo chama UMA ferramenta.
-- Escolha a ferramenta MAIS ESPECIFICA para o objetivo.
-  Exemplo: se fala de "tempo" ou "clima", use get_weather (nao web_search).
-  Exemplo: se fala de "horas" ou "data", use get_current_time (nao web_search).
-  Exemplo: se tem URL do YouTube, use youtube_transcript (nao open_url).
-- Se o objetivo for simples, use 1 ou 2 passos.
-- O ULTIMO passo DEVE ser sempre "responder" para sintetizar.
+- Escolha UMA ferramenta por vez, ou finalize se o objetivo ja foi atingido.
+- Escolha a ferramenta MAIS ESPECIFICA pro proximo passo.
+- Se o historico ja tem a informacao necessaria, FINALIZE.
+- Se algo deu errado no historico, tente outra abordagem.
+- NAO repita a mesma acao com os mesmos args se ela ja falhou.
+- Se um passo devolveu links/URLs, o proximo passo pode ser open_url ou read_page.
+- Se um passo devolveu texto de uma pagina, o proximo pode ser extrair info ou finalizar.
 
-FORMATO DA RESPOSTA (JSON puro, sem markdown):
+FORMATO DA RESPOSTA (JSON puro):
+
+Para chamar ferramenta:
 {{
-  "passos": [
-    {{"ferramenta": "nome_da_ferramenta", "args": {{"chave": "valor"}}, "motivo": "por que esse passo"}}
-  ]
+  "acao": "chamar",
+  "ferramenta": "nome_da_ferramenta",
+  "args": {{"chave": "valor"}},
+  "motivo": "por que esse passo"
+}}
+
+Para finalizar:
+{{
+  "acao": "finalizar",
+  "motivo": "por que considerar concluido"
 }}
 """
 
     texto = _llm(prompt, system)
     data = _extrair_json(texto)
 
-    if not data or "passos" not in data:
+    if not data or "acao" not in data:
         print(f"[TASK] LLM nao retornou JSON valido. Texto cru: {texto[:200]}")
-        return [{"ferramenta": "responder", "args": {"pergunta": objetivo}, "motivo": "fallback (JSON invalido)"}]
+        return {"acao": "finalizar", "motivo": "erro ao decidir proximo passo"}
 
-    passos = data["passos"]
-    validos = []
-    for p in passos[:5]:
-        nome = p.get("ferramenta", "")
-        if nome in FERRAMENTAS_DISPONIVEIS:
-            validos.append({
-                "ferramenta": nome,
-                "args": p.get("args", {}) or {},
-                "motivo": p.get("motivo", ""),
-            })
-        else:
-            print(f"[TASK] AVISO: LLM escolheu ferramenta invalida: {nome!r}")
-
-    if not validos:
-        print("[TASK] Nenhuma ferramenta valida no plano. Usando fallback.")
-        return [{"ferramenta": "responder", "args": {"pergunta": objetivo}, "motivo": "fallback (plano vazio)"}]
-
-    return validos
+    return data
 
 
-def _executar_passo(passo: dict, contexto_anterior: str = "", tentativas: int = 2) -> dict:
-    """
-    Executa um passo com retry.
-    Se for 'responder', injeta o contexto dos passos anteriores no prompt.
-    """
-    nome = passo["ferramenta"]
-    args = passo.get("args", {}).copy()
+def _executar_passo(ferramenta: str, args: dict, tentativas: int = 2) -> dict:
+    if ferramenta not in FERRAMENTAS_DISPONIVEIS:
+        return {"ok": False, "resultado": None, "erro": f"ferramenta desconhecida: {ferramenta}"}
 
-    if nome not in FERRAMENTAS_DISPONIVEIS:
-        return {"ok": False, "resultado": None, "erro": f"ferramenta desconhecida: {nome}"}
-
-    # Se for 'responder', passa o contexto dos passos anteriores
-    if nome == "responder" and contexto_anterior:
-        pergunta_original = args.get("pergunta", "")
-        args["pergunta"] = (
-            f"OBJETIVO: {pergunta_original}\n\n"
-            f"RESULTADOS OBTIDOS NOS PASSOS ANTERIORES:\n{contexto_anterior}\n\n"
-            f"Com base APENAS nesses resultados, responda o objetivo em portugues. "
-            f"Se os resultados nao tiverem a informacao, diga que nao conseguiu."
-        )
-
-    fn = FERRAMENTAS_DISPONIVEIS[nome]
+    fn = FERRAMENTAS_DISPONIVEIS[ferramenta]
     ultimo_erro = None
 
     for tentativa in range(1, tentativas + 1):
         try:
-            print(f"[TASK] executando {nome}({list(args.keys())}) tentativa {tentativa}")
+            print(f"[TASK] executando {ferramenta}({list(args.keys())}) tentativa {tentativa}")
             resultado = fn(**args)
 
             if isinstance(resultado, dict) and resultado.get("status") == "erro":
                 ultimo_erro = resultado.get("result", "erro desconhecido")
-                print(f"[TASK] {nome} retornou erro: {str(ultimo_erro)[:120]}")
+                print(f"[TASK] {ferramenta} retornou erro: {str(ultimo_erro)[:120]}")
                 time.sleep(1)
                 continue
 
@@ -172,15 +172,34 @@ def _executar_passo(passo: dict, contexto_anterior: str = "", tentativas: int = 
 
         except Exception as e:
             ultimo_erro = f"{type(e).__name__}: {e}"
-            print(f"[TASK] {nome} exception: {ultimo_erro}")
+            print(f"[TASK] {ferramenta} exception: {ultimo_erro}")
             time.sleep(1)
 
     return {"ok": False, "resultado": None, "erro": ultimo_erro}
 
 
-def executar_task(objetivo: str, max_passos: int = 5) -> dict:
-    """Executa uma task simples: planeja -> executa -> sintetiza."""
-    print(f"[TASK] iniciando: {objetivo}")
+def _sintetizar(objetivo: str, historico: list) -> str:
+    if not historico:
+        return "(nenhum passo executado)"
+    contexto = _formatar_historico(historico)
+    prompt = (
+        f"OBJETIVO: {objetivo}\n\n"
+        f"HISTORICO DE EXECUCAO:\n{contexto[:TAMANHO_MAX_CONTEXTO_SINTESE]}\n\n"
+        f"Com base APENAS nos resultados acima, responda o objetivo em portugues, "
+        f"de forma clara e direta. Se os resultados nao tiverem a informacao, "
+        f"diga exatamente o que conseguiu e o que nao conseguiu."
+    )
+    try:
+        return _llm(
+            prompt,
+            "Voce responde de forma clara e objetiva em portugues. Nunca responda em outro idioma.",
+        )
+    except Exception as e:
+        return f"(falha ao sintetizar: {e})"
+
+
+def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
+    print(f"[TASK] iniciando (adaptativo): {objetivo}")
 
     if not FERRAMENTAS_DISPONIVEIS:
         return {
@@ -192,101 +211,85 @@ def executar_task(objetivo: str, max_passos: int = 5) -> dict:
             "erro": "Nenhuma ferramenta registrada.",
         }
 
-    # 1. PLANEJAR
-    try:
-        plano = _planejar(objetivo)
-    except Exception as e:
-        return {
-            "status": "erro",
-            "objetivo": objetivo,
-            "plano": [],
-            "historico": [],
-            "resultado_final": None,
-            "erro": f"Falha ao planejar: {type(e).__name__}: {e}",
-        }
-
-    print(f"[TASK] plano: {[p['ferramenta'] for p in plano]}")
-
-    # 2. EXECUTAR (acumulando contexto)
     historico = []
-    contexto_acumulado = ""
+    erros_consecutivos = 0
+    acoes_repetidas = {}
 
-    for i, passo in enumerate(plano[:max_passos], 1):
-        print(f"[TASK] passo {i}/{len(plano)}: {passo['ferramenta']}")
+    for passo_num in range(1, max_passos + 1):
+        print(f"\n[TASK] === PASSO {passo_num}/{max_passos} ===")
 
-        # Passa o contexto acumulado pro responder
-        r = _executar_passo(passo, contexto_anterior=contexto_acumulado)
+        try:
+            decisao = _decidir_proximo_passo(objetivo, historico)
+        except Exception as e:
+            print(f"[TASK] Erro ao decidir: {e}")
+            break
 
-        historico.append({
-            "passo": i,
-            "ferramenta": passo["ferramenta"],
-            "args": passo.get("args", {}),
-            "motivo": passo.get("motivo", ""),
-            "ok": r["ok"],
-            "resultado": r["resultado"],
-            "erro": r["erro"],
-        })
+        acao = decisao.get("acao", "")
 
-        # Acumula o resultado pro proximo passo
-        if r["ok"] and passo["ferramenta"] != "responder":
-            resultado_str = ""
-            if isinstance(r["resultado"], dict):
-                resultado_str = r["resultado"].get("result", "") or json.dumps(r["resultado"], ensure_ascii=False)
+        if acao == "finalizar":
+            print(f"[TASK] LLM decidiu finalizar: {decisao.get('motivo', '')}")
+            break
+
+        if acao == "chamar":
+            ferramenta = decisao.get("ferramenta", "")
+            args = decisao.get("args", {}) or {}
+            motivo = decisao.get("motivo", "")
+
+            if ferramenta not in FERRAMENTAS_DISPONIVEIS:
+                print(f"[TASK] ferramenta invalida: {ferramenta}")
+                erros_consecutivos += 1
+                historico.append({
+                    "passo": passo_num,
+                    "ferramenta": ferramenta,
+                    "args": args,
+                    "motivo": motivo,
+                    "ok": False,
+                    "resultado": None,
+                    "erro": f"ferramenta desconhecida: {ferramenta}",
+                })
+                if erros_consecutivos >= MAX_ERROS_CONSECUTIVOS:
+                    print("[TASK] muitos erros consecutivos. Abortando.")
+                    break
+                continue
+
+            chave = f"{ferramenta}:{json.dumps(args, sort_keys=True)}"
+            acoes_repetidas[chave] = acoes_repetidas.get(chave, 0) + 1
+            if acoes_repetidas[chave] > MAX_REPETICOES_MESMA_ACAO:
+                print(f"[TASK] Acao repetida {acoes_repetidas[chave]}x. Abortando.")
+                break
+
+            r = _executar_passo(ferramenta, args)
+
+            historico.append({
+                "passo": passo_num,
+                "ferramenta": ferramenta,
+                "args": args,
+                "motivo": motivo,
+                "ok": r["ok"],
+                "resultado": r["resultado"],
+                "erro": r["erro"],
+            })
+
+            if r["ok"]:
+                erros_consecutivos = 0
             else:
-                resultado_str = str(r["resultado"])
+                erros_consecutivos += 1
+                if erros_consecutivos >= MAX_ERROS_CONSECUTIVOS:
+                    print("[TASK] muitos erros consecutivos. Abortando.")
+                    break
 
-            # Limita o tamanho pra nao estourar contexto
-            if len(resultado_str) > 4000:
-                resultado_str = resultado_str[:4000] + "\n...(truncado)"
+            continue
 
-            contexto_acumulado += f"\n--- {passo['ferramenta']} ---\n{resultado_str}\n"
+        print(f"[TASK] acao desconhecida: {acao}")
+        break
 
-        # Se um passo critico (nao-responder) falhou, para
-        if not r["ok"] and passo["ferramenta"] != "responder":
-            print(f"[TASK] passo {i} falhou definitivamente. Abortando.")
-            return {
-                "status": "erro",
-                "objetivo": objetivo,
-                "plano": plano,
-                "historico": historico,
-                "resultado_final": None,
-                "erro": f"Passo {i} ({passo['ferramenta']}) falhou: {r['erro']}",
-            }
-
-    # 3. SINTETIZAR (se o responder nao foi chamado, chama agora com o contexto)
-    for h in reversed(historico):
-        if h["ferramenta"] == "responder" and h["ok"]:
-            res = h["resultado"]
-            if isinstance(res, dict):
-                return {
-                    "status": "ok",
-                    "objetivo": objetivo,
-                    "plano": plano,
-                    "historico": historico,
-                    "resultado_final": res.get("result"),
-                    "erro": None,
-                }
-
-    # Se nao teve responder no plano, sintetiza agora
-    prompt = (
-        f"OBJETIVO: {objetivo}\n\n"
-        f"RESULTADOS OBTIDOS:\n{contexto_acumulado[:5000]}\n\n"
-        f"Responda o objetivo de forma clara e direta em portugues. "
-        f"NAO invente informacoes que nao estao nos resultados."
-    )
-
-    try:
-        resultado_final = _llm(
-            prompt,
-            "Voce responde de forma clara e objetiva em portugues. Nunca responda em outro idioma.",
-        )
-    except Exception as e:
-        resultado_final = f"(falha ao sintetizar: {e})"
+    print(f"\n[TASK] finalizando com {len(historico)} passos executados")
+    resultado_final = _sintetizar(objetivo, historico)
 
     return {
         "status": "ok",
         "objetivo": objetivo,
-        "plano": plano,
+        "plano": [{"ferramenta": h["ferramenta"], "args": h["args"]} for h in historico],
         "historico": historico,
         "resultado_final": resultado_final,
         "erro": None,

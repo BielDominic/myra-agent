@@ -15,6 +15,7 @@ import urllib.error
 import re as _re
 import yt_dlp
 from tasks.simple_task import executar_task, registrar_ferramenta
+from tasks import structured_tools as st
 from email.message import EmailMessage
 from email.header import decode_header
 import email as email_lib
@@ -349,7 +350,7 @@ class YouTubeRead(BaseModel):
 
 class TaskSimple(BaseModel):
     objetivo: str
-    max_passos: int = 5
+    max_passos: int = 15
 
 
 def _contexto_vivo():
@@ -922,6 +923,91 @@ def read_page():
         pass
 
     return {"status": "ok", "result": texto, "clicaveis": clicaveis}
+
+
+# ============================================================
+# FASE 24.2 — Rotas auxiliares pras ferramentas estruturadas
+# ============================================================
+
+@app.post("/get_current_url")
+def get_current_url_route():
+    """Retorna a URL atual do navegador controlado."""
+    start_browser()
+    print("[GET_CURRENT_URL]")
+    try:
+        url = page.url
+        return {"status": "ok", "url": url}
+    except Exception as e:
+        print(f"[GET_CURRENT_URL] ERRO: {e}")
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+@app.post("/read_page_structured")
+def read_page_structured_route():
+    """Le a pagina e devolve texto, links, botoes, inputs em JSON."""
+    start_browser()
+    print("[READ_PAGE_STRUCTURED]")
+    try:
+        url = page.url
+        try:
+            texto = page.inner_text("body")[:3000]
+        except Exception:
+            texto = ""
+
+        links = []
+        try:
+            for a in page.locator("a").all()[:40]:
+                try:
+                    txt = a.inner_text().strip()[:100]
+                    href = a.get_attribute("href") or ""
+                    if txt and href:
+                        links.append({"texto": txt, "href": href})
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        botoes = []
+        try:
+            for b in page.locator("button").all()[:25]:
+                try:
+                    txt = b.inner_text().strip()[:80]
+                    if txt:
+                        botoes.append({"texto": txt})
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        inputs = []
+        try:
+            for i in page.locator("input, textarea").all()[:20]:
+                try:
+                    info = {
+                        "tipo": i.get_attribute("type") or "text",
+                        "name": i.get_attribute("name") or "",
+                        "placeholder": i.get_attribute("placeholder") or "",
+                    }
+                    if info["name"] or info["placeholder"]:
+                        inputs.append(info)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        return {
+            "status": "ok",
+            "url": url,
+            "texto": texto,
+            "links": links,
+            "botoes": botoes,
+            "inputs": inputs,
+            "total_links": len(links),
+            "total_botoes": len(botoes),
+        }
+    except Exception as e:
+        print(f"[READ_PAGE_STRUCTURED] ERRO: {e}")
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
 
 
 @app.post("/request_confirmation")
@@ -2292,7 +2378,6 @@ def code_lint(data: CodeInput):
 YOUTUBE_ID_REGEX = _re.compile(r"(?:v=|youtu\.be/|youtube\.com/embed/|shorts/)([A-Za-z0-9_-]{11})")
 YOUTUBE_WORKSPACE = os.path.join(WORKSPACE_DIR, "youtube")
 
-# Idiomas preferidos por padrao (pt primeiro, depois en, depois os mais comuns)
 YOUTUBE_LANGS_PADRAO = ["pt", "en", "es", "fr", "de", "it", "ja", "ko", "zh", "ru", "ar", "hi"]
 
 
@@ -2307,10 +2392,6 @@ def _yt_extract_video_id(url_or_id: str) -> str:
 
 
 def _yt_probe_langs(url: str) -> dict:
-    """
-    Descobre quais idiomas de legenda existem para o video, SEM baixar nada.
-    Retorna {"ok": bool, "manual": [lista], "auto": [lista], "error": str|None}
-    """
     probe_opts = {
         "skip_download": True,
         "quiet": True,
@@ -2330,7 +2411,6 @@ def _yt_probe_langs(url: str) -> dict:
     manual_raw = info.get("subtitles") or {}
     auto_raw = info.get("automatic_captions") or {}
 
-    # Remove "live_chat" (nao e legenda de verdade)
     manual = [l for l in manual_raw.keys() if l != "live_chat"]
     auto = [l for l in auto_raw.keys() if l != "live_chat"]
 
@@ -2338,12 +2418,7 @@ def _yt_probe_langs(url: str) -> dict:
 
 
 def _yt_escolher_idioma(disponiveis_manual: list, disponiveis_auto: list, preferidos: list):
-    """
-    Escolhe o idioma a usar. Prioriza preferidos, manual antes de auto.
-    Retorna (idioma, source) ou (None, None) se nao houver nada.
-    """
     for lang in preferidos:
-        # match exato ou prefixo (pt casa com pt-BR, pt-PT, pt-orig)
         for m in disponiveis_manual:
             if m == lang or m.startswith(lang + "-"):
                 return m, "manual"
@@ -2351,7 +2426,6 @@ def _yt_escolher_idioma(disponiveis_manual: list, disponiveis_auto: list, prefer
             if a == lang or a.startswith(lang + "-"):
                 return a, "auto"
 
-    # Nenhum preferido disponivel: pega o primeiro que houver
     if disponiveis_manual:
         return disponiveis_manual[0], "manual"
     if disponiveis_auto:
@@ -2361,27 +2435,16 @@ def _yt_escolher_idioma(disponiveis_manual: list, disponiveis_auto: list, prefer
 
 
 def _yt_download_transcript(url: str, idiomas: list = None) -> dict:
-    """
-    Baixa a transcricao de um video via yt-dlp (biblioteca Python).
-    Detecta automaticamente os idiomas disponiveis ANTES de tentar baixar.
-
-    Retorna dict padronizado:
-      {"status": "ok", "video_id", "idioma", "source", "full_text", "total_caracteres"}
-      ou {"status": "erro", "result": "msg"}
-    """
     video_id = _yt_extract_video_id(url)
 
-    # 1) Lista de preferencia: se o usuario passou, usa; senao, usa o padrao
     if idiomas:
         preferidos = list(idiomas)
-        # completa com o padrao (sem duplicar) para ter fallback
         for l in YOUTUBE_LANGS_PADRAO:
             if l not in preferidos:
                 preferidos.append(l)
     else:
         preferidos = list(YOUTUBE_LANGS_PADRAO)
 
-    # 2) SONDAGEM — descobre o que existe
     probe = _yt_probe_langs(url)
     if not probe["ok"]:
         return {"status": "erro", "result": probe["error"]}
@@ -2400,7 +2463,6 @@ def _yt_download_transcript(url: str, idiomas: list = None) -> dict:
             ),
         }
 
-    # 3) ESCOLHA do idioma
     idioma_escolhido, source = _yt_escolher_idioma(manual, auto, preferidos)
     if not idioma_escolhido:
         return {
@@ -2410,7 +2472,6 @@ def _yt_download_transcript(url: str, idiomas: list = None) -> dict:
 
     print(f"[YT] video={video_id} manual={manual} auto={auto} escolhido={idioma_escolhido} ({source})")
 
-    # 4) DOWNLOAD no idioma escolhido
     with tempfile.TemporaryDirectory() as tmpdir:
         output_template = os.path.join(tmpdir, f"yt_{video_id}")
 
@@ -2437,7 +2498,6 @@ def _yt_download_transcript(url: str, idiomas: list = None) -> dict:
                 "result": f"Falha ao baixar legenda [{idioma_escolhido}]: {type(e).__name__}: {e}",
             }
 
-        # 5) Procura o .vtt baixado
         arquivos_vtt = [f for f in os.listdir(tmpdir) if f.endswith(".vtt")]
         if not arquivos_vtt:
             return {
@@ -2448,7 +2508,6 @@ def _yt_download_transcript(url: str, idiomas: list = None) -> dict:
                 ),
             }
 
-        # Escolhe o .vtt cujo nome contem o idioma escolhido; senao, o primeiro
         arquivo_escolhido = None
         for arq in arquivos_vtt:
             if f".{idioma_escolhido}." in arq:
@@ -2459,32 +2518,23 @@ def _yt_download_transcript(url: str, idiomas: list = None) -> dict:
 
         caminho_vtt = os.path.join(tmpdir, arquivo_escolhido)
 
-        # 6) LEITURA do .vtt com correcao de encoding
-        #    yt-dlp pode entregar o VTT com UTF-8 duplamente codificado
-        #    (bytes UTF-8 interpretados como latin-1). O _fix_encoding() desfaz isso.
         try:
             with open(caminho_vtt, "rb") as f:
                 raw_bytes = f.read()
         except Exception as e:
             return {"status": "erro", "result": f"Falha ao ler o .vtt: {e}"}
 
-        # Tenta UTF-8 estrito primeiro
         try:
             conteudo = raw_bytes.decode("utf-8")
         except UnicodeDecodeError:
-            # Cai pra latin-1 + _fix_encoding
             conteudo = raw_bytes.decode("latin-1", errors="ignore")
             conteudo = _fix_encoding(conteudo)
 
-        # Alguns VTTs vem com UTF-8 duplamente codificado ("Ã©" no lugar de "é").
-        # Aplica _fix_encoding quando detectar o padrao classico.
         if "Ã" in conteudo or "Â" in conteudo:
             conteudo_fixed = _fix_encoding(conteudo)
-            # So aceita a correcao se ela realmente reduzir os "Ã"
             if conteudo_fixed.count("Ã") < conteudo.count("Ã"):
                 conteudo = conteudo_fixed
 
-        # 7) LIMPEZA do VTT (timecodes, tags, duplicatas)
         linhas = conteudo.split("\n")
         texto_final = []
         for linha in linhas:
@@ -2503,7 +2553,6 @@ def _yt_download_transcript(url: str, idiomas: list = None) -> dict:
             if linha_limpa:
                 texto_final.append(linha_limpa)
 
-        # Remove linhas duplicadas consecutivas (comum em auto-caption)
         texto_unico = []
         anterior = None
         for linha in texto_final:
@@ -2523,7 +2572,7 @@ def _yt_download_transcript(url: str, idiomas: list = None) -> dict:
             "status": "ok",
             "video_id": video_id,
             "idioma": idioma_escolhido,
-            "source": source,  # "manual" ou "auto"
+            "source": source,
             "full_text": full_text,
             "total_caracteres": len(full_text),
         }
@@ -2561,7 +2610,6 @@ def youtube_transcript(data: YouTubeTranscript):
 
 @app.post("/youtube_summarize")
 def youtube_summarize(data: YouTubeSummarize):
-    """Baixa transcricao E resume via LLM."""
     print(f"[YOUTUBE_SUMMARIZE] url={data.url}")
     try:
         resultado = _yt_download_transcript(data.url, data.idiomas)
@@ -2606,7 +2654,6 @@ def youtube_summarize(data: YouTubeSummarize):
 
 @app.post("/youtube_ask")
 def youtube_ask(data: YouTubeAsk):
-    """Baixa a transcricao E responde uma pergunta especifica sobre o video."""
     print(f"[YOUTUBE_ASK] url={data.url} pergunta={data.pergunta[:80]!r}")
     try:
         resultado = _yt_download_transcript(data.url, data.idiomas)
@@ -2653,7 +2700,6 @@ def youtube_ask(data: YouTubeAsk):
 
 @app.post("/youtube_save")
 def youtube_save(data: YouTubeSave):
-    """Baixa a transcricao E salva em workspace/youtube/."""
     print(f"[YOUTUBE_SAVE] url={data.url}")
     try:
         resultado = _yt_download_transcript(data.url, data.idiomas)
@@ -2702,7 +2748,6 @@ def youtube_save(data: YouTubeSave):
 
 @app.post("/youtube_list")
 def youtube_list(data: YouTubeList):
-    """Lista todas as transcricoes salvas em workspace/youtube/."""
     print("[YOUTUBE_LIST]")
     try:
         os.makedirs(YOUTUBE_WORKSPACE, exist_ok=True)
@@ -2728,7 +2773,6 @@ def youtube_list(data: YouTubeList):
 
 @app.post("/youtube_read")
 def youtube_read(data: YouTubeRead):
-    """Le uma transcricao salva em workspace/youtube/ pelo video_id."""
     print(f"[YOUTUBE_READ] video_id={data.video_id}")
     try:
         os.makedirs(YOUTUBE_WORKSPACE, exist_ok=True)
@@ -2831,6 +2875,9 @@ registrar_ferramenta(
     "responder", _t_responder,
     "sintetiza a resposta final em portugues (use como ULTIMO passo sempre)"
 )
+
+# FASE 24.2 — Ferramentas estruturadas (devolvem JSON)
+st.registrar_todas(registrar_ferramenta)
 
 
 @app.post("/task_simple")
