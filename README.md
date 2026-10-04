@@ -1,516 +1,484 @@
-﻿# Computer Agent + MYRA
+﻿# 📄 README.md — atualizado com o estado atual
 
-Agente de navegador local controlado por linguagem natural, integrado ao MYRA (Open WebUI customizado).
+Antes de commitar, vamos atualizar o README pra refletir tudo que a MYRA é **hoje**. Vou fazer uma versão limpa, profissional e completa.
 
-## Arquitetura
+**Abre o arquivo:**
 
-Usuario -> MYRA (Docker, 8082) -> LLM local (Ollama, qwen2.5:7b)
-                |
-                v
-         Tool BrowserAgent -> agent.py (FastAPI, 8000) -> Playwright -> Chromium -> Internet
+```powershell
+notepad C:\computer-agent\README.md
+```
 
-## Componentes
+Se quiser fazer backup antes:
 
-| Componente | Porta | Funcao |
+```powershell
+Copy-Item C:\computer-agent\README.md C:\computer-agent\README_backup.md -Force
+```
+
+Cola o conteúdo abaixo (substitui tudo), salva em **UTF-8**:
+
+---
+
+```markdown
+# 🤖 MYRA — Agente de Computador Local
+
+**Um agente de IA que roda 100% na sua máquina, 100% grátis, com controle total sobre o computador.**
+
+MYRA (antes "Computer Agent") é uma IA pessoal capaz de navegar na internet, controlar o PC, ler/escrever arquivos, gerenciar emails, programar, transcrever vídeos e — desde a FASE 24 — **planejar e executar tarefas de forma autônoma**, decidindo passo a passo qual ferramenta usar.
+
+---
+
+## ✨ O QUE A MYRA FAZ HOJE
+
+### 🧠 Autonomia (o coração)
+- **Planeja** tarefas sozinha: você descreve o objetivo, ela decide os passos
+- **Encadeia** ferramentas: busca web → abre site → lê → resume
+- **Adapta**: se uma ferramenta falha, tenta outra abordagem
+- **Sintetiza** respostas em português, fiéis ao conteúdo real
+- **Retry** automático em caso de erro
+
+### 🌐 Navegador (Playwright + Chrome real)
+- Abre URLs, pesquisa Google/DuckDuckGo
+- Clica por texto, descrição ou seletor
+- Digita em campos (detecta email, senha, usuário)
+- Lê páginas (estruturado ou texto solto)
+- Tira screenshots
+- Perfil persistente (login uma vez, mantém sessão)
+
+### 🎬 YouTube
+- Transcrição automática com **detecção de idioma** (pt > en > outros)
+- Prioriza legenda manual sobre auto-gerada
+- Resumo, perguntas, salvar, listar, ler
+- Correção automática de encoding (VTT duplo)
+
+### 📧 Email (Gmail IMAP/SMTP)
+- Lista, lê, busca, marca lido/não lido
+- Envia, responde, move, deleta
+- Delete em massa por termo ("apague 5 emails do LinkedIn")
+- **Confirmação** antes de ações destrutivas
+
+### 📂 Arquivos (workspace)
+- Lista, lê, escreve, cria, move, deleta
+- Busca texto em múltiplos arquivos
+- Acesso restrito ao `workspace/` (segurança)
+
+### 💻 Coding Agent (21 ferramentas)
+- Gera, explica, analisa, refatora, otimiza, converte código
+- Code review, lint, métricas, dependências
+- Testes, documentação, SQL, regex, scaffold
+- Executa código (Python) e interpreta output
+
+### 🖥️ Controle do PC
+- Mouse: move, clique, duplo clique, clique direito, scroll
+- Teclado: digita, pressiona tecla, combina teclas (Ctrl+C, Alt+Tab, Win+D)
+- Janelas: lista, foca, pega ativa
+- Screenshots do desktop
+
+### 👁️ Visão
+- Vê a tela via Qwen3.5-0.8B (llama-server local)
+- Responde perguntas sobre o que está vendo
+
+### 🌦️ Info do mundo
+- Clima (Open-Meteo)
+- Hora/data
+- Web search estruturado (links + snippets)
+- YouTube search
+
+### 📊 Gráficos e dados
+- Plotly: gráficos, tabelas, heatmaps, timelines (Visuals Core)
+
+### 💬 Gerenciamento de chats
+- Lista, renomeia, deleta chats (individual ou por busca)
+
+### 🌐 Ferramentas estruturadas (novo!)
+- `search_google_structured` → lista de links
+- `web_search_structured` → lista de links
+- `youtube_search` → lista de vídeos
+- `youtube_channel_latest` → últimos vídeos de um canal
+- `get_current_url` → URL atual do navegador
+- `read_page_structured` → texto + links + botões + inputs
+
+---
+
+## 🏗️ ARQUITETURA
+
+```
+┌──────────────────────────────────────────────────┐
+│         Open WebUI (Docker, porta 8080)          │
+│         Interface do chat (customizado MYRA)     │
+└─────────────────────┬────────────────────────────┘
+                      │ HTTP
+                      ▼
+┌──────────────────────────────────────────────────┐
+│         agent.py (FastAPI, porta 8000)           │
+│         ~95 rotas, coração do sistema            │
+└──┬───────────────────────────────────────────┬───┘
+   │                                           │
+   │ Planejador + Loop adaptativo              │ Ações
+   │ (Ollama, porta 11434)                     │
+   ▼                                           ▼
+┌────────────────────┐              ┌─────────────────────┐
+│ tasks/             │              │ Navegador (Chrome)  │
+│ - simple_task.py   │              │ Sistema de arquivos │
+│ - structured_tools │              │ Email (Gmail)       │
+│   (loop + 6 tools) │              │ PC (mouse/teclado)  │
+└────────────────────┘              │ Visão (llama-server)│
+                                    └─────────────────────┘
+```
+
+### 🧩 Componentes principais
+
+| Componente | Papel |
+|---|---|
+| **`agent.py`** | Servidor FastAPI com ~95 rotas (navegador, email, PC, YouTube, code, task) |
+| **`tasks/simple_task.py`** | Loop de autonomia adaptativo (LLM decide 1 passo por vez) |
+| **`tasks/structured_tools.py`** | 6 ferramentas que devolvem JSON (busca, YouTube, etc.) |
+| **`tools/browseragent.py`** | Tool do Open WebUI (expõe rotas do agent pro chat) |
+| **`tools/codeagent.py`** | Tool do Open WebUI (21 ferramentas de programação) |
+| **`tools/visuals_core.py`** | Tool do Open WebUI (gráficos) |
+| **`computer/`** | Módulo de automação do PC (mouse, teclado, janelas, tela) |
+
+---
+
+## 🔧 INFRAESTRUTURA
+
+### Serviços rodando localmente
+
+| Serviço | Porta | O que faz |
 |---|---|---|
-| MYRA (Open WebUI customizado) | 8082 (externa) | Interface do chat |
-| open-webui-custom | 8080 (interna) | Container Open WebUI com WEBUI_NAME=MYRA |
-| myra-proxy | 8082 | Nginx proxy que remove "(Open WebUI)" do titulo |
-| agent.py (Uvicorn) | 8000 | Servidor FastAPI + Playwright |
-| Ollama | 11434 | LLM local (qwen2.5:7b) |
-| llm-eyes | 8081 | Servidor de visao (Qwen3.5-0.8B) |
+| **agent.py (FastAPI)** | 8000 | Servidor principal |
+| **Open WebUI (Docker)** | 8080 | Interface do chat |
+| **nginx proxy** | 8082 | Troca "Open WebUI" por "MYRA" |
+| **Ollama** | 11434 | LLM (qwen2.5:7b, llama3.1:8b, coders) |
+| **llama-server (visão)** | 8081 | Qwen3.5-0.8B para ver a tela |
 
-## MYRA - Open WebUI customizado
+### Modelos Ollama
 
-O MYRA e o Open WebUI renomeado. Para isso, usamos:
+| Modelo | Uso |
+|---|---|
+| **`qwen2.5:7b`** | Modelo principal do chat (tool calling nativo) |
+| **`llama3.1:8b`** | Alternativo (tool calling mais robusto) |
+| **`qwen3.5:4b`** | Com visão |
+| **`R4C3R/qwen2.5-coder-3b-heretic`** | CodeAgent primário (sem censura) |
+| **`qwen2.5-coder:7b`** | CodeAgent fallback |
+| **`Qwen3.5-0.8B + mmproj`** | Visão (via llama-server) |
 
-1. Variavel de ambiente WEBUI_NAME=MYRA no container do Open WebUI.
-2. Proxy reverso Nginx na porta 8082 que remove o sufixo "(Open WebUI)" do titulo e da sidebar.
+### Hardware
 
-### Como acessar
+- **SO:** Windows 11
+- **GPU:** RTX A2000 Laptop (4 GB VRAM)
+- **CPU:** i7-11850H
+- **RAM:** 16 GB
 
-    http://localhost:8082
+---
 
-ATENCAO: sempre use a porta 8082 para ver o MYRA sem o sufixo. A porta 8080 mostra o titulo original.
+## 🚀 COMO USAR
 
-### Arquitetura do MYRA
+### Iniciar tudo
 
-    Navegador -> localhost:8082 (Nginx) -> open-webui-custom:8080 (Open WebUI)
+**Terminal 1 — Agent:**
+```powershell
+cd C:\computer-agent
+.\venv\Scripts\python.exe agent.py
+```
 
-### Configuracao do Nginx
+**Terminal 2 — Visão (opcional, só se usar `see_image`):**
+```powershell
+C:\computer-agent\iniciar_visao.ps1
+```
 
-O arquivo fica em C:\computer-agent\webui-custom\nginx.conf:
+**Docker (Open WebUI):**
+```powershell
+docker start open-webui-custom
+```
 
-    server {
-        listen 80;
-        server_name localhost;
+### Usar no chat
 
-        location / {
-            proxy_pass http://open-webui-custom:8080;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header Accept-Encoding "";
+Abre **http://127.0.0.1:8080** (ou `:8082` pelo proxy) no navegador:
 
-            proxy_buffering off;
-            proxy_cache off;
+- **Modelo:** `qwen2.5:7b`
+- **Tool:** BrowserAgent ativada
 
-            sub_filter_once off;
-            sub_filter '<title>Open WebUI</title>' '<title>MYRA</title>';
-            sub_filter '</head>' '<script>...</script></head>';
-        }
-    }
+**Exemplos de comandos:**
 
-O JavaScript injetado corrige o titulo e a sidebar em tempo real, mesmo depois que o Svelte tenta reescreve-los.
+```
+Use task_run com o objetivo exato: "que horas sao agora?"
 
-### Como recriar o proxy (se o nginx.conf mudar)
+Use task_run com o objetivo exato: "pesquise os melhores cursos de IA em Dublin e diga 3 nomes"
 
-    docker rm -f myra-proxy
-    docker run -d --name myra-proxy -p 8082:80 -v C:\computer-agent\webui-custom\nginx.conf:/etc/nginx/conf.d/default.conf --link open-webui-custom:open-webui-custom nginx:alpine
+Use task_run com o objetivo exato: "pesquise o canal do Post Malone no YouTube, ache o ultimo video dele e me diga o titulo"
 
-### Como recriar o Open WebUI (se precisar)
+Use task_run com o objetivo exato: "resuma o video https://www.youtube.com/watch?v=m226f2reF28"
+```
 
-    docker rm -f open-webui-custom
-    docker run -d --name open-webui-custom -p 8080:8080 -e WEBUI_NAME=MYRA -v open-webui:/app/backend/data --restart always ghcr.io/open-webui/open-webui:main
+### Usar direto na API
 
-ATENCAO: o volume "open-webui" guarda todos os dados (conversas, usuarios, configuracoes). Nunca remova esse volume.
+```powershell
+# Task autônoma
+$body = @{ objetivo = "pesquise X"; max_passos = 15 } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/task_simple" -Method Post -Body $body -ContentType "application/json"
 
-### Favicons e logo customizados
+# Ferramenta específica
+$body = @{ url = "https://youtu.be/..." } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/youtube_transcript" -Method Post -Body $body -ContentType "application/json"
+```
 
-O MYRA usa favicons e logo proprios (o olho roxo/azul). Para isso, usamos:
+---
 
-1. Uma pasta no host com as imagens: C:\computer-agent\webui-custom\Favicons\
-2. O Nginx serve esses arquivos no lugar dos originais do Open WebUI.
+## 📁 ESTRUTURA DE PASTAS
 
-#### Arquivos necessarios
+```
+C:\computer-agent\
+├── agent.py                    # Servidor FastAPI (~95 rotas)
+├── agent_backup_*.py           # Backups
+├── iniciar_myra.ps1            # Sobe o agent.py
+├── iniciar_visao.ps1           # Sobe o llama-server (visão)
+├── REINSTALACAO.md             # Guia completo de reinstalação
+├── README.md                   # Este arquivo
+├── ROADMAP.md                  # Planejamento (~230 itens)
+├── CONTEXTO.txt                # Estado atual
+├── .gitignore                  # Ignora venv, backups, screenshots
+│
+├── tasks/                      # Núcleo do agente autônomo
+│   ├── __init__.py
+│   ├── simple_task.py          # Loop adaptativo (LLM decide passo a passo)
+│   └── structured_tools.py     # 6 ferramentas JSON (busca, YouTube, etc.)
+│
+├── tools/                      # Tools do Open WebUI (versionadas)
+│   ├── browseragent.py         # Tool principal (~50 métodos)
+│   ├── codeagent.py            # 21 métodos de programação
+│   ├── visuals_core.py         # 10 métodos de gráficos
+│   ├── README.md
+│   └── upload/upload_tools.ps1
+│
+├── computer/                   # Automação do PC
+│   ├── controller.py           # Mouse/teclado (pyautogui)
+│   ├── screen.py               # Screenshot (mss)
+│   └── windows.py              # Janelas (pygetwindow + ctypes)
+│
+├── workspace/                  # Área segura de trabalho
+│   ├── code/                   # Código gerado pelo CodeAgent
+│   └── youtube/                # Transcrições salvas
+│
+├── screenshots/                # Prints
+├── chrome_profile/             # Perfil dedicado do Chrome
+├── venv/                       # Ambiente virtual Python 3.14
+│
+└── llm-eyes/                   # Modelo de visão
+    └── models/
+        ├── Qwen3.5-0.8B-UD-Q4_K_XL.gguf
+        └── mmproj-F16.gguf
+```
 
-| Arquivo | Tamanho | Funcao |
+---
+
+## 📊 FASES DO PROJETO
+
+### ✅ Concluídas
+
+- **FASE 0-10** — Base: navegador, email, arquivos, chats, confirmação
+- **FASE 15** — Mais ferramentas de arquivo
+- **FASE 16** — Automação do PC (mouse, teclado, janelas)
+- **FASE 17** — CodeAgent (21 ferramentas)
+- **FASE 18-19** — Melhorias incrementais
+- **FASE 20** — YouTube (transcrição, resumo, perguntas)
+- **FASE 20.1** — Detecção automática de idioma do YouTube
+- **FASE 22-light** — Task simples (planner + loop + retry)
+- **FASE 24.1** — Loop de autonomia adaptativo ⭐
+- **FASE 24.2** — Ferramentas estruturadas (6 novas) ⭐
+
+### 🚧 Próximas
+
+- **FASE 22.5** — Polir o `responder` (respostas diretas)
+- **FASE 34** — Bot do Telegram (controle remoto)
+- **FASE 24.3** — Recuperação de erros no loop
+- **FASE 24.4** — Verificação visual
+- **FASE 24.5** — Persistência SQLite
+
+### 📅 Médio prazo
+
+- **FASE 14** — TTS + Whisper (MYRA fala e ouve)
+- **FASE 20.5** — Whisper (transcrição de áudio de vídeos sem legenda)
+- **FASE 12** — Geração de imagem
+- **FASE 31** — Scheduler (tarefas agendadas)
+- **FASE 32** — Notificações (Windows, Telegram, voz)
+- **FASE 33** — Memória de longo prazo
+
+Ver **[ROADMAP.md](ROADMAP.md)** para lista completa (~230 itens).
+
+---
+
+## 🔐 SEGURANÇA
+
+- **Workspace isolado**: arquivos só em `workspace/`
+- **Confirmação dupla** em ações destrutivas (delete, move, email)
+- **Perfil dedicado do Chrome** (não mexe no seu navegador pessoal)
+- **API key do Open WebUI** em variável de ambiente
+- **Nada sai da sua máquina** — tudo local
+
+---
+
+## 🎓 APRENDIZADOS IMPORTANTES
+
+### ⚠️ Regras críticas
+
+1. **NUNCA editar `agent.py` via `Set-Content`, `-replace` ou `WriteAllText` do PowerShell** — trunca o arquivo. **Sempre** usar Notepad ou VSCode.
+2. **Sempre fazer backup** antes de grandes mudanças:
+   ```powershell
+   Copy-Item C:\computer-agent\agent.py C:\computer-agent\agent_backup_YYYYMMDD.py -Force
+   ```
+3. **Encoding:** sempre **UTF-8** ao salvar arquivos Python.
+4. **Após editar `agent.py`:** rodar `python -m py_compile C:\computer-agent\agent.py`.
+5. **Após editar Tool no Open WebUI:** `docker restart open-webui-custom`.
+6. **Após editar `agent.py`:** `Ctrl+C` na Janela 1 e `iniciar_myra.ps1`.
+
+### 🐛 Bugs conhecidos e suas soluções
+
+| Bug | Sintoma | Solução |
 |---|---|---|
-| favicon.png | 512x512 | Favicon principal |
-| favicon.ico | multi | Navegadores antigos |
-| favicon.svg | 512x512 | Navegadores modernos |
-| favicon-96x96.png | 96x96 | Android/Chrome |
-| favicon-32x32.png | 32x32 | Navegadores antigos |
-| favicon-16x16.png | 16x16 | Aba do navegador |
-| apple-touch-icon.png | 180x180 | iOS/Safari |
-| logo.png | 512x512 | Logo da sidebar |
-| MYRALOGO.jpeg | original | Imagem original |
+| **PowerShell 5.1 + UTF-8** | `MÃºsica` em vez de `Música` na tela | Bug visual. Usar `curl.exe -o arquivo` e ler com UTF-8 |
+| **urllib no FastAPI** | `getaddrinfo failed` | Usar `requests` em vez de `urllib.request` |
+| **Post Malone no YouTube** | Handle `@Post Malone` (com espaço) dá 404 | Normalizar handle (lowercase, sem espaço) |
+| **LLM chama mesma ferramenta 2x** | Loop redundante | Limitação do `qwen2.5:7b`, ajustar prompt |
 
-#### Como gerar os favicons
+### 🎯 Arquitetura de decisão
 
-Se voce trocar a imagem original (MYRALOGO.jpeg), rode:
+Quando o LLM precisa escolher entre ferramentas parecidas:
 
-    cd C:\computer-agent
-    .\venv\Scripts\Activate.ps1
-    python C:\computer-agent\webui-custom\Favicons\gerar_favicons_transparente.py
-    docker restart myra-proxy
+- **`web_search`** (antigo) → texto solto, difícil de parsear
+- **`web_search_structured`** (novo) → JSON, fácil de encadear ✅
+- **`search_google`** (antigo) → só confirma "pesquisei"
+- **`search_google_structured`** (novo) → lista de links ✅
+- **`youtube_transcript`** → transcrição de UM vídeo
+- **`youtube_search`** → achar um vídeo por termo
+- **`youtube_channel_latest`** → últimos vídeos de um canal
 
-O script:
-1. Abre o MYRALOGO.jpeg
-2. Remove o fundo preto (torna transparente)
-3. Gera os 8 arquivos de favicon
-4. Salva tudo em Favicons\
+**Regra:** sempre preferir as ferramentas `_structured` em tarefas autônomas.
 
-#### Como recriar o myra-proxy com os favicons
+---
 
-    docker rm -f myra-proxy
-    docker run -d --name myra-proxy -p 8082:80 -v C:\computer-agent\webui-custom\nginx.conf:/etc/nginx/conf.d/default.conf -v C:\computer-agent\webui-custom\Favicons:/usr/share/nginx/html --link open-webui-custom:open-webui-custom nginx:alpine
+## 🧪 TESTES DE VALIDAÇÃO
 
-ATENCAO: a flag -v extra monta a pasta Favicons em /usr/share/nginx/html dentro do container. Sem ela, o Nginx nao encontra os favicons customizados.
+### Verificar se tá tudo rodando
 
-#### Ajuste do limite de transparencia
+```powershell
+# Agent
+curl.exe -s http://127.0.0.1:8000/
 
-O script usa limite = 30 para remover o preto. Se sobrarem bordas escuras, aumente para 40 ou 50. Se apagar partes do logo, diminua para 20.
+# Open WebUI
+docker ps --filter name=open-webui-custom --format "{{.Names}} {{.Status}}"
 
-Edite a linha no gerar_favicons_transparente.py:
+# Ollama
+curl.exe -s http://127.0.0.1:11434/api/tags | findstr qwen2.5
 
-    limite = 30   # ajuste aqui
+# Visão
+curl.exe -s http://127.0.0.1:8081/v1/models
+```
 
-E rode de novo.
+### Testar o agente autônomo
 
+```powershell
+# Teste simples (1-2 passos)
+$body = @{ objetivo = "que horas sao agora?"; max_passos = 15 } | ConvertTo-Json
+$r = Invoke-RestMethod -Uri "http://127.0.0.1:8000/task_simple" -Method Post -Body $body -ContentType "application/json"
+$r.status
+$r.historico | ForEach-Object { "  $($_.passo): $($_.ferramenta) - ok=$($_.ok)" }
+$r.resultado_final
 
+# Teste multi-passo (Post Malone)
+$body = @{ objetivo = "pesquise o canal do Post Malone no YouTube, ache o ultimo video dele e me diga o titulo"; max_passos = 15 } | ConvertTo-Json
+$r = Invoke-RestMethod -Uri "http://127.0.0.1:8000/task_simple" -Method Post -Body $body -ContentType "application/json"
+$r.status
+$r.historico | ForEach-Object { "  $($_.passo): $($_.ferramenta)" }
+$r.resultado_final
+```
 
-## FASE 19 - Guia de reinstalacao
+---
 
-O projeto tem um guia completo de reinstalacao em `C:\computer-agent\GUIA.md`.
+## 📚 REPOSITÓRIO
 
-O guia cobre:
-- Pre-requisitos (Python, Node, Git, Docker, Ollama)
-- Estrutura de pastas
-- Passo a passo de cada configuracao (Python, Ollama, Docker, MYRA, llm-eyes, agent.py)
-- Solucao de problemas
-- Checklist final
+- **URL:** https://github.com/BielDominic/myra-agent
+- **Branch principal:** `main`
+- **Último commit:** `feat: FASE 24 - loop de autonomia real + ferramentas estruturadas`
 
-Tambem foi criado o `requirements.txt` com as dependencias Python:
+---
 
-    fastapi==0.141.1
-    uvicorn==0.53.0
-    pydantic==2.13.5
-    playwright==1.63.0
-    requests==2.34.2
-    pillow==12.3.0
+## 🎯 FILOSOFIA
 
-## Acoes disponiveis no agent.py
+**MYRA = cérebro + olhos + mãos + memória + autonomia.**
 
-### Navegador (10)
+- **Cérebro:** LLM local (Ollama)
+- **Olhos:** Visão (llama-server + Qwen3.5-0.8B) + screenshots
+- **Mãos:** Navegador + controle do PC + arquivos + email
+- **Memória:** Notas + histórico + (futuro) SQLite
+- **Autonomia:** Loop adaptativo (FASE 24)
 
-| Rota | Acao |
-|---|---|
-| POST /open_url | Abre uma URL |
-| POST /search_google | Pesquisa no Google |
-| POST /search_in_page | Pesquisa na pagina atual |
-| POST /click_element | Clica por texto ou seletor CSS |
-| POST /click_by_description | Clica por descricao (fallback) |
-| POST /type_text | Digita em um campo |
-| POST /press_key | Pressiona uma tecla |
-| POST /go_back | Volta uma pagina |
-| POST /wait | Espera N segundos |
-| POST /read_page | Le texto + lista de elementos clicaveis |
+**Regra de ouro:** escolher a ferramenta **mais específica** pro trabalho.
+API → DOM → filesystem → vision → computer control.
 
-### Email (3) - via IMAP/SMTP
+**Regra crítica:** **nunca editar arquivos grandes via PowerShell direto.**
 
-| Rota | Acao |
-|---|---|
-| POST /email_list | Lista os ultimos emails |
-| POST /email_read | Le um email pelo indice |
-| POST /email_send | Envia email (SMTP) |
+---
 
-### Utilitarias (5)
+## 🙏 CRÉDITOS
 
-| Rota | Acao |
-|---|---|
-| POST /get_current_time | Retorna a hora atual |
-| POST /save_note | Salva uma nota |
-| POST /read_notes | Le as notas |
-| POST /get_weather | Retorna o clima |
-| POST /run_python | Executa codigo Python |
+- **Playwright** (navegador)
+- **FastAPI** (servidor)
+- **Ollama** (LLM local)
+- **Open WebUI** (interface)
+- **yt-dlp** (YouTube)
+- **pyautogui** + **mss** + **pygetwindow** (automação do PC)
 
-### Arquivos (3) - restrito ao workspace
+---
 
-| Rota | Acao |
-|---|---|
-| POST /list_dir | Lista arquivos/pastas |
-| POST /read_file | Le um arquivo |
-| POST /write_file | Cria/sobrescreve arquivo |
+**MYRA é uma IA pessoal de verdade.** Feita para rodar local, sem depender de APIs pagas, com controle total sobre o computador.
 
-### Web Search (1)
+🚀 **Let's go.**
+```
 
-| Rota | Acao |
-|---|---|
-| POST /web_search | Pesquisa via DuckDuckGo HTML (sem API key) |
+---
 
-### Visao (2)
+## 🛠️ Como aplicar
 
-| Rota | Acao |
-|---|---|
-| POST /take_screenshot | Tira print e salva em screenshots\ |
-| POST /see_image | Tira print E analisa com IA de visao |
+1. **Backup** (opcional):
+   ```powershell
+   Copy-Item C:\computer-agent\README.md C:\computer-agent\README_backup.md -Force
+   ```
 
-### Seguranca (1)
+2. **Abre**:
+   ```powershell
+   notepad C:\computer-agent\README.md
+   ```
 
-| Rota | Acao |
-|---|---|
-| POST /request_confirmation | Pede confirmacao antes de acao critica |
+3. **Ctrl+A** → **Delete** → **Ctrl+V** (cola o conteúdo acima)
 
-## FASE 15 - Ferramentas de arquivo avancadas
+4. **Salva em UTF-8** (Arquivo → Salvar como → Codificação: UTF-8)
 
-O agente tem 7 ferramentas de arquivo (3 originais + 4 novas):
+5. **Fecha o Notepad**
 
-| Ferramenta | O que faz | Precisa confirmacao? |
-|---|---|---|
-| list_dir(caminho) | Lista arquivos/pastas | Nao |
-| read_file(caminho) | Le um arquivo | Nao |
-| write_file(caminho, conteudo) | Cria/sobrescreve | Nao |
-| create_dir(caminho) | Cria pasta | Nao |
-| search_in_files(termo, extensao) | Busca texto nos arquivos | Nao |
-| delete_file(caminho) | Apaga arquivo | SIM |
-| move_file(origem, destino) | Move/renomeia | SIM |
+---
 
-### Exemplos
+## 📋 Depois disso
 
-- "Crie uma pasta chamada teste" -> create_dir(caminho="teste")
-- "Crie um arquivo ola.txt com 'Ola'" -> write_file(caminho="ola.txt", conteudo="Ola")
-- "Procure a palavra MYRA nos arquivos" -> search_in_files(termo="MYRA", extensao=".txt")
-- "Mova o arquivo a.txt para b.txt" -> request_confirmation + move_file
-- "Apague o arquivo a.txt" -> request_confirmation + delete_file
+**Roda o commit geral (código + README):**
 
-## FASE 8 - Confirmacao robusta
+```powershell
+cd C:\computer-agent
+git status
+git add agent.py tasks/ README.md ROADMAP.md
+git commit -m "feat: FASE 24 + atualiza README e ROADMAP
 
-O agente bloqueia acoes destrutivas ate o usuario confirmar.
+Código (FASE 24.1 + 24.2):
+- tasks/simple_task.py: loop adaptativo (LLM decide 1 passo por vez)
+- tasks/structured_tools.py: 6 ferramentas JSON novas
+- agent.py: rotas /get_current_url e /read_page_structured
+- agent.py: TaskSimple.max_passos default 15
 
-### Fluxo simplificado (2 etapas)
+Documentação:
+- README.md: reescrito com estado atual, arquitetura, aprendizados
+- ROADMAP.md: já estava atualizado
 
-1. LLM chama `request_confirmation(acao, detalhes)` -> cria pendencia
-2. Usuario responde "sim"
-3. LLM chama a ferramenta destrutiva DIRETO (delete_file, move_file, email_send)
+Testado end-to-end:
+- 'ache o ultimo video do Post Malone' -> funcionou em 1 passo"
 
-### Exemplo
-
-    Usuario: "Apague o arquivo teste.txt"
-    Agente: request_confirmation(acao="apagar arquivo", detalhes="teste.txt")
-    Agente: "Confirma que deseja apagar teste.txt? (sim/nao)"
-    Usuario: "sim"
-    Agente: delete_file(caminho="teste.txt")
-    Agente: "Pronto! Apaguei o arquivo teste.txt."
-
-### Bloqueio real
-
-Se o LLM tentar chamar `delete_file` sem antes chamar `request_confirmation`, o `agent.py` retorna:
-
-    {"status": "erro", "result": "Aguardando confirmacao. Chame request_confirmation primeiro."}
-
-### Rotas de confirmacao
-
-| Rota | O que faz |
-|---|---|
-| POST /request_confirmation | Cria a pendencia (acao, detalhes) |
-| POST /confirm_action | (opcional) Marca como confirmada |
-| POST /cancel_confirmation | Cancela a pendencia |
-
-### Timeout
-
-A confirmacao expira em **5 minutos**. Depois disso, o `agent.py` limpa a pendencia e a acao precisa ser solicitada novamente.
-
-## Estrutura de arquivos
-
-    C:\computer-agent\
-    - agent.py                  # Servidor FastAPI + Playwright
-    - start.ps1                 # Script de inicializacao
-    - status.ps1                # Script de verificacao
-    - abrir_tudo.ps1            # Sobe tudo (Docker + Ollama + agent + llm-eyes)
-    - README.md                 # Este arquivo
-    - venv\                     # Ambiente virtual Python
-    - workspace\                # Area restrita do agente (arquivos)
-    - screenshots\              # Prints tirados pelo agente
-    - chromium_profile\         # Perfil persistente do Chromium
-    - llm-eyes\                 # Servidor de visao
-    - webui-custom\
-      - nginx.conf              # Configuracao do proxy reverso MYRA
-
-## Como iniciar tudo
-
-### Inicio rapido
-
-Abra o PowerShell em C:\computer-agent e rode:
-
-    .\abrir_tudo.ps1
-
-Isso sobe:
-- Docker Desktop (se nao estiver rodando)
-- Ollama com CUDA v12
-- Container open-webui-custom
-- Container myra-proxy (Nginx)
-- agent.py (Uvicorn)
-- llm-eyes (visao)
-
-### Inicio manual
-
-Janela 1 - Uvicorn (agent.py):
-
-    cd C:\computer-agent
-    .\venv\Scripts\Activate.ps1
-    uvicorn agent:app --host 127.0.0.1 --port 8000
-
-Janela 2 - Ollama:
-
-    $env:OLLAMA_LLM_LIBRARY="cuda_v12"
-    Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden
-
-Janela 3 - Docker (MYRA + Nginx):
-
-    docker start open-webui-custom
-    docker start myra-proxy
-
-## Configuracao do Local Agent
-
-- Base Model: qwen2.5:7b (NAO use llama3.1:8b - entra em "modo narrador")
-- Function Calling: Native
-- max_tokens: 2048
-- num_ctx (Ollama): 8192 (obrigatorio - com 4096 as 23 ferramentas nao cabem)
-- Tool: BrowserAgent marcada
-
-### Por que qwen2.5:7b?
-
-O llama3.1:8b "narra" as acoes em vez de chama-las quando ha muitas ferramentas. O qwen2.5:7b foi treinado para tool calling e funciona perfeitamente.
-
-## Configuracao critica
-
-### Ollama precisa de CUDA v12
-
-A placa RTX A2000 do notebook tem problema com CUDA v13 (crash 0xc0000409). Sempre inicie o Ollama com:
-
-    $env:OLLAMA_LLM_LIBRARY="cuda_v12"
-
-Variavel permanente (recomendado):
-1. Win + R -> sysdm.cpl -> Enter
-2. Aba Avancado -> Variaveis de Ambiente
-3. Variaveis do usuario -> Novo
-4. Nome: OLLAMA_LLM_LIBRARY
-5. Valor: cuda_v12
-
-### Open WebUI (Docker)
-
-- URL do Ollama no MYRA: http://host.docker.internal:11434
-- URL do agent.py na Tool: http://host.docker.internal:8000
-
-### Email via IMAP/SMTP
-
-O agente tem 3 rotas de email que NAO passam pelo navegador (o Google bloqueia login por automacao):
-
-- email_list(quantidade): lista os ultimos emails da caixa de entrada
-- email_read(indice): le um email pelo indice (0 = mais recente)
-- email_send(para, assunto, corpo): envia email (usa SMTP)
-
-Configuracao necessaria:
-1. Ativar 2FA na conta Google
-2. Gerar senha de app em https://myaccount.google.com/apppasswords
-3. Definir variaveis de ambiente:
-
-    [System.Environment]::SetEnvironmentVariable("GMAIL_USER", "seuemail@gmail.com", "User")
-    [System.Environment]::SetEnvironmentVariable("GMAIL_APP_PASSWORD", "senha16caracteres", "User")
-
-O Uvicorn precisa ser iniciado com essas variaveis:
-
-    $env:GMAIL_USER = [System.Environment]::GetEnvironmentVariable('GMAIL_USER', 'User')
-    $env:GMAIL_APP_PASSWORD = [System.Environment]::GetEnvironmentVariable('GMAIL_APP_PASSWORD', 'User')
-    uvicorn agent:app --host 127.0.0.1 --port 8000
-
-## Como usar
-
-1. Abra http://localhost:8082
-2. New Chat
-3. Selecione o modelo Local Agent
-4. Digite comandos em portugues
-
-### Exemplos
-
-- Abra o Google
-- Pesquise por Open WebUI
-- Abra https://example.com
-- Clique no link
-- Leia a pagina
-- Espere 3 segundos
-- Pressione Enter
-- Que horas sao?
-- Liste meus emails
-- Crie um arquivo ola.txt
-- Pesquise na web por melhores praticas Python
-- Olhe a tela e me diga o que esta vendo
-
-## Solucao de problemas
-
-### O titulo do MYRA volta a mostrar "(Open WebUI)"
-
-Cache do navegador. Aperte Ctrl + Shift + R.
-
-### Os modelos sumiram do MYRA
-
-O Ollama foi reiniciado e o MYRA nao percebeu.
-1. Admin Settings -> Connections
-2. Clique no refresh (ou Save) ao lado do Ollama API
-3. Recarregue a pagina (F5)
-
-### agent.py inacessivel
-
-O Uvicorn caiu. Reinicie:
-
-    cd C:\computer-agent
-    .\venv\Scripts\Activate.ps1
-    uvicorn agent:app --host 127.0.0.1 --port 8000
-
-### O clique nao funciona
-
-O click_by_description tem 4 camadas:
-1. Tenta o texto exato
-2. Tenta por role (link/button)
-3. Fallback: clica no primeiro link da pagina
-4. Retorna a lista de clicaveis
-
-### CUDA error: shared object initialization failed
-
-Voce esqueceu OLLAMA_LLM_LIBRARY=cuda_v12.
-
-### Chromium nao abre
-
-Feche todos os Chromium abertos. O agent.py detecta e recria o browser.
-
-### O Nginx nao aplica o sub_filter
-
-Verifique se o modulo sub_filter esta disponivel:
-
-    docker exec myra-proxy nginx -V 2>&1 | Select-String "sub"
-
-Deve aparecer --with-http_sub_module.
-
-### Porta 8082 ja em uso
-
-Outro container esta usando essa porta. Verifique:
-
-    netstat -ano | findstr ":8082"
-
-## Modelos instalados
-
-- qwen2.5:7b (usado pelo Local Agent - recomendado)
-- qwen2.5:3b (1.9 GB - fallback)
-- llama3.1:8b (4.9 GB - NAO use com muitas ferramentas)
-- R4C3R/qwen2.5-coder-3b-heretic (6.2 GB)
-- refinedneuro/refinedtoolcallv5-3b (2.5 GB)
-- goekdenizguelmez/JOSIE:4b-instruct-q4_k_m (2.5 GB)
-- gemma2:2b (1.6 GB)
-
-## Limitacoes
-
-1. Modelos 3B tem dificuldade com multi-step.
-2. A GPU RTX A2000 Laptop tem 4 GB dedicados. Modelos > 4 GB vao para CPU (lento).
-3. Cada acao e uma mensagem separada (loop SEE->THINK->ACT ainda nao implementado).
-4. Sem confirmacao antes de acoes irreversiveis (exceto via request_confirmation).
-
-## Licoes aprendidas
-
-1. MODELO: use qwen2.5:7b (nao llama3.1:8b).
-2. CHAT NOVO: sempre use chat novo para tarefas criticas.
-3. SYSTEM PROMPT: liste cada ferramenta com seus parametros exatos.
-4. PREFIRA search_google em vez de open_url com URL do Google.
-5. FALLBACK: o open_url detecta CAPTCHA do Google e cai no DuckDuckGo.
-6. CHROME AUTO-RECUPERACAO: o start_browser() detecta contexto morto e recria.
-7. ENCODING UTF-8: write_file e read_file usam encoding="utf-8-sig" (BOM) para acentos.
-
-## Historico
-
-- 23/09/2026 - Construcao inicial. Virada: click_by_description com fallback.
-- 24/09/2026 - Email (IMAP/SMTP), arquivos, web search, visao (llm-eyes + Qwen3.5-0.8B).
-- 25/09/2026 - Visao funcionando. MYRA (Open WebUI customizado) na porta 8082 com proxy Nginx.
-- 25/09/2026 - MYRA: favicon e logo customizados (olho roxo/azul, fundo transparente).
-- 25/09/2026 - WebSocket funcionando (sem "Conexao perdida").
-- 25/09/2026 - FASE 15: create_dir, delete_file, move_file, search_in_files.
-- 25/09/2026 - FASE 8: confirmacao robusta (fluxo simplificado de 2 etapas).
-- 25/09/2026 - FASE 19: GUIA.md + requirements.txt.
-
-## Proximas fases
-
-Concluidas:
-- FASE 0: Base
-- FASE 1: OPEN/SEARCH
-- FASE 2: CLICK/TYPE/PRESS/WAIT/BACK
-- FASE 3: READ/DOM
-- FASE 4: Loop SEE -> THINK -> ACT
-- FASE 5: Screenshots + visao
-- FASE 6: Integracao Open WebUI
-- FASE 8: Confirmacao robusta (2 etapas)
-- FASE 9: Customizacao da interface (MYRA, favicon, logo)
-- FASE 15: Ferramentas de arquivo avancadas
-- FASE 19: Guia de reinstalacao
-
-Pendentes:
-- FASE 7: Agente autonomo
-- FASE 10: Apagar chats em lote (1-2h)
-- FASE 11: Responder com botoes (2-4h)
-- FASE 12: Geracao de imagem (via API externa, 1h)
-- FASE 13: Geracao de video (INVIAVEL - hardware)
-- FASE 14: TTS + Whisper (1-2h)
-- FASE 16: Automacao do PC (run_command, 1-2h)
-- FASE 17: Agente de codigo (pip, git, scripts, 1-2h)
-- FASE 18: Criar/Marcar/mover/apagar emails (1h)
-
-## Licenca e branding
-
-O Open WebUI (base do MYRA) tem uma licenca BSD-3 com restricoes de branding. O WEBUI_NAME=MYRA e suportado oficialmente. A remocao do sufixo "(Open WebUI)" via proxy reverso e uma customizacao tecnica - para uso pessoal/local, nao ha problema. Para redistribuicao, verifique os termos da licenca: https://docs.openwebui.com/license
+git push
+```
