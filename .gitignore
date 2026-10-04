@@ -52,6 +52,9 @@ notes.txt
 backups/
 backup_*/
 agent_backup*.py
+*_backup_*.py
+*_backup.py
+agent.p
 
 # ============================================
 # VARIAVEIS DE AMBIENTE (SEGURANCA!)
@@ -61,6 +64,17 @@ agent_backup*.py
 *.key
 *.pem
 *_secret.*
+
+# ============================================
+# API KEYS E SEGREDOS (SEGURANCA!)
+# ============================================
+*API KEY*
+*API_KEY*
+*apikey*
+*api-key*
+*token*
+*secret*
+*.secret
 
 # ============================================
 # FAVICONS ORIGINAIS
@@ -95,14 +109,27 @@ Desktop.ini
 $RECYCLE.BIN/
 .DS_Store
 
-# Backups de arquivos e arquivos indesejados
-*_backup_*.py
-*_backup.py
-agent.p
-# Arquivos temporarios do yt-dlp
+# ============================================
+# ARQUIVOS TEMPORARIOS
+# ============================================
+# yt-dlp
 *.vtt
-teste_*
+*.srt
+*.ass
 
-# Arquivos temporarios do yt-dlp
-*.vtt
+# Testes locais
 teste_*
+test_*
+*_test.json
+body.json
+resultado.json
+
+# Sessoes e cookies
+*cookies*
+*.session
+
+# ============================================
+# ARQUIVOS DE CONFIGURACAO LOCAL
+# ============================================
+config_local.*
+*.local.json
