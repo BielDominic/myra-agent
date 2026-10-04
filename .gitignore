@@ -99,3 +99,10 @@ $RECYCLE.BIN/
 *_backup_*.py
 *_backup.py
 agent.p
+# Arquivos temporarios do yt-dlp
+*.vtt
+teste_*
+
+# Arquivos temporarios do yt-dlp
+*.vtt
+teste_*

@@ -219,8 +219,8 @@ class Tools:
         r = self._post("/read_notes", {})
         return r.get("result", "sem resultado")
 
-    def get_weather(self, cidade: str = "Dublin") -> str:
-        """Retorna o clima."""
+    def get_weather(self, cidade: str = "") -> str:
+        """Retorna o clima da cidade. Se cidade vazia, usa a cidade padrao configurada."""
         r = self._post("/get_weather", {"cidade": cidade})
         return r.get("result", "sem resultado")
 
@@ -489,4 +489,41 @@ class Tools:
         r = self._post(
             "/pc_rename_chat", {"indice": indice, "novo_titulo": novo_titulo}
         )
+        return r.get("result", "sem resultado")
+
+    # ============================================================
+    # YOUTUBE (FASE 20)
+    # ============================================================
+
+    def get_youtube_transcript(
+        self,
+        url: str = Field(
+            ...,
+            description="URL completa do YouTube (youtube.com/watch?v=... ou youtu.be/...) ou o ID do video (11 caracteres).",
+        ),
+        idiomas: list = Field(
+            ["en", "pt"],
+            description="Lista de idiomas em ordem de prioridade. Padrao: ingles, portugues.",
+        ),
+    ) -> str:
+        """Baixa a transcricao completa de um video do YouTube.
+        Use quando o usuario pedir para pegar a transcricao de um video."""
+        r = self._post("/youtube_transcript", {"url": url, "idiomas": idiomas})
+        return r.get("result", "sem resultado")
+
+    def get_youtube_summary(
+        self,
+        url: str = Field(
+            ...,
+            description="URL do video do YouTube a resumir.",
+        ),
+        max_pontos: int = Field(
+            5,
+            description="Numero maximo de pontos no resumo (padrao: 5).",
+        ),
+    ) -> str:
+        """Baixa a transcricao de um video do YouTube E retorna um resumo em portugues.
+        Use quando o usuario pedir para RESUMIR, ANALISAR, EXPLICAR ou fazer PERGUNTAS sobre um video.
+        Retorna o resumo JA PRONTO (curto, otimo para mostrar direto)."""
+        r = self._post("/youtube_summarize", {"url": url, "max_pontos": max_pontos})
         return r.get("result", "sem resultado")
