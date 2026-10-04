@@ -529,7 +529,7 @@ class Tools:
         return r.get("result", "sem resultado")
 
     # ============================================================
-    # TASK RUN (FASE 22-light) - agente autonomo simples
+    # TASK RUN (FASE 22-light) - agente autonomo
     # ============================================================
 
     def task_run(
@@ -538,29 +538,43 @@ class Tools:
             ...,
             description=(
                 "O que deve ser feito, em linguagem natural. "
-                "Ex: 'pesquise os melhores cursos de IA em Dublin e diga 3 nomes', "
-                "'que horas sao agora?', 'resuma o video https://youtube.com/watch?v=...'"
+                "PODE envolver VARIOS PASSOS: pesquisar, abrir sites, ler paginas, "
+                "encadear acoes. Ex: 'pesquise o canal do Post Malone no YouTube, "
+                "ache o ultimo video dele e me diga o titulo'. "
+                "Ex: 'pesquise os melhores cursos de IA em Dublin e diga 3 nomes'. "
+                "Ex: 'resuma o video https://youtube.com/watch?v=...'."
             ),
         ),
         max_passos: int = Field(
-            5,
-            description="Limite de passos do plano (padrao: 5). Aumente para tarefas mais complexas.",
+            15,
+            description=(
+                "Limite de passos do plano (padrao: 15). "
+                "Use o padrao para a maioria dos casos. "
+                "Aumente para tarefas muito complexas."
+            ),
         ),
     ) -> str:
         """Executa uma tarefa COMPLETA de forma autonoma: planeja os passos,
-        escolhe as ferramentas certas, executa cada passo, e sintetiza a resposta final.
+        escolhe as ferramentas certas, executa cada passo, e sintetiza a
+        resposta final em portugues.
 
-        Use quando o usuario pedir para VOCE RESOLVER algo de ponta a ponta,
-        sem precisar chamar ferramenta por ferramenta.
+        USE ESTA FERRAMENTA quando o usuario pedir para VOCE RESOLVER algo
+        de ponta a ponta, especialmente quando envolver VARIOS PASSOS:
+        pesquisar, abrir sites, ler conteudo, comparar, encadear acoes.
 
-        Exemplos:
+        Exemplos de quando USAR:
         - "pesquise X e me diga Y"
+        - "ache o ultimo video do canal Z no YouTube"
+        - "compare o preco de X em 3 sites"
         - "veja o tempo em Dublin e me avise se devo levar guarda-chuva"
         - "resuma esse video do YouTube"
 
-        Para tarefas simples de 1 passo (ex: "que horas sao"), prefira chamar
-        a ferramenta especifica direto (get_current_time). Use task_run quando
-        o objetivo envolver 2+ etapas ou quando o usuario pedir algo mais elaborado.
+        NAO use para tarefas triviais de 1 passo direto (ex: "que horas sao").
+        Nesses casos, chame a ferramenta especifica (get_current_time,
+        get_weather, get_youtube_summary, etc).
+
+        Esta ferramenta pensa passo a passo: olha o objetivo, decide a proxima
+        acao, executa, ve o resultado, e repete ate concluir.
         """
         r = self._post(
             "/task_simple",
