@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI
+from fastapi import FastAPI
 from pydantic import BaseModel
 from playwright.sync_api import sync_playwright
 import os
@@ -14,6 +14,7 @@ import urllib.parse
 import urllib.error
 import re as _re
 import yt_dlp
+from tasks.simple_task import executar_task, registrar_ferramenta
 from email.message import EmailMessage
 from email.header import decode_header
 import email as email_lib
@@ -344,6 +345,11 @@ class YouTubeList(BaseModel):
 class YouTubeRead(BaseModel):
     video_id: str
     max_chars: int = 5000
+
+
+class TaskSimple(BaseModel):
+    objetivo: str
+    max_passos: int = 5
 
 
 def _contexto_vivo():
@@ -2758,6 +2764,92 @@ def youtube_read(data: YouTubeRead):
     except Exception as e:
         print(f"[YOUTUBE_READ] ERRO: {e}")
         return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+# ============================================================
+# FASE 22-light — Task simples com planner + retry
+# ============================================================
+
+def _t_search_google(query: str):
+    return search_google(SearchGoogle(query=query))
+
+def _t_open_url(url: str):
+    return open_url(OpenURL(url=url))
+
+def _t_read_page():
+    return read_page()
+
+def _t_web_search(query: str, max_resultados: int = 5):
+    return web_search(WebSearch(query=query, max_resultados=max_resultados))
+
+def _t_get_weather(cidade: str = ""):
+    return get_weather(GetWeather(cidade=cidade))
+
+def _t_get_current_time():
+    return get_current_time()
+
+def _t_youtube_transcript(url: str, idiomas: list = None):
+    if idiomas is None:
+        idiomas = ["pt", "en"]
+    return youtube_transcript(YouTubeTranscript(url=url, idiomas=idiomas))
+
+def _t_responder(pergunta: str):
+    resposta = _llm_generate(pergunta)
+    if resposta.get("status") == "ok":
+        return {"status": "ok", "result": resposta["result"]}
+    return resposta
+
+registrar_ferramenta(
+    "search_google", _t_search_google,
+    "pesquisa no Google (evite; prefira web_search)"
+)
+registrar_ferramenta(
+    "open_url", _t_open_url,
+    "abre uma URL especifica no navegador"
+)
+registrar_ferramenta(
+    "read_page", _t_read_page,
+    "le o conteudo da pagina atual do navegador"
+)
+registrar_ferramenta(
+    "web_search", _t_web_search,
+    "pesquisa na web via DuckDuckGo (use para informacoes gerais, noticias, sites)"
+)
+registrar_ferramenta(
+    "get_weather", _t_get_weather,
+    "clima/tempo de uma cidade (use SEMPRE que falar de tempo, temperatura, chuva, previsao)"
+)
+registrar_ferramenta(
+    "get_current_time", _t_get_current_time,
+    "hora/data atual (use SEMPRE que falar de horas, datas, dia da semana)"
+)
+registrar_ferramenta(
+    "youtube_transcript", _t_youtube_transcript,
+    "transcricao de video do YouTube (use SEMPRE que tiver URL de youtube.com ou youtu.be)"
+)
+registrar_ferramenta(
+    "responder", _t_responder,
+    "sintetiza a resposta final em portugues (use como ULTIMO passo sempre)"
+)
+
+
+@app.post("/task_simple")
+def task_simple(data: TaskSimple):
+    """Executa uma task simples: planeja -> executa -> sintetiza."""
+    print(f"[TASK_SIMPLE] objetivo={data.objetivo!r} max_passos={data.max_passos}")
+    try:
+        resultado = executar_task(data.objetivo, max_passos=data.max_passos)
+        return resultado
+    except Exception as e:
+        print(f"[TASK_SIMPLE] ERRO: {e}")
+        return {
+            "status": "erro",
+            "objetivo": data.objetivo,
+            "plano": [],
+            "historico": [],
+            "resultado_final": None,
+            "erro": f"{type(e).__name__}: {e}",
+        }
 
 
 if __name__ == "__main__":
