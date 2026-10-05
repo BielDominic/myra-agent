@@ -106,24 +106,25 @@ Revê a cada 2 semanas — o que era prioridade muda.
 - [ ] **34.5** — Wake-on-LAN + túnel (PC sleep, DDNS, Cloudflare Tunnel)
 - [ ] **34.6** — Multi-canal (Discord, WhatsApp, SMS, web app)
 
-### FASE 8.5 — Stealth Browser (reforço caseiro no Chrome/Playwright)
-**Objetivo:** deixar o Chrome controlado pela MYRA resistente a detecção de bot,
-SEM depender de soluções externas como o `dots` (FASE 27).
+#### FASE 8.5 — Stealth Browser (contingência, só se necessário)
 
-**Não substitui o Playwright** — reforça o que já existe.
+**Status:** mapeado, **não iniciado**. Só executar se sites começarem a bloquear.
 
+**Gatilhos pra executar:**
+- Google/DuckDuckGo retornando CAPTCHA com frequência
+- Sites específicos bloqueando a MYRA
+- Login travando em sites que exigem sessão
+
+**Etapas (2-3 dias):**
 - [ ] **8.5.1** — Básico: args extras no `launch_persistent_context`
-  (`--disable-features=AutomationControlled,TranslateUI`, `--no-default-browser-check`, etc.)
-- [ ] **8.5.2** — Fingerprint automático: instalar `playwright-stealth`, aplicar `stealth_sync(page)`
-- [ ] **8.5.3** — Fingerprint consistente por seed: `MYRA_SEED=42` fixo (UA, tela, timezone, locale, WebGL)
+- [ ] **8.5.2** — Fingerprint automático: `playwright-stealth`
+- [ ] **8.5.3** — Fingerprint consistente por seed: `MYRA_SEED=42`
 - [ ] **8.5.4** — Helpers humanos: `human_move_mouse`, `human_type`, `human_scroll`
-- [ ] **8.5.5** — Atualizar `click_element`, `type_text`, `click_by_description` pra usar os helpers
-- [ ] **8.5.6** — Testes: `bot.sannysoft.com`, `creepjs`, `nowsecure.nl`, `amiunique.org`
+- [ ] **8.5.5** — Atualizar `click_element`, `type_text` pra usar helpers
+- [ ] **8.5.6** — Testar em `bot.sannysoft.com`, `creepjs`, `nowsecure.nl`
 
-**Efeito estimado:** ~85% do nível do `dots`, sem dependência externa.
-**Tempo:** 2-3 dias.
-**Gatilhos pra executar:** sites bloqueando, CAPTCHA frequente, login travando.
-
+**Se 8.5 não for suficiente:** considerar alternativas externas (dots, camoufox, etc.)
+como **último recurso**. Nenhuma integrada por padrão.
 ### FASE 27 — Stealth Browser externo (dots / invisible_playwright_mcp)
 **Solução mapeada:** [feder-cr/dots](https://github.com/feder-cr/dots)
 - Firefox patchado em C++ (stealth no motor, não em JS)
@@ -406,7 +407,7 @@ Só quando o Open WebUI virar gargalo real.
 | Autonomia (FASE 24 + 22.x) | 18 |
 | Interface / Canais (FASE 34) | 17 |
 | Widget visual (FASE 24.4) | 9 |
-| Stealth (FASE 8.5 + 27) | 13 |
+| Stealth (FASE 8.5 — contingência) | 6 |
 | Voz / Áudio | 5 |
 | YouTube / Mídia | 12 |
 | Geração de mídia | 6 |
@@ -430,7 +431,7 @@ Só quando o Open WebUI virar gargalo real.
 | Meta / Estratégico | 8 |
 | FASE 40 (UI própria) | 10 |
 
-**Total: ~250 itens.**
+**Total: ~244 itens.**
 
 ---
 
