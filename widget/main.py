@@ -204,7 +204,7 @@ def main():
         y=TOP_MARGIN,
         resizable=False,
         frameless=True,
-        easy_drag=True,
+        easy_drag=False,
         background_color="#0a0a15",
     )
     monitor = StatusMonitor()
