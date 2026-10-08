@@ -231,8 +231,10 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
     erros_consecutivos = 0
     acoes_repetidas = {}
 
-    # Notifica o widget: passo_total
-    _widget_notify(passo_total=max_passos)
+            # Notifica o widget: passo_total (e garante state=running)
+    _widget_notify(passo_total=max_passos, state="running")
+    # Pequeno delay pra o widget pegar o estado running
+    time.sleep(0.5)
 
     for passo_num in range(1, max_passos + 1):
         print(f"\n[TASK] === PASSO {passo_num}/{max_passos} ===")
@@ -242,6 +244,8 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
             passo_num=passo_num,
             historico=[{"ferramenta": h["ferramenta"]} for h in historico],
         )
+        # Delay pra o widget pegar o passo
+        time.sleep(0.3)
 
         try:
             decisao = _decidir_proximo_passo(objetivo, historico)
@@ -284,7 +288,9 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
                 break
 
             # Notifica o widget: qual ferramenta ta rodando AGORA
-            _widget_notify(passo_atual=ferramenta)
+            _widget_notify(passo_atual=ferramenta, state="running")
+            # Delay pra o widget pegar o passo_atual
+            time.sleep(0.3)
 
             r = _executar_passo(ferramenta, args)
 
@@ -301,6 +307,7 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
             # Notifica o widget: historico atualizado
             _widget_notify(
                 historico=[{"ferramenta": h["ferramenta"]} for h in historico],
+                state="running",
             )
 
             if r["ok"]:

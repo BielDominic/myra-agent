@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -23,7 +24,7 @@ import email as email_lib
 
 app = FastAPI()
 
-# CORS — permite o widget (pywebview) acessar a API
+# CORS ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â permite o widget (pywebview) acessar a API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -58,7 +59,7 @@ _chat_cache = {"data": None, "timestamp": 0}
 CHAT_CACHE_TTL = 5
 
 # ============================================================
-# WIDGET — Sistema de status em tempo real
+# WIDGET ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Sistema de status em tempo real
 # ============================================================
 
 _widget_status = {
@@ -549,7 +550,7 @@ def _detectar_cidade_por_ip() -> str:
 
 
 def _fix_encoding(texto: str) -> str:
-    """Corrige encoding bagunçado (UTF-8 interpretado como Latin-1)."""
+    """Corrige encoding bagunÃƒÆ’Ã‚Â§ado (UTF-8 interpretado como Latin-1)."""
     if not texto:
         return texto
     try:
@@ -973,7 +974,7 @@ def read_page():
 
 
 # ============================================================
-# WIDGET — Rotas do status em tempo real
+# WIDGET ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Rotas do status em tempo real
 # ============================================================
 
 @app.get("/task_status")
@@ -988,12 +989,12 @@ def task_status():
 @app.post("/task_cancel")
 def task_cancel():
     """
-    Cancela a task em execução OU volta pra idle se já terminou.
-    Chamado quando o usuário clica em OK, X ou Cancelar.
+    Cancela a task em execuÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o OU volta pra idle se jÃƒÆ’Ã‚Â¡ terminou.
+    Chamado quando o usuÃƒÆ’Ã‚Â¡rio clica em OK, X ou Cancelar.
     """
     global _widget_status
 
-    # Reseta SEMPRE (mesmo se estiver em done/error) — permite fechar o card
+    # Reseta SEMPRE (mesmo se estiver em done/error) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â permite fechar o card
     _widget_set(
         state="idle",
         task_id=None,
@@ -1013,7 +1014,7 @@ def task_cancel():
 
 @app.get("/task_events")
 async def task_events(request: Request):
-    """SSE (Server-Sent Events) — envia atualizações em tempo real pro widget."""
+    """SSE (Server-Sent Events) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â envia atualizaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes em tempo real pro widget."""
     from fastapi.responses import StreamingResponse
     import asyncio
 
@@ -1046,7 +1047,7 @@ async def task_events(request: Request):
 
 
 # ============================================================
-# FASE 24.2 — Rotas auxiliares pras ferramentas estruturadas
+# FASE 24.2 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Rotas auxiliares pras ferramentas estruturadas
 # ============================================================
 
 @app.post("/get_current_url")
@@ -1821,9 +1822,9 @@ def see(data: SeeImage):
 
         if conteudo:
             substituicoes = {
-                "Ã©": "é", "Ã¡": "á", "Ã£": "ã", "Ã¢": "â", "Ãª": "ê",
-                "Ã": "í", "Ã³": "ó", "Ã´": "ô", "Ãµ": "õ", "Ãº": "ú",
-                "Ã¼": "ü", "Ã§": "ç", "Ã±": "ñ",
+                "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©": "ÃƒÆ’Ã‚Â©", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡": "ÃƒÆ’Ã‚Â¡", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£": "ÃƒÆ’Ã‚Â£", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢": "ÃƒÆ’Ã‚Â¢", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âª": "ÃƒÆ’Ã‚Âª",
+                "ÃƒÆ’Ã†â€™": "ÃƒÆ’Ã‚Â­", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³": "ÃƒÆ’Ã‚Â³", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â´": "ÃƒÆ’Ã‚Â´", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âµ": "ÃƒÆ’Ã‚Âµ", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âº": "ÃƒÆ’Ã‚Âº",
+                "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¼": "ÃƒÆ’Ã‚Â¼", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§": "ÃƒÆ’Ã‚Â§", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â±": "ÃƒÆ’Ã‚Â±",
             }
             for errado, certo in substituicoes.items():
                 conteudo = conteudo.replace(errado, certo)
@@ -2492,7 +2493,7 @@ def code_lint(data: CodeInput):
 
 
 # ============================================================
-# YOUTUBE — FASE 20.1: deteccao automatica de idioma via yt-dlp
+# YOUTUBE ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â FASE 20.1: deteccao automatica de idioma via yt-dlp
 # ============================================================
 
 YOUTUBE_ID_REGEX = _re.compile(r"(?:v=|youtu\.be/|youtube\.com/embed/|shorts/)([A-Za-z0-9_-]{11})")
@@ -2650,9 +2651,9 @@ def _yt_download_transcript(url: str, idiomas: list = None) -> dict:
             conteudo = raw_bytes.decode("latin-1", errors="ignore")
             conteudo = _fix_encoding(conteudo)
 
-        if "Ã" in conteudo or "Â" in conteudo:
+        if "ÃƒÆ’Ã†â€™" in conteudo or "ÃƒÆ’Ã¢â‚¬Å¡" in conteudo:
             conteudo_fixed = _fix_encoding(conteudo)
-            if conteudo_fixed.count("Ã") < conteudo.count("Ã"):
+            if conteudo_fixed.count("ÃƒÆ’Ã†â€™") < conteudo.count("ÃƒÆ’Ã†â€™"):
                 conteudo = conteudo_fixed
 
         linhas = conteudo.split("\n")
@@ -2931,7 +2932,7 @@ def youtube_read(data: YouTubeRead):
 
 
 # ============================================================
-# FASE 22-light — Task simples com planner + retry
+# FASE 22-light ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Task simples com planner + retry
 # ============================================================
 
 def _t_search_google(query: str):
@@ -2996,11 +2997,11 @@ registrar_ferramenta(
     "sintetiza a resposta final em portugues (use como ULTIMO passo sempre)"
 )
 
-# FASE 24.2 — Ferramentas estruturadas (devolvem JSON)
+# FASE 24.2 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Ferramentas estruturadas (devolvem JSON)
 st.registrar_todas(registrar_ferramenta)
 
 
-# FASE 24.4 — Injeta _widget_set no simple_task (evita import circular)
+# FASE 24.4 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Injeta _widget_set no simple_task (evita import circular)
 import tasks.simple_task as _simple_task_module
 _simple_task_module._widget_set_injetado = _widget_set
 
@@ -3010,7 +3011,7 @@ def task_simple(data: TaskSimple):
     """Executa uma task simples: planeja -> executa -> sintetiza."""
     print(f"[TASK_SIMPLE] objetivo={data.objetivo!r} max_passos={data.max_passos}")
 
-    # Atualiza o widget: task começou
+    # Atualiza o widget: task comeÃƒÆ’Ã‚Â§ou
     _widget_set(
         state="running",
         task_id=str(int(time.time())),
@@ -3066,6 +3067,104 @@ def task_simple(data: TaskSimple):
         }
 
 
+
+
+# ============================================================
+# FASE 24.5 - Rota OpenAI-compatible (integracao com Open WebUI)
+# ============================================================
+
+from fastapi.responses import JSONResponse
+
+
+@app.post("/v1/chat/completions")
+async def openai_chat_completions(request: Request):
+    """Rota OpenAI-compatible. Recebe mensagem do Open WebUI, executa via executar_task, devolve no formato OpenAI."""
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    messages = data.get("messages", [])
+    model = data.get("model", "myra-agent")
+
+    user_msg = ""
+    for m in reversed(messages):
+        if m.get("role") == "user":
+            content = m.get("content", "")
+            if isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        user_msg = part.get("text", "")
+                        break
+            else:
+                user_msg = content
+            break
+
+    print(f"[OPENAI] model={model} msg={user_msg!r}")
+
+    if not user_msg.strip():
+        return JSONResponse({
+            "id": "chatcmpl-myra",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": "Mensagem vazia."}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        })
+
+    _widget_set(
+        state="running",
+        task_id=str(int(time.time())),
+        objetivo=user_msg,
+        passo_atual=None,
+        passo_num=0,
+        passo_total=0,
+        iniciado_em=time.time(),
+        terminado_em=None,
+        resultado=None,
+        erro=None,
+        historico=[],
+    )
+
+    import asyncio
+    import concurrent.futures
+
+    try:
+        # Roda executar_task em thread separada (libera o FastAPI pra servir /task_status)
+        loop = asyncio.get_event_loop()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            resultado = await loop.run_in_executor(
+                pool, lambda: executar_task(user_msg, max_passos=15)
+            )
+        if resultado.get("status") == "ok":
+            resposta_texto = resultado.get("resultado_final") or "(sem resultado)"
+            _widget_set(state="done", terminado_em=time.time(), resultado=resposta_texto, erro=None)
+        else:
+            resposta_texto = f"Erro: {resultado.get('erro') or resultado.get('result') or 'desconhecido'}"
+            _widget_set(state="error", terminado_em=time.time(), erro=resposta_texto)
+    except Exception as e:
+        resposta_texto = f"Erro interno: {type(e).__name__}: {e}"
+        print(f"[OPENAI] ERRO: {e}")
+        _widget_set(state="error", terminado_em=time.time(), erro=resposta_texto)
+
+    return JSONResponse({
+        "id": f"chatcmpl-myra-{int(time.time())}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [{"index": 0, "message": {"role": "assistant", "content": resposta_texto}, "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    })
+
+
+@app.get("/v1/models")
+async def openai_list_models():
+    """Lista modelos (formato OpenAI)."""
+    return {
+        "object": "list",
+        "data": [{"id": "myra-agent", "object": "model", "created": int(time.time()), "owned_by": "myra"}]
+    }
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, workers=1)
