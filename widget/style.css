@@ -49,7 +49,6 @@ body {
     transition: width 300ms cubic-bezier(0.34, 1.56, 0.64, 1),
                 height 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
     margin: 0 auto;
-    -webkit-app-region: drag;
 }
 
 .island.idle {

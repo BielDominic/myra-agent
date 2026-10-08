@@ -1,6 +1,8 @@
 """
 MYRA Widget — Island flutuante com altura DINAMICA via Win32.
 Transparencia real via WS_EX_LAYERED + LWA_COLORKEY (chroma key).
+Chromakey so fica ativo em idle (pilula). Em card, e removido
+pra devolver os cliques a janela.
 """
 import sys
 import json
@@ -67,11 +69,25 @@ def _aplicar_transparencia(hwnd):
         )
         if ok:
             print(f"[TRANSP] chroma key aplicado: {BACKGROUND_COLOR_HEX}")
-        else:
-            print("[TRANSP] SetLayeredWindowAttributes falhou")
         return bool(ok)
     except Exception as e:
         print(f"[TRANSP] erro: {e}")
+        return False
+
+
+def _remover_transparencia(hwnd):
+    if not hwnd:
+        return False
+    GWL_EXSTYLE = -20
+    WS_EX_LAYERED = 0x00080000
+    user32 = ctypes.windll.user32
+    try:
+        ex = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+        user32.SetWindowLongW(hwnd, GWL_EXSTYLE, ex & ~WS_EX_LAYERED)
+        print("[TRANSP] chroma key removido (cliques liberados)")
+        return True
+    except Exception as e:
+        print(f"[TRANSP] erro ao remover: {e}")
         return False
 
 
@@ -131,14 +147,19 @@ class StatusMonitor(threading.Thread):
             return
         print(f"[MONITOR] HWND encontrado: {self._hwnd}")
 
-        # Fix: espera pywebview terminar de montar antes de aplicar
         time.sleep(0.5)
         _preparar_janela(self._hwnd)
-        # Reaplica depois de 1s pra garantir que o pywebview nao sobrescreveu
         time.sleep(1.0)
         _preparar_janela(self._hwnd)
 
         while not self._stop:
+            if self._last_state in (None, "idle"):
+                _aplicar_transparencia(self._hwnd)
+                resize_window_win32(self._hwnd, IDLE_WIDTH, IDLE_HEIGHT)
+            else:
+                _remover_transparencia(self._hwnd)
+                resize_window_win32(self._hwnd, CARD_WIDTH, CARD_HEIGHT)
+
             try:
                 req = urllib.request.Request(f"{AGENT_URL}/task_status", method="GET")
                 with urllib.request.urlopen(req, timeout=3) as r:
@@ -147,10 +168,6 @@ class StatusMonitor(threading.Thread):
                 if state != self._last_state:
                     print(f"[MONITOR] state: {self._last_state} -> {state}")
                     self._last_state = state
-                    if state == "idle":
-                        resize_window_win32(self._hwnd, IDLE_WIDTH, IDLE_HEIGHT)
-                    else:
-                        resize_window_win32(self._hwnd, CARD_WIDTH, CARD_HEIGHT)
             except Exception:
                 pass
             time.sleep(0.5)
@@ -195,6 +212,7 @@ def main():
     x_pos = get_center_position(IDLE_WIDTH)
     print(f"Tela: {screen_width}x{screen_height}")
     print(f"Janela inicial: {IDLE_WIDTH}x{IDLE_HEIGHT} em ({x_pos}, {TOP_MARGIN})")
+
     window = webview.create_window(
         title="MYRA",
         url=str(INDEX_HTML),
@@ -207,6 +225,16 @@ def main():
         easy_drag=False,
         background_color="#0a0a15",
     )
+
+    def _on_loaded():
+        time.sleep(0.5)
+        hwnd = get_hwnd_from_title("MYRA")
+        if hwnd:
+            _preparar_janela(hwnd)
+            print("[LOADED] resize aplicado pos-load")
+
+    window.events.loaded += _on_loaded
+
     monitor = StatusMonitor()
     monitor.start()
     try:
