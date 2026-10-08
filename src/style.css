@@ -1,6 +1,6 @@
 /* ============================================================
-   MYRA Widget — Estilo da island flutuante
-   Tauri: janela 100% transparente, só a .island aparece
+   MYRA Widget — Estilo da island flutuante (Tauri)
+   Janela 100% transparente, só a .island aparece.
    ============================================================ */
 
 * {
@@ -12,7 +12,7 @@
 html, body {
     width: 100%;
     height: 100%;
-    background: transparent;
+    background: transparent !important;
     overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
     user-select: none;

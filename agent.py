@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from playwright.sync_api import sync_playwright
 import os
@@ -21,6 +22,15 @@ from email.header import decode_header
 import email as email_lib
 
 app = FastAPI()
+
+# CORS — permite o widget (pywebview) acessar a API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 browser = None
 context = None
@@ -46,6 +56,43 @@ CONFIRMATION_TIMEOUT = 300
 
 _chat_cache = {"data": None, "timestamp": 0}
 CHAT_CACHE_TTL = 5
+
+# ============================================================
+# WIDGET — Sistema de status em tempo real
+# ============================================================
+
+_widget_status = {
+    "state": "idle",           # idle | running | done | error | question
+    "task_id": None,
+    "objetivo": None,
+    "passo_atual": None,
+    "passo_num": 0,
+    "passo_total": 0,
+    "iniciado_em": None,
+    "terminado_em": None,
+    "resultado": None,
+    "erro": None,
+    "historico": [],
+}
+
+_widget_listeners = []
+
+
+def _widget_notify():
+    """Notifica todos os listeners SSE que o status mudou."""
+    for queue in list(_widget_listeners):
+        try:
+            queue.put_nowait("update")
+        except Exception:
+            pass
+
+
+def _widget_set(**kwargs):
+    """Atualiza o status do widget e notifica os listeners."""
+    global _widget_status
+    for k, v in kwargs.items():
+        _widget_status[k] = v
+    _widget_notify()
 
 
 class OpenURL(BaseModel):
@@ -923,6 +970,79 @@ def read_page():
         pass
 
     return {"status": "ok", "result": texto, "clicaveis": clicaveis}
+
+
+# ============================================================
+# WIDGET — Rotas do status em tempo real
+# ============================================================
+
+@app.get("/task_status")
+def task_status():
+    """
+    Retorna o status atual da task (pro widget).
+    Sem auto-reset: o widget decide quando voltar pra idle.
+    """
+    return _widget_status
+
+
+@app.post("/task_cancel")
+def task_cancel():
+    """
+    Cancela a task em execução OU volta pra idle se já terminou.
+    Chamado quando o usuário clica em OK, X ou Cancelar.
+    """
+    global _widget_status
+
+    # Reseta SEMPRE (mesmo se estiver em done/error) — permite fechar o card
+    _widget_set(
+        state="idle",
+        task_id=None,
+        objetivo=None,
+        passo_atual=None,
+        passo_num=0,
+        passo_total=0,
+        iniciado_em=None,
+        terminado_em=None,
+        resultado=None,
+        erro=None,
+        historico=[],
+    )
+    print("[WIDGET] Task resetada pra idle")
+    return {"status": "ok", "result": "Task resetada."}
+
+
+@app.get("/task_events")
+async def task_events(request: Request):
+    """SSE (Server-Sent Events) — envia atualizações em tempo real pro widget."""
+    from fastapi.responses import StreamingResponse
+    import asyncio
+
+    async def event_generator():
+        import json as _json
+        yield f"data: {_json.dumps(_widget_status, ensure_ascii=False)}\n\n"
+
+        ultimo_envio = time.time()
+        while True:
+            if await request.is_disconnected():
+                break
+
+            agora = time.time()
+            if agora - ultimo_envio > 1:
+                yield f"data: {_json.dumps(_widget_status, ensure_ascii=False)}\n\n"
+                ultimo_envio = agora
+            else:
+                yield ": ping\n\n"
+
+            await asyncio.sleep(0.5)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ============================================================
@@ -2880,15 +3000,62 @@ registrar_ferramenta(
 st.registrar_todas(registrar_ferramenta)
 
 
+# FASE 24.4 — Injeta _widget_set no simple_task (evita import circular)
+import tasks.simple_task as _simple_task_module
+_simple_task_module._widget_set_injetado = _widget_set
+
+
 @app.post("/task_simple")
 def task_simple(data: TaskSimple):
     """Executa uma task simples: planeja -> executa -> sintetiza."""
     print(f"[TASK_SIMPLE] objetivo={data.objetivo!r} max_passos={data.max_passos}")
+
+    # Atualiza o widget: task começou
+    _widget_set(
+        state="running",
+        task_id=str(int(time.time())),
+        objetivo=data.objetivo,
+        passo_atual=None,
+        passo_num=0,
+        passo_total=0,
+        iniciado_em=time.time(),
+        terminado_em=None,
+        resultado=None,
+        erro=None,
+        historico=[],
+    )
+
     try:
         resultado = executar_task(data.objetivo, max_passos=data.max_passos)
+
+        # Atualiza o widget: task terminou
+        if resultado.get("status") == "ok":
+            _widget_set(
+                state="done",
+                terminado_em=time.time(),
+                resultado=resultado.get("resultado_final"),
+                erro=None,
+                historico=[
+                    {"ferramenta": p.get("ferramenta"), "args": p.get("args")}
+                    for p in resultado.get("plano", [])
+                ],
+            )
+        else:
+            _widget_set(
+                state="error",
+                terminado_em=time.time(),
+                resultado=None,
+                erro=resultado.get("erro") or resultado.get("result"),
+            )
+
         return resultado
     except Exception as e:
         print(f"[TASK_SIMPLE] ERRO: {e}")
+        _widget_set(
+            state="error",
+            terminado_em=time.time(),
+            erro=f"{type(e).__name__}: {e}",
+        )
         return {
             "status": "erro",
             "objetivo": data.objetivo,

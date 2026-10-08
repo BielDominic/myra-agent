@@ -1,6 +1,7 @@
 """
 FASE 24.1 — Loop de autonomia adaptativo.
 Cada iteracao: LLM decide 1 passo -> executa -> observa -> repete.
+Integrado com o widget: notifica passo_atual, passo_num, historico.
 """
 import json
 import re
@@ -18,6 +19,21 @@ MAX_ERROS_CONSECUTIVOS = 3
 MAX_REPETICOES_MESMA_ACAO = 2
 TAMANHO_MAX_RESULTADO_HISTORICO = 800
 TAMANHO_MAX_CONTEXTO_SINTESE = 6000
+
+
+# Referencia global injetada pelo agent.py no startup
+_widget_set_injetado = None
+
+
+def _widget_notify(**kwargs):
+    """Notifica o widget (usa a funcao injetada pelo agent.py)."""
+    global _widget_set_injetado
+    if _widget_set_injetado is None:
+        return
+    try:
+        _widget_set_injetado(**kwargs)
+    except Exception as e:
+        print(f"[WIDGET-NOTIFY] erro: {e}")
 
 
 def registrar_ferramenta(nome: str, fn, descricao: str = ""):
@@ -215,8 +231,17 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
     erros_consecutivos = 0
     acoes_repetidas = {}
 
+    # Notifica o widget: passo_total
+    _widget_notify(passo_total=max_passos)
+
     for passo_num in range(1, max_passos + 1):
         print(f"\n[TASK] === PASSO {passo_num}/{max_passos} ===")
+
+        # Notifica o widget: novo passo
+        _widget_notify(
+            passo_num=passo_num,
+            historico=[{"ferramenta": h["ferramenta"]} for h in historico],
+        )
 
         try:
             decisao = _decidir_proximo_passo(objetivo, historico)
@@ -258,6 +283,9 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
                 print(f"[TASK] Acao repetida {acoes_repetidas[chave]}x. Abortando.")
                 break
 
+            # Notifica o widget: qual ferramenta ta rodando AGORA
+            _widget_notify(passo_atual=ferramenta)
+
             r = _executar_passo(ferramenta, args)
 
             historico.append({
@@ -269,6 +297,11 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
                 "resultado": r["resultado"],
                 "erro": r["erro"],
             })
+
+            # Notifica o widget: historico atualizado
+            _widget_notify(
+                historico=[{"ferramenta": h["ferramenta"]} for h in historico],
+            )
 
             if r["ok"]:
                 erros_consecutivos = 0
