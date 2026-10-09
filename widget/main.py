@@ -1,5 +1,5 @@
 """
-MYRA Widget — Island flutuante com altura DINAMICA via Win32.
+MYRA Widget ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Island flutuante com altura DINAMICA via Win32.
 Transparencia real via WS_EX_LAYERED + LWA_COLORKEY (chroma key).
 Chromakey so fica ativo em idle (pilula). Em card, e removido
 pra devolver os cliques a janela.
@@ -115,8 +115,27 @@ def resize_window_win32(hwnd, width, height):
     screen_width, _ = get_screen_size()
     centro = (screen_width - width) // 2
     x_pos = centro + OFFSET_X
-    user32.SetWindowPos(hwnd, 0, x_pos, TOP_MARGIN, width, height, 0x0014)
 
+    # Remove WS_CAPTION e WS_THICKFRAME (altura minima do Form)
+    GWL_STYLE = -16
+    WS_CAPTION = 0x00C00000
+    WS_THICKFRAME = 0x00040000
+    WS_SYSMENU = 0x00080000
+    try:
+        style = user32.GetWindowLongW(hwnd, GWL_STYLE)
+        novo_style = style & ~WS_CAPTION & ~WS_THICKFRAME & ~WS_SYSMENU
+        if novo_style != style:
+            user32.SetWindowLongW(hwnd, GWL_STYLE, novo_style)
+    except Exception:
+        pass
+
+    # MoveWindow FORCA o resize (SetWindowPos e ignorado pelo pywebview)
+    user32.MoveWindow.argtypes = [
+        wintypes.HWND, ctypes.c_int, ctypes.c_int,
+        ctypes.c_int, ctypes.c_int, wintypes.BOOL,
+    ]
+    user32.MoveWindow.restype = wintypes.BOOL
+    user32.MoveWindow(hwnd, x_pos, TOP_MARGIN, width, height, True)
 
 def _preparar_janela(hwnd):
     _aplicar_transparencia(hwnd)
@@ -155,10 +174,14 @@ class StatusMonitor(threading.Thread):
         while not self._stop:
             if self._last_state in (None, "idle"):
                 _aplicar_transparencia(self._hwnd)
-                resize_window_win32(self._hwnd, IDLE_WIDTH, IDLE_HEIGHT)
+                for _ in range(3):
+                    resize_window_win32(self._hwnd, IDLE_WIDTH, IDLE_HEIGHT)
+                    time.sleep(0.05)
             else:
                 _remover_transparencia(self._hwnd)
-                resize_window_win32(self._hwnd, CARD_WIDTH, CARD_HEIGHT)
+                for _ in range(10):
+                    resize_window_win32(self._hwnd, CARD_WIDTH, CARD_HEIGHT)
+                    time.sleep(0.05)
 
             try:
                 req = urllib.request.Request(f"{AGENT_URL}/task_status", method="GET")
@@ -168,9 +191,21 @@ class StatusMonitor(threading.Thread):
                 if state != self._last_state:
                     print(f"[MONITOR] state: {self._last_state} -> {state}")
                     self._last_state = state
+
+                    # FORCA resize imediatamente quando o state muda
+                    if state in (None, "idle"):
+                        _aplicar_transparencia(self._hwnd)
+                        for _ in range(20):
+                            resize_window_win32(self._hwnd, IDLE_WIDTH, IDLE_HEIGHT)
+                            time.sleep(0.03)
+                    else:
+                        _remover_transparencia(self._hwnd)
+                        for _ in range(20):
+                            resize_window_win32(self._hwnd, CARD_WIDTH, CARD_HEIGHT)
+                            time.sleep(0.03)
             except Exception:
                 pass
-            time.sleep(0.5)
+            time.sleep(0.1)
 
 
 def enable_dpi_awareness():

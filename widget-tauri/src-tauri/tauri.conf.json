@@ -3,30 +3,26 @@
   "productName": "MYRA",
   "version": "0.1.0",
   "identifier": "com.myra.widget",
-  "build": {
-    "frontendDist": "../ui"
-  },
+  "build": { "frontendDist": "../ui" },
   "app": {
     "withGlobalTauri": true,
     "windows": [
       {
         "label": "main",
         "title": "MYRA",
-        "width": 200,
+        "width": 220,
         "height": 44,
-        "minWidth": 200,
+        "minWidth": 60,
         "minHeight": 44,
         "transparent": true,
         "decorations": false,
         "shadow": false,
-        "alwaysOnTop": true,
+        "alwaysOnTop": false,
         "skipTaskbar": false,
         "resizable": true
       }
     ],
-    "security": {
-      "csp": null
-    }
+    "security": { "csp": null }
   },
   "bundle": {
     "active": true,

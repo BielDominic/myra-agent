@@ -1,0 +1,28 @@
+FASE 24.4 — WIDGET ISLAND (STATUS: FUNCIONAL)
+
+Stack: pywebview 5.4 + chroma key dinâmico
+(Tauri abandonado em src-tauri/ por bug WebView2 154)
+
+Arquitetura:
+- widget/main.py — pywebview + chroma key dinâmico
+  - idle: WS_EX_LAYERED ON (fundo transparente)
+  - card: WS_EX_LAYERED OFF (cliques funcionam)
+- Widget polla /task_status a cada 500ms
+- Agent com CORS habilitado
+
+Scripts auxiliares:
+- abrir_tudo.bat / abrir_tudo.ps1 — sobe tudo
+- parar_tudo.bat / parar_tudo.ps1 — mata tudo
+- Atalhos: MYRA.lnk (abre) e MYRA - Parar.lnk (mata)
+
+Funciona:
+- Pílula roxa 200x44
+- Card laranja 440x340 (running)
+- Card verde (done) com resultado rolável
+- Botões OK/Cancelar/× clicáveis
+- Ciclo idle → running → done → idle
+
+Pendente:
+- Borda escura fina ao redor da pílula (aceitável)
+- Testar task real pelo Open WebUI
+- Auto-start do Docker Desktop no boot
