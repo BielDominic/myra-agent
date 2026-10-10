@@ -1,29 +1,71 @@
-"""Local, token-protected command bridge between MYRA and its Chrome extension."""
+"""Local, token-protected command bridge between MYRA and its Chrome extension.
+
+Commands and results are stored in SQLite so the planner/tool caller and the
+FastAPI polling endpoints can communicate even if they run in separate Python
+processes. Set MYRA_BROWSER_BRIDGE_DB to override the database location.
+"""
 from __future__ import annotations
 
 import hmac
+import json
 import os
-import queue
-import threading
+import sqlite3
 import time
 import uuid
+from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 router = APIRouter()
-_commands: queue.Queue = queue.Queue()
-_pending: dict[str, dict] = {}
-_pending_lock = threading.Lock()
-COMMAND_TIMEOUT_SECONDS = 40
+COMMAND_TIMEOUT_SECONDS = max(
+    10, int(os.environ.get("MYRA_BROWSER_BRIDGE_TIMEOUT_SECONDS", "90"))
+)
 MAX_TEXT_LENGTH = 500
 MAX_URL_CONTAINS_LENGTH = 300
+POLL_INTERVAL_SECONDS = 0.1
 
 
 class CommandCompletion(BaseModel):
     command_id: str = Field(min_length=1, max_length=80)
     result: dict
+
+
+def _database_path() -> Path:
+    configured = os.environ.get("MYRA_BROWSER_BRIDGE_DB", "").strip()
+    if configured:
+        path = Path(configured).expanduser()
+    else:
+        local_app_data = os.environ.get("LOCALAPPDATA", "").strip()
+        base = Path(local_app_data) / "MYRA" if local_app_data else Path.home() / ".myra"
+        path = base / "browser_bridge.sqlite3"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _connect_db() -> sqlite3.Connection:
+    conn = sqlite3.connect(str(_database_path()), timeout=10)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout = 10000")
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS browser_bridge_commands (
+            command_id TEXT PRIMARY KEY,
+            action TEXT NOT NULL,
+            args_json TEXT NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('queued', 'delivered', 'completed')),
+            result_json TEXT,
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_browser_bridge_queue "
+        "ON browser_bridge_commands(status, created_at)"
+    )
+    return conn
 
 
 def _require_local_and_token(request: Request, token: str | None = None) -> None:
@@ -36,6 +78,85 @@ def _require_local_and_token(request: Request, token: str | None = None) -> None
     supplied = token or ""
     if not hmac.compare_digest(supplied, expected):
         raise HTTPException(status_code=401, detail="Token do Browser Bridge invalido.")
+
+
+def _enqueue_command(command_id: str, action: str, args: dict) -> None:
+    now = time.time()
+    with _connect_db() as conn:
+        conn.execute(
+            """
+            INSERT INTO browser_bridge_commands
+                (command_id, action, args_json, status, created_at, updated_at)
+            VALUES (?, ?, ?, 'queued', ?, ?)
+            """,
+            (command_id, action, json.dumps(args, ensure_ascii=False), now, now),
+        )
+    print(
+        f"[Bridge] ENQUEUE pid={os.getpid()} id={command_id} "
+        f"action={action} db={_database_path()}",
+        flush=True,
+    )
+
+
+def _take_next_command() -> dict | None:
+    # BEGIN IMMEDIATE makes selection + claim atomic across concurrent pollers.
+    with _connect_db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            """
+            SELECT command_id, action, args_json
+            FROM browser_bridge_commands
+            WHERE status = 'queued'
+            ORDER BY created_at ASC
+            LIMIT 1
+            """
+        ).fetchone()
+        if row is None:
+            conn.commit()
+            return None
+        now = time.time()
+        conn.execute(
+            """
+            UPDATE browser_bridge_commands
+            SET status = 'delivered', updated_at = ?
+            WHERE command_id = ? AND status = 'queued'
+            """,
+            (now, row["command_id"]),
+        )
+        conn.commit()
+    command = {
+        "command_id": row["command_id"],
+        "action": row["action"],
+        "args": json.loads(row["args_json"]),
+    }
+    print(
+        f"[Bridge] DEQUEUE pid={os.getpid()} id={command['command_id']} "
+        f"action={command['action']}",
+        flush=True,
+    )
+    return command
+
+
+def _read_command(command_id: str) -> dict | None:
+    with _connect_db() as conn:
+        row = conn.execute(
+            "SELECT status, result_json FROM browser_bridge_commands WHERE command_id = ?",
+            (command_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return {
+        "status": row["status"],
+        "result": json.loads(row["result_json"]) if row["result_json"] else None,
+    }
+
+
+def _delete_command(command_id: str) -> None:
+    with _connect_db() as conn:
+        conn.execute(
+            "DELETE FROM browser_bridge_commands WHERE command_id = ?",
+            (command_id,),
+        )
 
 
 def _run_command(action: str, **args) -> dict:
@@ -62,25 +183,53 @@ def _run_command(action: str, **args) -> dict:
         args["text"] = text
 
     command_id = uuid.uuid4().hex
-    completed = threading.Event()
-    item = {"id": command_id, "action": action, "args": args, "event": completed, "result": None}
-    with _pending_lock:
-        _pending[command_id] = item
-    _commands.put({"command_id": command_id, "action": action, "args": args})
+    try:
+        _enqueue_command(command_id, action, args)
+    except Exception as exc:
+        print(f"[Bridge] ENQUEUE_ERROR pid={os.getpid()} error={exc!r}", flush=True)
+        return {"status": "erro", "result": f"Falha ao enfileirar comando no banco local: {exc}"}
 
-    if not completed.wait(COMMAND_TIMEOUT_SECONDS):
-        with _pending_lock:
-            _pending.pop(command_id, None)
-        return {
-            "status": "erro",
-            "result": "Tempo esgotado aguardando a extensão. Abra o Chrome, habilite a extensão MYRA e confira o token.",
-        }
+    deadline = time.monotonic() + COMMAND_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        try:
+            state = _read_command(command_id)
+        except Exception as exc:
+            print(f"[Bridge] READ_ERROR id={command_id} error={exc!r}", flush=True)
+            time.sleep(POLL_INTERVAL_SECONDS)
+            continue
 
-    result = item.get("result") or {"ok": False, "error": "A extensão não devolveu resultado."}
-    if not result.get("ok"):
-        return {"status": "erro", "result": str(result.get("error") or "A ação no Chrome falhou.")}
-    payload = result.get("result", result)
-    return {"status": "ok", "result": payload, **(payload if isinstance(payload, dict) else {})}
+        if state is None:
+            return {
+                "status": "erro",
+                "result": "O comando desapareceu da fila persistente antes de ser concluído.",
+            }
+        if state["status"] == "completed":
+            result = state["result"] or {
+                "ok": False,
+                "error": "A extensão não devolveu resultado.",
+            }
+            _delete_command(command_id)
+            if not result.get("ok"):
+                return {
+                    "status": "erro",
+                    "result": str(result.get("error") or "A ação no Chrome falhou."),
+                }
+            payload = result.get("result", result)
+            return {
+                "status": "ok",
+                "result": payload,
+                **(payload if isinstance(payload, dict) else {}),
+            }
+        time.sleep(POLL_INTERVAL_SECONDS)
+
+    _delete_command(command_id)
+    return {
+        "status": "erro",
+        "result": (
+            "Tempo esgotado aguardando a extensão. Confirme que o Chrome está aberto, "
+            "a extensão MYRA está habilitada e conectada, e que o token corresponde ao backend."
+        ),
+    }
 
 
 def browser_read_active_tab(url_contains: str = "") -> dict:
@@ -117,24 +266,49 @@ def registrar_ferramentas(registrar_ferramenta) -> None:
 
 
 @router.get("/browser_bridge/next")
-def browser_bridge_next(request: Request, token: str = Header(default="", alias="X-MYRA-BRIDGE-TOKEN"), wait: int = 20):
+def browser_bridge_next(
+    request: Request,
+    token: str = Header(default="", alias="X-MYRA-BRIDGE-TOKEN"),
+    wait: int = 20,
+):
     _require_local_and_token(request, token)
     wait_seconds = max(0, min(int(wait), 25))
-    try:
-        command = _commands.get(timeout=wait_seconds)
-        return {"status": "ok", "command": command}
-    except queue.Empty:
-        return {"status": "ok", "command": None}
+    deadline = time.monotonic() + wait_seconds
+
+    while True:
+        command = _take_next_command()
+        if command is not None:
+            return {"status": "ok", "command": command}
+        if time.monotonic() >= deadline:
+            return {"status": "ok", "command": None}
+        time.sleep(min(POLL_INTERVAL_SECONDS, max(0, deadline - time.monotonic())))
 
 
 @router.post("/browser_bridge/complete")
-def browser_bridge_complete(data: CommandCompletion, request: Request, token: str = Header(default="", alias="X-MYRA-BRIDGE-TOKEN")):
+def browser_bridge_complete(
+    data: CommandCompletion,
+    request: Request,
+    token: str = Header(default="", alias="X-MYRA-BRIDGE-TOKEN"),
+):
     _require_local_and_token(request, token)
-    with _pending_lock:
-        item = _pending.get(data.command_id)
-        if not item:
+    with _connect_db() as conn:
+        row = conn.execute(
+            "SELECT status FROM browser_bridge_commands WHERE command_id = ?",
+            (data.command_id,),
+        ).fetchone()
+        if row is None:
             raise HTTPException(status_code=404, detail="Comando expirado ou desconhecido.")
-        item["result"] = data.result
-        item["event"].set()
-        _pending.pop(data.command_id, None)
+        if row["status"] != "completed":
+            conn.execute(
+                """
+                UPDATE browser_bridge_commands
+                SET status = 'completed', result_json = ?, updated_at = ?
+                WHERE command_id = ?
+                """,
+                (json.dumps(data.result, ensure_ascii=False), time.time(), data.command_id),
+            )
+    print(
+        f"[Bridge] COMPLETE pid={os.getpid()} id={data.command_id}",
+        flush=True,
+    )
     return {"status": "ok", "completed": True}
