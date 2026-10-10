@@ -1,6 +1,6 @@
 # MYRA Browser Bridge
 
-Extensão Chrome Manifest V3 e fila local de comandos para permitir que o planner do MYRA opere na aba ativa do Chrome do usuário. A extensão usa APIs oficiais do Chrome e não lê cookies, senhas, tokens de sessão nem local storage de sites.
+Extensão Chrome Manifest V3 e fila local de comandos para permitir que o planner do MYRA opere em uma aba-alvo do Chrome do usuário. A extensão usa APIs oficiais do Chrome e não lê cookies, senhas, tokens de sessão nem local storage de sites.
 
 ## 1. Configure o backend
 
@@ -28,12 +28,19 @@ Se o MYRA estiver rodando como serviço ou iniciado por outro shell, configure a
 4. Selecione a pasta `browser-extension` do repositório.
 5. Abra o popup da extensão, cole o token gerado, marque **Habilitar integração automática** e clique **Salvar e conectar**.
 6. Confirme a permissão do Chrome para acessar páginas HTTP/HTTPS quando o navegador perguntar. A extensão não injeta scripts em todos os sites em segundo plano; o acesso amplo é opcional e solicitado só quando você habilita a integração.
-6. Deixe o Chrome aberto enquanto testa o planner.
+7. Deixe o Chrome aberto enquanto testa o planner.
 
-## 3. Ferramentas do planner
+## 3. Como a aba-alvo é escolhida
 
-- `browser_read_active_tab`: devolve título, URL e texto visível da aba ativa (até 12.000 caracteres).
-- `browser_navigate_active_tab(url)`: navega a aba ativa para uma URL HTTP/HTTPS.
+- Se a aba ativa for uma página normal HTTP/HTTPS, MYRA usa essa aba.
+- Se a aba ativa for o Open WebUI local em `localhost:8080`, `127.0.0.1:8080` ou `[::1]:8080`, MYRA ignora essa interface e seleciona a página HTTP/HTTPS mais recentemente acessada na mesma janela do Chrome.
+- Se não houver outra página web elegível, MYRA retorna um erro explicativo em vez de ler o texto do próprio comando.
+- A mesma seleção é aplicada à leitura, navegação e clique.
+
+## 4. Ferramentas do planner
+
+- `browser_read_active_tab`: devolve título, URL e texto visível da aba-alvo (até 12.000 caracteres).
+- `browser_navigate_active_tab(url)`: navega a aba-alvo para uma URL HTTP/HTTPS.
 - `browser_click_text(text)`: clica em um botão/link visível com texto exato.
 
 Os comandos expiram após 40 segundos se a extensão não responder. Teste em páginas não sensíveis antes de usar em contas autenticadas. Não use clique automático para confirmar pagamentos, excluir dados, enviar mensagens ou outras ações irreversíveis sem confirmação explícita do usuário.
