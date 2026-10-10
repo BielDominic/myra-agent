@@ -11,6 +11,7 @@ from contextlib import closing
 import json
 import os
 import sqlite3
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -26,6 +27,8 @@ COMMAND_TIMEOUT_SECONDS = max(
 MAX_TEXT_LENGTH = 500
 MAX_URL_CONTAINS_LENGTH = 300
 POLL_INTERVAL_SECONDS = 0.1
+_db_initialized = False
+_db_init_lock = threading.Lock()
 
 
 class CommandCompletion(BaseModel):
@@ -46,27 +49,37 @@ def _database_path() -> Path:
 
 
 def _connect_db() -> sqlite3.Connection:
+    global _db_initialized
     conn = sqlite3.connect(str(_database_path()), timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout = 10000")
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS browser_bridge_commands (
-            command_id TEXT PRIMARY KEY,
-            action TEXT NOT NULL,
-            args_json TEXT NOT NULL,
-            status TEXT NOT NULL CHECK(status IN ('queued', 'delivered', 'completed')),
-            result_json TEXT,
-            created_at REAL NOT NULL,
-            updated_at REAL NOT NULL
-        )
-        """
-    )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_browser_bridge_queue "
-        "ON browser_bridge_commands(status, created_at)"
-    )
-    return conn
+    try:
+        if not _db_initialized:
+            with _db_init_lock:
+                if not _db_initialized:
+                    conn.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS browser_bridge_commands (
+                            command_id TEXT PRIMARY KEY,
+                            action TEXT NOT NULL,
+                            args_json TEXT NOT NULL,
+                            status TEXT NOT NULL CHECK(status IN ('queued', 'delivered', 'completed')),
+                            result_json TEXT,
+                            created_at REAL NOT NULL,
+                            updated_at REAL NOT NULL
+                        )
+                        """
+                    )
+                    conn.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_browser_bridge_queue "
+                        "ON browser_bridge_commands(status, created_at)"
+                    )
+                    conn.commit()
+                    _db_initialized = True
+        return conn
+    except Exception:
+        conn.close()
+        raise
 
 
 def _require_local_and_token(request: Request, token: str | None = None) -> None:
