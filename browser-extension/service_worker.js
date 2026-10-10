@@ -14,7 +14,31 @@ function isMyraUiTab(tab) {
   }
 }
 
-async function getTargetTab() {
+async function getTargetTab(urlContains = "") {
+  const needle = String(urlContains || "").trim().toLowerCase();
+
+  // An explicit URL substring takes precedence over the active tab and searches
+  // all Chrome windows, so MYRA can target one site among many open tabs.
+  if (needle) {
+    if (needle.length > 300) throw new Error("url_contains deve ter no máximo 300 caracteres.");
+    const tabs = await chrome.tabs.query({});
+    const matches = tabs
+      .filter(tab => Number.isInteger(tab.id) && !isMyraUiTab(tab))
+      .filter(tab => {
+        try {
+          const url = new URL(tab.url || "");
+          return (url.protocol === "http:" || url.protocol === "https:") &&
+            url.href.toLowerCase().includes(needle);
+        } catch {
+          return false;
+        }
+      })
+      .sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+
+    if (matches.length) return matches[0];
+    throw new Error(`Não encontrei nenhuma aba HTTP/HTTPS cuja URL contenha "${urlContains}". Confira o trecho e tente novamente.`);
+  }
+
   const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   if (!active || !Number.isInteger(active.id)) {
     throw new Error("Nenhuma aba ativa encontrada no Chrome.");
@@ -57,7 +81,7 @@ async function bridgeFetch(path, settings, options = {}) {
 
 async function executeBridgeCommand(command) {
   if (command.action === "read_active_tab") {
-    const tab = await getTargetTab();
+    const tab = await getTargetTab(command.args?.url_contains);
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: () => ({
@@ -165,7 +189,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
       if (message.type === "MYRA_READ_ACTIVE_TAB") {
-        const result = await executeBridgeCommand({ action: "read_active_tab", args: {} });
+        const result = await executeBridgeCommand({ action: "read_active_tab", args: { url_contains: message.url_contains || "" } });
         sendResponse(result);
         return;
       }
