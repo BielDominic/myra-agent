@@ -926,8 +926,48 @@ def wait(data: Wait):
 
 @app.post("/read_page")
 def read_page():
+    print("[READ_PAGE] tentando Browser Bridge")
+    try:
+        bridge_result = browser_bridge._browser_read_active_tab_for_route()
+        if bridge_result.get("status") == "ok":
+            payload = bridge_result.get("result")
+            if isinstance(payload, dict):
+                texto = str(payload.get("text") or "")[:2000]
+                clicaveis = []
+                vistos = set()
+                for link in payload.get("links", [])[:30]:
+                    txt = str(link.get("text") or "").strip()
+                    href = str(link.get("href") or "").strip()
+                    if txt and txt not in vistos:
+                        vistos.add(txt)
+                        clicaveis.append(f"LINK {txt} -> {href}")
+                for txt in payload.get("buttons", [])[:20]:
+                    txt = str(txt or "").strip()
+                    if txt and txt not in vistos:
+                        vistos.add(txt)
+                        clicaveis.append(f"BOTAO {txt}")
+                for item in payload.get("inputs", [])[:15]:
+                    ph = str(item.get("placeholder") or "")
+                    nome = str(item.get("name") or "")
+                    tipo = str(item.get("type") or "text")
+                    if ph or nome:
+                        info = f"CAMPO placeholder={ph} name={nome} type={tipo}"
+                        if info not in vistos:
+                            vistos.add(info)
+                            clicaveis.append(info)
+                return {
+                    "status": "ok",
+                    "result": texto,
+                    "clicaveis": clicaveis,
+                    "title": payload.get("title", ""),
+                    "url": payload.get("url", ""),
+                    "source": "browser_bridge",
+                }
+        print(f"[READ_PAGE] bridge indisponivel; fallback Playwright: {bridge_result.get('result', 'sem detalhes')}")
+    except Exception as exc:
+        print(f"[READ_PAGE] erro no bridge; fallback Playwright: {type(exc).__name__}: {exc}")
+
     start_browser()
-    print("[READ_PAGE]")
     try:
         texto = page.inner_text("body")[:2000]
     except Exception:
@@ -935,7 +975,6 @@ def read_page():
 
     clicaveis = []
     vistos = set()
-
     try:
         for a in page.locator("a").all()[:30]:
             try:
@@ -948,7 +987,6 @@ def read_page():
                 pass
     except Exception:
         pass
-
     try:
         for b in page.locator("button").all()[:20]:
             try:
@@ -960,7 +998,6 @@ def read_page():
                 pass
     except Exception:
         pass
-
     try:
         for i in page.locator("input, textarea").all()[:15]:
             try:
@@ -976,8 +1013,7 @@ def read_page():
                 pass
     except Exception:
         pass
-
-    return {"status": "ok", "result": texto, "clicaveis": clicaveis}
+    return {"status": "ok", "result": texto, "clicaveis": clicaveis, "source": "playwright"}
 
 
 # ============================================================
