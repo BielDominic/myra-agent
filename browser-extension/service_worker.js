@@ -79,18 +79,105 @@ async function bridgeFetch(path, settings, options = {}) {
   }
 }
 
+function waitForTabComplete(tabId, timeoutMs = 20000) {
+  return new Promise(async (resolve, reject) => {
+    let settled = false;
+    const finish = (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      chrome.tabs.onRemoved.removeListener(onRemoved);
+      err ? reject(err) : resolve();
+    };
+    const onUpdated = (updatedId, changeInfo) => {
+      if (updatedId === tabId && changeInfo.status === "complete") finish();
+    };
+    const onRemoved = removedId => {
+      if (removedId === tabId) finish(new Error("Aba temporaria foi fechada antes de carregar."));
+    };
+    const timer = setTimeout(() => finish(new Error("TIMEOUT: a pagina nao carregou em 20 segundos.")), timeoutMs);
+    chrome.tabs.onUpdated.addListener(onUpdated);
+    chrome.tabs.onRemoved.addListener(onRemoved);
+    try {
+      const current = await chrome.tabs.get(tabId);
+      if (current.status === "complete") finish();
+    } catch (e) {
+      finish(new Error("Nao foi possivel acompanhar o carregamento da aba: " + (e?.message || e)));
+    }
+  });
+}
+
 async function executeBridgeCommand(command) {
   if (command.action === "read_active_tab") {
     const tab = await getTargetTab(command.args?.url_contains);
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: () => ({
-        title: document.title,
-        url: location.href,
-        text: (document.body?.innerText || "").slice(0, 12000)
-      })
+      func: () => {
+        const visible = el => {
+          const s = getComputedStyle(el);
+          return s.display !== "none" && s.visibility !== "hidden";
+        };
+        const links = [...document.querySelectorAll("a")]
+          .filter(el => visible(el) && (el.innerText || "").trim() && el.href)
+          .slice(0, 30)
+          .map(el => ({ text: el.innerText.trim().slice(0, 160), href: el.href }));
+        const buttons = [...document.querySelectorAll("button,[role=button],input[type=button],input[type=submit]")]
+          .filter(el => visible(el))
+          .map(el => (el.innerText || el.getAttribute("aria-label") || el.value || "").trim())
+          .filter(Boolean).slice(0, 20);
+        const inputs = [...document.querySelectorAll("input,textarea")]
+          .filter(el => visible(el))
+          .slice(0, 15)
+          .map(el => ({ placeholder: el.getAttribute("placeholder") || "", name: el.getAttribute("name") || "", type: el.getAttribute("type") || "text" }))
+          .filter(el => el.placeholder || el.name);
+        return {
+          title: document.title,
+          url: location.href,
+          text: (document.body?.innerText || "").slice(0, 12000),
+          links,
+          buttons,
+          inputs
+        };
+      }
     });
     return { ok: true, result };
+  }
+  if (command.action === "read_page_url") {
+    const rawUrl = String(command.args?.url || "").trim();
+    const parsed = new URL(rawUrl);
+    if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Somente URLs HTTP/HTTPS podem ser lidas.");
+    let tempTab = null;
+    try {
+      tempTab = await chrome.tabs.create({ url: parsed.href, active: false });
+      await waitForTabComplete(tempTab.id, 20000);
+      const [{ result }] = await chrome.scripting.executeScript({
+        target: { tabId: tempTab.id },
+        func: () => {
+          const visible = el => {
+            const s = getComputedStyle(el);
+            return s.display !== "none" && s.visibility !== "hidden";
+          };
+          const links = [...document.querySelectorAll("a")]
+            .filter(el => visible(el) && (el.innerText || "").trim() && el.href)
+            .slice(0, 30)
+            .map(el => ({ text: el.innerText.trim().slice(0, 160), href: el.href }));
+          return {
+            title: document.title,
+            url: location.href,
+            text: (document.body?.innerText || "").slice(0, 12000),
+            links
+          };
+        }
+      });
+      return { ok: true, result };
+    } finally {
+      if (tempTab?.id != null) {
+        try { await chrome.tabs.remove(tempTab.id); } catch (e) {
+          console.warn("[MYRA Bridge] nao foi possivel fechar aba temporaria:", e?.message || e);
+        }
+      }
+    }
   }
   if (command.action === "navigate_active_tab") {
     const tab = await getTargetTab();
