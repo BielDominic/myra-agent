@@ -106,14 +106,6 @@ def _formatar_historico(historico: list) -> str:
 
 
 def _decidir_proximo_passo(objetivo: str, historico: list) -> dict:
-    if FERRAMENTAS_DESCRICOES:
-        ferramentas_str = "\n".join(
-            f"- {nome}: {FERRAMENTAS_DESCRICOES.get(nome, 'sem descricao')}"
-            for nome in sorted(FERRAMENTAS_DISPONIVEIS.keys())
-        )
-    else:
-        ferramentas_str = ", ".join(sorted(FERRAMENTAS_DISPONIVEIS.keys()))
-
     # Em pedidos de navegação, priorize operar no navegador visível do usuário.
     # Mantemos as ferramentas de pesquisa disponíveis para outros tipos de objetivo.
     objetivo_lower = objetivo.lower()
