@@ -9,7 +9,7 @@ import time
 import uuid
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 router = APIRouter()
@@ -108,7 +108,7 @@ def registrar_ferramentas(registrar_ferramenta) -> None:
 
 
 @router.get("/browser_bridge/next")
-def browser_bridge_next(request: Request, token: str, wait: int = 20):
+def browser_bridge_next(request: Request, token: str = Header(default="", alias="X-MYRA-BRIDGE-TOKEN"), wait: int = 20):
     _require_local_and_token(request, token)
     wait_seconds = max(0, min(int(wait), 25))
     try:
@@ -119,7 +119,7 @@ def browser_bridge_next(request: Request, token: str, wait: int = 20):
 
 
 @router.post("/browser_bridge/complete")
-def browser_bridge_complete(data: CommandCompletion, request: Request, token: str):
+def browser_bridge_complete(data: CommandCompletion, request: Request, token: str = Header(default="", alias="X-MYRA-BRIDGE-TOKEN")):
     _require_local_and_token(request, token)
     with _pending_lock:
         item = _pending.get(data.command_id)
