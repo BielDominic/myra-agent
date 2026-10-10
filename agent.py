@@ -3105,6 +3105,37 @@ async def openai_chat_completions(request: Request):
 
     print(f"[OPENAI] model={model} msg={user_msg!r}")
 
+    # Open WebUI envia prompts auxiliares para título, follow-ups e tags.
+    # Eles não são tarefas do usuário e não devem sobrescrever o estado do widget.
+    _msg_lower = user_msg.lower()
+    _marcadores_internos = [
+        "### task:",
+        "generate a concise title",
+        "generate 1-3 broad tags",
+        "suggest 3-5 relevant follow-up",
+        "suggest 3-5 follow-up questions",
+        "summarizing the chat history",
+        "categorizing the main themes",
+        "<chat_history>",
+    ]
+    if any(m in _msg_lower for m in _marcadores_internos):
+        if "generate a concise title" in _msg_lower:
+            _resposta_interna = "MYRA task"
+        elif "generate 1-3 broad tags" in _msg_lower:
+            _resposta_interna = "MYRA, AI agent, automation"
+        elif "suggest 3-5" in _msg_lower:
+            _resposta_interna = "How does this work?; Can you explain the next step?; What should I try next?"
+        else:
+            _resposta_interna = "OK"
+        return JSONResponse({
+            "id": "chatcmpl-myra-internal",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": _resposta_interna}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        })
+
     if not user_msg.strip():
         return JSONResponse({
             "id": "chatcmpl-myra",
