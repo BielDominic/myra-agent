@@ -114,6 +114,28 @@ def _decidir_proximo_passo(objetivo: str, historico: list) -> dict:
     else:
         ferramentas_str = ", ".join(sorted(FERRAMENTAS_DISPONIVEIS.keys()))
 
+    # Em pedidos de navegação, priorize operar no navegador visível do usuário.
+    # Mantemos as ferramentas de pesquisa disponíveis para outros tipos de objetivo.
+    objetivo_lower = objetivo.lower()
+    termos_navegacao = ("abre", "abrir", "navega", "visita", "acesse", "acessa", "vai para", "entre no site", "entre em", "no navegador")
+    eh_navegacao = any(t in objetivo_lower for t in termos_navegacao)
+    ferramentas_ocultas_navegacao = {
+        "web_search_structured", "youtube_search", "youtube_summarize",
+        "youtube_ask", "youtube_transcript", "youtube_channel_latest",
+        "search_google", "search_google_structured",
+    }
+    nomes_prompt = sorted(
+        nome for nome in FERRAMENTAS_DISPONIVEIS
+        if not (eh_navegacao and nome in ferramentas_ocultas_navegacao)
+    )
+    if FERRAMENTAS_DESCRICOES:
+        ferramentas_str = "\\n".join(
+            f"- {nome}: {FERRAMENTAS_DESCRICOES.get(nome, 'sem descricao')}"
+            for nome in nomes_prompt
+        )
+    else:
+        ferramentas_str = ", ".join(nomes_prompt)
+
     historico_str = _formatar_historico(historico)
 
     system = (
@@ -134,8 +156,14 @@ REGRAS:
 - Escolha UMA ferramenta por vez, ou finalize se o objetivo ja foi atingido.
 - Escolha a ferramenta MAIS ESPECIFICA pro proximo passo.
 - Se o historico ja tem a informacao necessaria, FINALIZE.
-- Se algo deu errado no historico, tente outra abordagem.
-- NAO repita a mesma acao com os mesmos args se ela ja falhou.
+- Se algo deu errado no historico, MUDE DE ESTRATEGIA; nao repita a mesma ferramenta com os mesmos argumentos.
+- Se uma ferramenta falhou 2 vezes, use uma ferramenta DIFERENTE ou finalize explicando o bloqueio.
+- NUNCA chame a mesma ferramenta com os mesmos argumentos mais de uma vez.
+- Se o objetivo pede abrir um site E pesquisar, sao duas acoes diferentes.
+- FINALIZE somente quando o objetivo estiver COMPLETAMENTE atendido.
+- Para "pesquisar X no Google", use open_url com "https://www.google.com/search?q=..." e codifique o termo na URL; nao use ferramenta de pesquisa por API.
+- Se "YouTube" for o site a abrir, use open_url com "https://www.youtube.com/results?search_query=...".
+- Use youtube_search apenas quando o objetivo pedir explicitamente metadados/resultados de videos.
 - Se um passo devolveu links/URLs, o proximo passo pode ser open_url ou read_page.
 - Se um passo devolveu texto de uma pagina, o proximo pode ser extrair info ou finalizar.
 
@@ -196,7 +224,7 @@ def _executar_passo(ferramenta: str, args: dict, tentativas: int = 2) -> dict:
 
 def _sintetizar(objetivo: str, historico: list) -> str:
     if not historico:
-        return "(nenhum passo executado)"
+        return "Nao foi executada nenhuma ferramenta. Verifique a decisao do planner e tente reformular o objetivo."
     contexto = _formatar_historico(historico)
     prompt = (
         f"OBJETIVO: {objetivo}\n\n"
@@ -211,7 +239,21 @@ def _sintetizar(objetivo: str, historico: list) -> str:
             "Voce responde de forma clara e objetiva em portugues. Nunca responda em outro idioma.",
         )
     except Exception as e:
-        return f"(falha ao sintetizar: {e})"
+        # Fallback deterministico: preserva os resultados obtidos mesmo se o LLM falhar.
+        partes = []
+        for h in historico:
+            ferramenta = h.get("ferramenta", "ferramenta")
+            if h.get("ok"):
+                resultado = h.get("resultado")
+                if isinstance(resultado, dict):
+                    resultado = resultado.get("result", json.dumps(resultado, ensure_ascii=False))
+                if resultado not in (None, ""):
+                    partes.append(f"{ferramenta}: {str(resultado)[:1200]}")
+            else:
+                partes.append(f"{ferramenta}: falhou — {h.get('erro') or 'erro sem detalhes'}")
+        if partes:
+            return "Nao consegui gerar uma sintese pelo modelo. Resultados obtidos:\\n" + "\\n".join(partes)
+        return f"Nao foi possivel concluir a tarefa nem gerar uma sintese ({type(e).__name__}: {e})."
 
 
 def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
@@ -233,8 +275,6 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
 
             # Notifica o widget: passo_total (e garante state=running)
     _widget_notify(passo_total=max_passos, state="running")
-    # Pequeno delay pra o widget pegar o estado running
-    time.sleep(0.5)
 
     for passo_num in range(1, max_passos + 1):
         print(f"\n[TASK] === PASSO {passo_num}/{max_passos} ===")
@@ -244,8 +284,6 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
             passo_num=passo_num,
             historico=[{"ferramenta": h["ferramenta"]} for h in historico],
         )
-        # Delay pra o widget pegar o passo
-        time.sleep(0.3)
 
         try:
             decisao = _decidir_proximo_passo(objetivo, historico)
@@ -313,8 +351,6 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
 
             # Notifica o widget: qual ferramenta ta rodando AGORA
             _widget_notify(passo_atual=ferramenta, state="running")
-            # Delay pra o widget pegar o passo_atual
-            time.sleep(0.3)
 
             r = _executar_passo(ferramenta, args)
 
