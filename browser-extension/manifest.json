@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "MYRA Browser Bridge",
+  "version": "0.1.0",
+  "description": "Permite ao MYRA interagir com abas do Chrome explicitamente autorizadas pelo usuário.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*"
+  ],
+  "action": {
+    "default_title": "MYRA Browser Bridge",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "service_worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
