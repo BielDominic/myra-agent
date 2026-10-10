@@ -131,13 +131,31 @@ async function executeBridgeCommand(command) {
           .slice(0, 15)
           .map(el => ({ placeholder: el.getAttribute("placeholder") || "", name: el.getAttribute("name") || "", type: el.getAttribute("type") || "text" }))
           .filter(el => el.placeholder || el.name);
+
+          const tables = [...document.querySelectorAll("table")]
+            .slice(0, 5)
+            .map(table => {
+              const rows = [...table.querySelectorAll("tr")]
+                .slice(0, 50)
+                .map(tr => [...tr.querySelectorAll("th,td")]
+                  .slice(0, 10)
+                  .map(cell => (cell.innerText || cell.textContent || "")
+                    .replace(/\s+/g, " ").trim().slice(0, 300)))
+                .filter(row => row.length >= 2 && row.filter(cell => cell).length >= 2);
+              return {
+                caption: (table.caption?.innerText || table.getAttribute("aria-label") || "").trim().slice(0, 300),
+                rows
+              };
+            })
+            .filter(table => table.rows.length >= 2);
         return {
           title: document.title,
           url: location.href,
           text: (document.body?.innerText || "").slice(0, 12000),
           links,
           buttons,
-          inputs
+          inputs,
+          tables
         };
       }
     });
@@ -162,11 +180,37 @@ async function executeBridgeCommand(command) {
             .filter(el => visible(el) && (el.innerText || "").trim() && el.href)
             .slice(0, 30)
             .map(el => ({ text: el.innerText.trim().slice(0, 160), href: el.href }));
+
+          const tables = [...document.querySelectorAll("table")]
+            .slice(0, 5)
+            .map(table => {
+              const rows = [...table.querySelectorAll("tr")]
+                .slice(0, 50)
+                .map(tr => [...tr.querySelectorAll("th,td")]
+                  .slice(0, 10)
+                  .map(cell => (cell.innerText || cell.textContent || "")
+                    .replace(/\s+/g, " ").trim().slice(0, 300)))
+                .filter(row => row.length >= 2 && row.filter(cell => cell).length >= 2);
+              return {
+                caption: (table.caption?.innerText || table.getAttribute("aria-label") || "").trim().slice(0, 300),
+                rows
+              };
+            })
+            .filter(table => table.rows.length >= 2);
           return {
             title: document.title,
             url: location.href,
             text: (document.body?.innerText || "").slice(0, 12000),
-            links
+            links,
+            buttons: [...document.querySelectorAll("button,[role=button],input[type=button],input[type=submit]")]
+              .filter(el => visible(el))
+              .map(el => (el.innerText || el.getAttribute("aria-label") || el.value || "").trim())
+              .filter(Boolean).slice(0, 20),
+            inputs: [...document.querySelectorAll("input,textarea")]
+              .filter(el => visible(el)).slice(0, 15)
+              .map(el => ({ placeholder: el.getAttribute("placeholder") || "", name: el.getAttribute("name") || "", type: el.getAttribute("type") || "text" }))
+              .filter(el => el.placeholder || el.name),
+            tables
           };
         }
       });

@@ -955,6 +955,12 @@ def read_page():
                         if info not in vistos:
                             vistos.add(info)
                             clicaveis.append(info)
+                for tabela in payload.get("tables", [])[:3]:
+                    for linha in tabela.get("rows", [])[:10]:
+                        info = " | ".join(str(c) for c in linha if c)
+                        if info and info not in vistos:
+                            vistos.add(info)
+                            clicaveis.append(f"TABELA {info}")
                 return {
                     "status": "ok",
                     "result": texto,
