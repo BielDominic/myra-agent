@@ -1,23 +1,26 @@
 // ============================================================
-// MYRA Widget - Popover DENTRO do island
+// MYRA Widget - features.js CONSOLIDADO
+// Popover + Tema + Som + Compacto + DND + Fixar + Cor +
+// Opacidade + Particulas + Confete + VRAM + Cursor tracking
 // ============================================================
 
 const _invoke = window.__TAURI__.core.invoke;
 
+// ---------- Estado ----------
 const state = {
     theme:   localStorage.getItem('myra-theme')   || 'dark',
     sound:   localStorage.getItem('myra-sound')   !== 'off',
     compact: localStorage.getItem('myra-compact') === 'on',
     dnd:     localStorage.getItem('myra-dnd')     === 'on',
-    // FIX: default agora e FALSE. So liga se o usuario clicar em "Fixar".
-    onTop:   localStorage.getItem('myra-ontop')   === 'on',
+    onTop:   localStorage.getItem('myra-ontop')   !== 'off',
     color:   localStorage.getItem('myra-color')   || '#6366f1',
 };
 
+// ---------- Tamanhos ----------
 const SZ = {
     idle:     { w: 220, h: 44  },
-    compact:  { w: 60,  h: 44  },
-    settings: { w: 340, h: 340 },
+    compact:  { w: 90,  h: 44  },
+    settings: { w: 340, h: 400 },
     card:     { w: 440, h: 340 },
 };
 
@@ -27,17 +30,19 @@ async function applyWindowSize(mode) {
     if (mode === 'idle')          s = compact ? SZ.compact : SZ.idle;
     else if (mode === 'settings') s = SZ.settings;
     else                          s = SZ.card;
-    try {
-        await _invoke('resize_window', { width: s.w, height: s.h });
-    } catch (e) { console.warn('[RESIZE]', e); }
+    setTimeout(() => {
+        _invoke('resize_window', { width: s.w, height: s.h }).catch(() => {});
+    }, 320);
 }
 
+// ---------- Tema ----------
 function applyTheme() {
     document.body.dataset.theme = state.theme;
     const btn = document.getElementById('btn-theme');
     if (btn) btn.classList.toggle('active', state.theme === 'light');
 }
 
+// ---------- Cor ----------
 function shadeHex(hex, pct) {
     const n = parseInt(hex.replace('#',''), 16);
     const r = Math.min(255, ((n >> 16) & 255) + pct);
@@ -52,25 +57,29 @@ function applyColor() {
     if (input) input.value = state.color;
 }
 
+// ---------- Compacto ----------
 function applyCompact() {
     document.body.dataset.compact = state.compact ? 'on' : 'off';
     const btn = document.getElementById('btn-compact');
     if (btn) btn.classList.toggle('active', state.compact);
 }
 
+// ---------- DND ----------
 function applyDnd() {
     const btn = document.getElementById('btn-dnd');
     if (btn) btn.classList.toggle('active', state.dnd);
 }
 
+// ---------- Sempre no topo ----------
 async function applyOnTop() {
     const btn = document.getElementById('btn-top');
     if (btn) btn.classList.toggle('active', state.onTop);
     try {
         await _invoke('toggle_always_on_top', { onTop: state.onTop });
-    } catch (e) { console.error('[ONTOP]', e); }
+    } catch (e) { /* silencio */ }
 }
 
+// ---------- Sons ----------
 let audioCtx = null;
 function playSound(kind) {
     if (!state.sound || state.dnd) return;
@@ -97,6 +106,7 @@ function playSound(kind) {
     } catch (e) { /* silencio */ }
 }
 
+// ---------- Confete ----------
 function fireConfetti() {
     if (state.dnd) return;
     const layer = document.getElementById('confetti-layer');
@@ -116,6 +126,7 @@ function fireConfetti() {
     }
 }
 
+// ---------- Particulas ----------
 const particles = {
     canvas: null, ctx: null, list: [],
     init() {
@@ -167,6 +178,7 @@ const particles = {
     }
 };
 
+// ---------- VRAM ----------
 async function pollGpu() {
     try {
         const info = await _invoke('get_gpu_info');
@@ -178,13 +190,48 @@ async function pollGpu() {
     } catch (e) { /* silencio */ }
 }
 
+// ---------- Cursor tracking (olhos seguem mouse global) ----------
+let _eyeLerp = { ox: 0, oy: 0 };
+
+async function trackGlobalCursor() {
+    try {
+        const pos = await _invoke('get_cursor_relative_to_window');
+        if (!pos || !pos.ok) return;
+
+        const maxOffset = 3.5;
+        const dist = Math.max(1, pos.dist || 1);
+        const factor = Math.min(dist / 200, 1);
+        const rawOx = (pos.dx / dist) * maxOffset * factor;
+        const rawOy = (pos.dy / dist) * maxOffset * factor;
+
+        _eyeLerp.ox = _eyeLerp.ox * 0.65 + rawOx * 0.35;
+        _eyeLerp.oy = _eyeLerp.oy * 0.65 + rawOy * 0.35;
+
+        document.querySelectorAll('.mascot:not(.done):not(.error):not(.sleeping)').forEach(m => {
+            m.querySelectorAll('.eye').forEach(eye => {
+                eye.style.transform = "translate(" + _eyeLerp.ox.toFixed(2) + "px, " + _eyeLerp.oy.toFixed(2) + "px)";
+            });
+        });
+    } catch (e) { /* silencio */ }
+}
+
+// ---------- Hooks ----------
 window.myraOnDone = function() {
     playSound('chime');
     fireConfetti();
     particles.burst();
+    setTimeout(() => {
+        _invoke('resize_window', { width: 440, height: 340 }).catch(() => {});
+    }, 350);
 };
-window.myraOnError = function() { playSound('error'); };
+window.myraOnError = function() {
+    playSound('error');
+    setTimeout(() => {
+        _invoke('resize_window', { width: 440, height: 340 }).catch(() => {});
+    }, 350);
+};
 
+// ---------- Abrir/fechar settings ----------
 function openSettings() {
     const island = document.getElementById('island');
     if (!island) return;
@@ -194,7 +241,8 @@ function openSettings() {
     island.classList.remove('idle','running','done','error');
     island.classList.add('settings');
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    document.querySelector('.view-settings').classList.add('active');
+    const v = document.querySelector('.view-settings');
+    if (v) v.classList.add('active');
     applyWindowSize('settings');
     playSound('pop');
 }
@@ -206,19 +254,33 @@ function closeSettings() {
     island.classList.remove('settings');
     island.classList.add(prev);
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    const view = document.querySelector('.view-' + prev);
-    if (view) view.classList.add('active');
+    const v = document.querySelector('.view-' + prev);
+    if (v) v.classList.add('active');
     applyWindowSize(prev === 'idle' ? 'idle' : 'card');
 }
 
+// ---------- Binds ----------
 function bindButtons() {
+    // Engrenagem -> abre settings
     document.getElementById('btn-open-settings')?.addEventListener('click', (e) => {
-        e.stopPropagation(); openSettings();
-    });
-    document.getElementById('btn-close-settings')?.addEventListener('click', (e) => {
-        e.stopPropagation(); closeSettings();
+        e.stopPropagation();
+        openSettings();
     });
 
+    // Botao voltar -> fecha settings
+    document.getElementById('btn-back-settings')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeSettings();
+    });
+
+    // Botao fechar widget -> fecha app
+    document.getElementById('btn-close-widget')?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await _invoke('cancel_task').catch(() => {});
+        window.__TAURI__.window.getCurrentWindow().close();
+    });
+
+    // Tema
     document.getElementById('btn-theme')?.addEventListener('click', (e) => {
         e.stopPropagation();
         state.theme = state.theme === 'dark' ? 'light' : 'dark';
@@ -226,6 +288,7 @@ function bindButtons() {
         applyTheme(); playSound('pop');
     });
 
+    // Som
     document.getElementById('btn-sound')?.addEventListener('click', (e) => {
         e.stopPropagation();
         state.sound = !state.sound;
@@ -238,6 +301,7 @@ function bindButtons() {
         if (state.sound) playSound('pop');
     });
 
+    // Compacto
     document.getElementById('btn-compact')?.addEventListener('click', (e) => {
         e.stopPropagation();
         state.compact = !state.compact;
@@ -245,6 +309,7 @@ function bindButtons() {
         applyCompact(); playSound('pop');
     });
 
+    // DND
     document.getElementById('btn-dnd')?.addEventListener('click', (e) => {
         e.stopPropagation();
         state.dnd = !state.dnd;
@@ -252,6 +317,7 @@ function bindButtons() {
         applyDnd(); playSound('pop');
     });
 
+    // Fixar no topo
     document.getElementById('btn-top')?.addEventListener('click', async (e) => {
         e.stopPropagation();
         state.onTop = !state.onTop;
@@ -259,18 +325,15 @@ function bindButtons() {
         await applyOnTop(); playSound('pop');
     });
 
+    // Cor do mascote
     document.getElementById('mascot-color')?.addEventListener('input', (e) => {
         state.color = e.target.value;
         localStorage.setItem('myra-color', state.color);
         applyColor();
     });
-
-    document.getElementById('btn-quit')?.addEventListener('click', async () => {
-        await _invoke('cancel_task').catch(() => {});
-        window.__TAURI__.window.getCurrentWindow().close();
-    });
 }
 
+// ---------- Opacidade ----------
 function setupOpacity() {
     const el = document.getElementById('opacity');
     const island = document.getElementById('island');
@@ -284,6 +347,7 @@ function setupOpacity() {
     });
 }
 
+// ---------- Resize hook ----------
 window.__myraResize = function(mode) {
     if (mode) applyWindowSize(mode);
     else {
@@ -295,6 +359,7 @@ window.__myraResize = function(mode) {
     }
 };
 
+// ---------- Init ----------
 window.addEventListener('DOMContentLoaded', () => {
     applyTheme();
     applyColor();
@@ -302,8 +367,6 @@ window.addEventListener('DOMContentLoaded', () => {
     applyDnd();
     applyOnTop();
     bindButtons();
-    setupCompactMascotClick();
-    ensureSettingsAccessible();
     setupOpacity();
     particles.init();
 
@@ -315,6 +378,10 @@ window.addEventListener('DOMContentLoaded', () => {
 
     setTimeout(() => applyWindowSize('idle'), 200);
 
+    // VRAM a cada 30s
     pollGpu();
-    setInterval(pollGpu, 5000);
+    setInterval(pollGpu, 30000);
+
+    // Cursor tracking a cada 60ms (~16 fps)
+    setInterval(trackGlobalCursor, 60);
 });

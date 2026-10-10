@@ -3130,52 +3130,31 @@ async def openai_chat_completions(request: Request):
     import concurrent.futures
 
     try:
-            # Roda executar_task em thread separada (libera o FastAPI pra servir /task_status)
-    loop = asyncio.get_event_loop()
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        resultado = await loop.run_in_executor(
-            pool, lambda: executar_task(user_msg, max_passos=15)
-        )
-    if resultado.get("status") == "ok":
-        resposta_texto = resultado.get("resultado_final") or "(sem resultado)"
-
-        # Se o resultado for vazio ou "(nenhum passo executado)", procura no historico
-        # a resposta final da ferramenta "responder" (texto sintetizado pelo LLM)
-        if (not resposta_texto.strip()
-                or resposta_texto.strip() == "(nenhum passo executado)"
-                or resposta_texto.strip() == "(sem resultado)"):
-            for h in reversed(resultado.get("historico", [])):
-                if h.get("ferramenta") == "responder" and h.get("resultado"):
-                    resposta_texto = h["resultado"]
-                    break
-            else:
-                # Ultimo fallback: procura QUALQUER ferramenta com resultado
-                for h in reversed(resultado.get("historico", [])):
-                    if h.get("resultado"):
-                        r = h["resultado"]
-                        if isinstance(r, dict):
-                            resposta_texto = r.get("result") or r.get("resultado") or str(r)
-                        else:
-                            resposta_texto = str(r)
-                        break
-
-        _widget_set(state="done", terminado_em=time.time(), resultado=resposta_texto, erro=None)
-    else:
-        resposta_texto = f"Erro: {resultado.get('erro') or resultado.get('result') or 'desconhecido'}"
+        # Roda executar_task em thread separada (libera o FastAPI pra servir /task_status)
+        loop = asyncio.get_event_loop()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            resultado = await loop.run_in_executor(
+                pool, lambda: executar_task(user_msg, max_passos=15)
+            )
+        if resultado.get("status") == "ok":
+            resposta_texto = resultado.get("resultado_final") or "(sem resultado)"
+            _widget_set(state="done", terminado_em=time.time(), resultado=resposta_texto, erro=None)
+        else:
+            resposta_texto = f"Erro: {resultado.get('erro') or resultado.get('result') or 'desconhecido'}"
+            _widget_set(state="error", terminado_em=time.time(), erro=resposta_texto)
+    except Exception as e:
+        resposta_texto = f"Erro interno: {type(e).__name__}: {e}"
+        print(f"[OPENAI] ERRO: {e}")
         _widget_set(state="error", terminado_em=time.time(), erro=resposta_texto)
-except Exception as e:
-    resposta_texto = f"Erro interno: {type(e).__name__}: {e}"
-    print(f"[OPENAI] ERRO: {e}")
-    _widget_set(state="error", terminado_em=time.time(), erro=resposta_texto)
 
-return JSONResponse({
-    "id": f"chatcmpl-myra-{int(time.time())}",
-    "object": "chat.completion",
-    "created": int(time.time()),
-    "model": model,
-    "choices": [{"index": 0, "message": {"role": "assistant", "content": resposta_texto}, "finish_reason": "stop"}],
-    "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-})
+    return JSONResponse({
+        "id": f"chatcmpl-myra-{int(time.time())}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [{"index": 0, "message": {"role": "assistant", "content": resposta_texto}, "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    })
 
 
 @app.get("/v1/models")
@@ -3188,4 +3167,4 @@ async def openai_list_models():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, workers=1)	
+    uvicorn.run(app, host="0.0.0.0", port=8000, workers=1)

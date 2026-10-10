@@ -1,5 +1,5 @@
 /* ============================================================
-   MYRA Widget - Popover DENTRO do island
+   MYRA Widget - CSS limpo (Pacote Bonito + Vida + sistema)
    ============================================================ */
 
 :root {
@@ -56,15 +56,18 @@ body {
 .mascot:hover { cursor: grab; }
 .mascot:active { cursor: grabbing; }
 
+/* ---------- Partículas / confete ---------- */
 #particles {
-    position: fixed; top: 0; left: 0;
+    position: fixed;
+    top: 0; left: 0;
     width: 100%; height: 100%;
     pointer-events: none;
     z-index: 1;
 }
 
 #confetti-layer {
-    position: fixed; top: 0; left: 0;
+    position: fixed;
+    top: 0; left: 0;
     width: 100%; height: 100%;
     pointer-events: none;
     z-index: 9998;
@@ -93,7 +96,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    overflow: hidden;
+    overflow: visible;
     position: relative;
     z-index: 2;
     transition: width 300ms cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -102,16 +105,20 @@ body {
                 border-color 250ms ease;
 }
 
-/* Idle: 220px pra caber mascote + label + ponto + engrenagem */
+.island .view {
+    overflow: hidden;
+    border-radius: 22px;
+    flex: 1;
+    min-height: 0;
+}
+
 .island.idle      { width: 220px; height: 44px; }
-.island.settings  { width: 340px; height: 340px; }
+.island.settings  { width: 340px; height: 400px; }
 .island.running,
 .island.done,
 .island.error     { width: 440px; height: 340px; }
 
 body[data-compact="on"] .island.idle { width: 90px; }
-body[data-compact="on"] .island.idle .label,
-body[data-compact="on"] .island.idle .status-dot { display: none; }
 
 /* ---------- Views ---------- */
 .view { width: 100%; height: 100%; display: none; flex-direction: column; }
@@ -144,7 +151,6 @@ body[data-compact="on"] .island.idle .status-dot { display: none; }
     50% { opacity: 0.6; transform: scale(0.9); }
 }
 
-/* Engrenagem DENTRO do idle */
 #btn-open-settings {
     width: 22px; height: 22px;
     min-width: 22px;
@@ -169,7 +175,8 @@ body[data-compact="on"] .island.idle .status-dot { display: none; }
     transform: rotate(45deg);
 }
 
-/* engrenagem nunca some */
+body[data-compact="on"] .view-idle .label,
+body[data-compact="on"] .view-idle .status-dot { display: none; }
 
 /* ---------- Mascote ---------- */
 .mascot {
@@ -275,21 +282,89 @@ body[data-compact="on"] .island.idle .status-dot { display: none; }
 }
 .mascot:hover .eye { width: 7px; height: 7px; }
 
-/* ---------- Speech ---------- */
+/* ---------- Pacote Vida ---------- */
+.mascot.sleeping {
+    background: linear-gradient(135deg, #475569 0%, #334155 100%);
+    box-shadow: 0 0 8px rgba(71, 85, 105, 0.5);
+    animation: breathe-slow 5s ease-in-out infinite;
+}
+@keyframes breathe-slow {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+}
+.mascot.sleeping .eye {
+    height: 2px;
+    width: 8px;
+    border-radius: 2px;
+    transform: translateY(0) !important;
+}
+
+.mascot.playful {
+    animation: spin-eyes 1s linear infinite, hue-shift 2s linear infinite;
+}
+@keyframes spin-eyes {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+@keyframes hue-shift {
+    0%   { filter: hue-rotate(0deg); }
+    100% { filter: hue-rotate(360deg); }
+}
+
+.mascot.yawning .mouth {
+    opacity: 1;
+    width: 12px;
+    height: 14px;
+    background: white;
+    border-radius: 50%;
+    bottom: 4px;
+    animation: yawn-pulse 1.2s ease-in-out;
+}
+@keyframes yawn-pulse {
+    0%, 100% { transform: translateX(-50%) scale(1); }
+    50%      { transform: translateX(-50%) scale(1.4); }
+}
+
+.mascot.mood-happy {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.7);
+    animation: wiggle 0.5s ease-in-out 3;
+}
+@keyframes wiggle {
+    0%, 100% { transform: rotate(0deg); }
+    25%      { transform: rotate(-8deg); }
+    75%      { transform: rotate(8deg); }
+}
+
+.mascot.mood-sad {
+    filter: saturate(0.6) brightness(0.85);
+}
+.mascot.mood-sad .mouth {
+    opacity: 1;
+    width: 10px;
+    height: 5px;
+    background: white;
+    border-radius: 8px 8px 0 0;
+    bottom: 5px;
+    transform: translateX(-50%) rotate(180deg);
+}
+
+/* ---------- Speech bubble ---------- */
 .speech {
     position: absolute;
-    top: -28px; left: 50%;
+    top: -30px;
+    left: 50%;
     transform: translateX(-50%) scale(0);
     background: var(--myra-accent);
     color: white;
-    font-size: 10px; font-weight: 600;
+    font-size: 10px;
+    font-weight: 600;
     padding: 4px 8px;
     border-radius: 8px;
     white-space: nowrap;
     opacity: 0;
-    transition: all 200ms ease;
+    transition: opacity 200ms ease, transform 200ms ease;
     pointer-events: none;
-    z-index: 10;
+    z-index: 100;
 }
 .speech::after {
     content: '';
@@ -301,11 +376,16 @@ body[data-compact="on"] .island.idle .status-dot { display: none; }
     border-right: 4px solid transparent;
     border-top: 4px solid var(--myra-accent);
 }
-.speech.show { opacity: 1; transform: translateX(-50%) scale(1); }
+.speech.show {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+}
 
 /* ---------- Header / Content / Footer ---------- */
 .header {
-    display: flex; align-items: center; gap: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     padding: 12px 16px;
     border-bottom: 1px solid var(--border-accent-soft);
     flex-shrink: 0;
@@ -313,18 +393,61 @@ body[data-compact="on"] .island.idle .status-dot { display: none; }
 .header .label { font-size: 14px; font-weight: 600; flex: 1; }
 
 .btn-close {
-    background: transparent; border: none;
+    background: transparent;
+    border: none;
     color: var(--text-dim);
-    font-size: 20px; cursor: pointer;
-    padding: 4px 8px; border-radius: 6px;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    line-height: 1;
 }
 .btn-close:hover { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+.btn-back {
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid var(--border-accent-soft);
+    color: var(--text-accent);
+    font-size: 16px;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: all 150ms ease;
+    line-height: 1;
+}
+.btn-back:hover {
+    background: rgba(99, 102, 241, 0.3);
+    color: #fff;
+}
+
+#btn-close-widget {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    line-height: 1;
+}
+#btn-close-widget:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
 
 .content {
     flex: 1;
     padding: 14px 16px;
-    display: flex; flex-direction: column; gap: 10px;
-    overflow-y: auto; min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    min-height: 0;
 }
 
 .state-row { display: flex; align-items: center; gap: 8px; }
@@ -345,20 +468,23 @@ body[data-compact="on"] .island.idle .status-dot { display: none; }
 }
 
 .result-text {
-    font-size: 13px; line-height: 1.5;
+    font-size: 13px;
+    line-height: 1.5;
     color: var(--text-soft);
     background: var(--bg-card);
     padding: 10px 12px;
     border-radius: 8px;
     border-left: 3px solid #10b981;
-    max-height: 120px;
+    max-height: 160px;
     overflow-y: auto;
     word-wrap: break-word;
 }
 .result-text.error-text { border-left-color: #ef4444; color: #fca5a5; }
 
 .footer {
-    display: flex; align-items: center; gap: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     padding: 10px 16px;
     border-top: 1px solid var(--border-accent-soft);
     background: var(--bg-footer);
@@ -369,9 +495,12 @@ body[data-compact="on"] .island.idle .status-dot { display: none; }
 
 .btn {
     padding: 5px 14px;
-    border-radius: 8px; border: none;
-    font-size: 12px; font-weight: 600;
-    cursor: pointer; margin-left: auto;
+    border-radius: 8px;
+    border: none;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-left: auto;
 }
 .btn-cancel {
     background: rgba(239, 68, 68, 0.15);
@@ -392,7 +521,8 @@ body[data-compact="on"] .island.idle .status-dot { display: none; }
     background: rgba(99, 102, 241, 0.1);
     border: 1px solid var(--border-accent-soft);
     color: var(--text-accent);
-    font-size: 11px; font-weight: 600;
+    font-size: 11px;
+    font-weight: 600;
     padding: 4px 10px;
     border-radius: 6px;
     cursor: pointer;
@@ -400,14 +530,12 @@ body[data-compact="on"] .island.idle .status-dot { display: none; }
 }
 .qa:hover { background: rgba(99, 102, 241, 0.25); color: #fff; }
 
-/* ---------- View settings ---------- */
+/* ---------- Settings ---------- */
 .view-settings .content {
     gap: 14px;
     padding: 14px 16px;
 }
-.set-section {
-    display: flex; flex-direction: column; gap: 6px;
-}
+.set-section { display: flex; flex-direction: column; gap: 6px; }
 .set-title {
     font-size: 9px;
     font-weight: 700;
@@ -473,7 +601,10 @@ body[data-compact="on"] .island.idle .status-dot { display: none; }
 /* ---------- VRAM ---------- */
 #gpu-badge {
     position: fixed;
-    bottom: 4px; left: 6px;
+    bottom: 4px;
+    left: 6px;
+    top: auto;
+    right: auto;
     display: flex;
     align-items: center;
     gap: 4px;
@@ -485,14 +616,16 @@ body[data-compact="on"] .island.idle .status-dot { display: none; }
     font-weight: 600;
     color: var(--text-dim);
     z-index: 9999;
-    opacity: 0.7;
+    opacity: 0.75;
     transition: opacity 200ms ease;
 }
 #gpu-badge:hover { opacity: 1; }
 #gpu-icon { font-size: 10px; }
 #gpu-text { font-family: "Consolas", monospace; }
+
 #gpu-bar {
-    width: 30px; height: 3px;
+    width: 30px;
+    height: 3px;
     background: rgba(99, 102, 241, 0.15);
     border-radius: 2px;
     overflow: hidden;
@@ -504,23 +637,16 @@ body[data-compact="on"] .island.idle .status-dot { display: none; }
     background: linear-gradient(90deg, #10b981 0%, #f59e0b 70%, #ef4444 100%);
     transition: width 500ms ease;
 }
-body[data-compact="on"] #gpu-badge { display: none; }
-/* ---------- FIX: em modo compacto, mascote abre settings ---------- */
-body[data-compact="on"] .island.idle .mascot {
-    cursor: pointer;
+/* ---------- FIX: gpu-badge so aparece em estados grandes ---------- */
+#gpu-badge {
+    display: none;
 }
-body[data-compact="on"] .island.idle .mascot:hover {
-    transform: scale(1.15);
-    box-shadow: 0 0 20px var(--myra-accent);
+body:has(.island.running) #gpu-badge,
+body:has(.island.done)    #gpu-badge,
+body:has(.island.error)   #gpu-badge,
+body:has(.island.settings) #gpu-badge {
+    display: flex;
 }
-/* Em compacto, esconde a engrenagem (o mascote faz o papel dela) */
-/* engrenagem nunca some */
 
-/* ---------- FIX DEFINITIVO: engrenagem NUNCA some ---------- */
-#btn-open-settings {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-}
-body[data-compact="on"] .island.idle { width: 90px !important; }
-body[data-compact="on"] #btn-open-settings { display: flex !important; }
+/* Em compacto nunca mostra */
+body[data-compact="on"] #gpu-badge { display: none !important; }

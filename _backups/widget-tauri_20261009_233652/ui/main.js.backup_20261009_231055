@@ -1,0 +1,258 @@
+// ============================================================
+// MYRA Widget — Tauri (mascote expressivo + chrome toggle)
+// ============================================================
+
+const invoke = window.__TAURI__.core.invoke;
+
+const IDLE_W = 200, IDLE_H = 44;
+const CARD_W = 440, CARD_H = 340;
+
+let lastState = null;
+let resetting = false;
+
+// ============================================================
+// Resize + View
+// ============================================================
+
+async function setWindowSize(state) {
+    const w = state === "idle" ? IDLE_W : CARD_W;
+    const h = state === "idle" ? IDLE_H : CARD_H;
+    try {
+        await invoke('resize_window', { width: w, height: h });
+    } catch (e) {
+        console.error("[RESIZE]", e);
+    }
+}
+
+function switchView(state) {
+    const island = document.getElementById("island");
+    if (!island) return;
+
+    island.classList.remove("idle", "running", "done", "error");
+    island.classList.add(state);
+
+    document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+    const view = document.querySelector(`.view-${state}`);
+    if (view) view.classList.add("active");
+
+    setWindowSize(state);
+    updateMascotState(state);
+}
+
+// ============================================================
+// Mascote — expressões, piscar, speech
+// ============================================================
+
+const SPEECHES = {
+    idle:    ["Oi! 👋", "Pronto!", "Tô aqui!", "Manda ver!"],
+    running: ["Pensando...", "Já vou!", "Executando...", "Um instante!"],
+    done:    ["Feito! ✅", "Consegui!", "Prontinho!", "Tá na mão!"],
+    error:   ["Ops! 😅", "Deu ruim!", "Tenta de novo!", "Ixi..."]
+};
+
+function updateMascotState(state) {
+    const mascot = document.querySelector(`.view-${state} .mascot`);
+    if (!mascot) return;
+
+    const speech = mascot.querySelector('.speech');
+    if (!speech) return;
+
+    const msgs = SPEECHES[state] || [];
+    if (msgs.length > 0) {
+        const msg = msgs[Math.floor(Math.random() * msgs.length)];
+        speech.textContent = msg;
+        speech.classList.add('show');
+
+        clearTimeout(speech._timeout);
+        speech._timeout = setTimeout(() => {
+            speech.classList.remove('show');
+        }, 2500);
+    }
+}
+
+// Piscar aleatório
+function startBlinking() {
+    setInterval(() => {
+        document.querySelectorAll('.mascot').forEach(m => {
+            m.classList.add('blink');
+            setTimeout(() => m.classList.remove('blink'), 120);
+        });
+    }, 3000 + Math.random() * 4000);
+}
+
+// Olhos seguem o mouse
+function startEyeTracking() {
+    document.addEventListener('mousemove', (e) => {
+        const mascots = document.querySelectorAll('.mascot:not(.done):not(.error)');
+        mascots.forEach(mascot => {
+            const rect = mascot.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+
+            const dx = e.clientX - cx;
+            const dy = e.clientY - cy;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const maxOffset = 3;
+            const factor = Math.min(dist / 100, 1);
+            const ox = (dx / (dist || 1)) * maxOffset * factor;
+            const oy = (dy / (dist || 1)) * maxOffset * factor;
+
+            mascot.querySelectorAll('.eye').forEach(eye => {
+                eye.style.transform = `translate(${ox}px, ${oy}px)`;
+            });
+        });
+    });
+}
+
+// Click no mascote = abrir chat
+function setupMascotClick() {
+    document.querySelectorAll('.mascot').forEach(m => {
+        m.addEventListener('click', (e) => {
+            e.stopPropagation();
+            console.log("[MASCOT] click → abrir chat");
+        });
+    });
+}
+
+// ============================================================
+// Ações
+// ============================================================
+
+async function closeWidget() {
+    resetting = true;
+    try { await invoke('cancel_task'); } catch (e) { console.error(e); }
+    switchView("idle");
+    lastState = "idle";
+    setTimeout(() => { resetting = false; }, 1200);
+}
+
+async function resetWidget() {
+    resetting = true;
+    try { await invoke('cancel_task'); } catch (e) { console.error(e); }
+    switchView("idle");
+    lastState = "idle";
+    setTimeout(() => { resetting = false; }, 1200);
+}
+
+async function cancelTask() {
+    resetting = true;
+    try { await invoke('cancel_task'); } catch (e) { console.error(e); }
+    switchView("idle");
+    lastState = "idle";
+    setTimeout(() => { resetting = false; }, 1200);
+}
+
+// ============================================================
+// Polling
+// ============================================================
+
+async function pollStatus() {
+    if (resetting) return;
+
+    try {
+        const status = await invoke('get_task_status');
+        if (!status) return;
+
+        const state = status.state || "idle";
+
+        if (state !== lastState) {
+            console.log(`[POLL] ${lastState} -> ${state}`);
+            lastState = state;
+
+            if (state === "running") {
+                const tool = document.getElementById("tool-name");
+                if (tool && status.passo_atual) tool.textContent = status.passo_atual;
+            }
+
+            if (state === "done") {
+                const result = document.getElementById("result-text");
+                if (result) result.textContent = status.resultado || "(sem resultado)";
+            }
+
+            if (state === "error") {
+                const err = document.getElementById("error-text");
+                if (err) err.textContent = status.erro || "(sem mensagem)";
+            }
+
+            switchView(state);
+        } else if (state === "running") {
+            const tool = document.getElementById("tool-name");
+            if (tool && status.passo_atual) tool.textContent = status.passo_atual;
+
+            const tempo = document.getElementById("meta-tempo");
+            if (tempo && status.iniciado_em) {
+                const s = Math.floor(Date.now() / 1000 - status.iniciado_em);
+                tempo.textContent = `⏱ ${s}s`;
+            }
+
+            const passos = document.getElementById("meta-passos");
+            if (passos && status.passo_num !== undefined && status.passo_total) {
+                passos.textContent = `⚙ ${status.passo_num}/${status.passo_total}`;
+            }
+        }
+    } catch (e) {
+        // agent offline — silêncio
+    }
+}
+
+// ============================================================
+// Chrome + engrenagem
+// ============================================================
+
+const appWin = window.__TAURI__.window.getCurrentWindow();
+
+const chromeEl = document.getElementById('chrome');
+const btnSettings = document.getElementById('btn-settings');
+const btnClose = document.getElementById('btn-close');
+
+// Engrenagem toggle
+btnSettings?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    chromeEl.classList.toggle('show');
+});
+
+// Fechar chrome ao clicar fora
+document.addEventListener('click', (e) => {
+    if (!chromeEl.contains(e.target) && e.target !== btnSettings) {
+        chromeEl.classList.remove('show');
+    }
+});
+
+// Botão fechar do app
+btnClose?.addEventListener('click', () => appWin.close());
+
+// Slider de opacidade
+const opacityEl = document.getElementById('opacity');
+const islandEl = document.getElementById('island');
+
+if (opacityEl && islandEl) {
+    const saved = localStorage.getItem('myra-opacity') || '100';
+    opacityEl.value = saved;
+    islandEl.style.opacity = saved / 100;
+
+    opacityEl.addEventListener('input', () => {
+        const val = opacityEl.value;
+        islandEl.style.opacity = val / 100;
+        localStorage.setItem('myra-opacity', val);
+    });
+}
+
+// ============================================================
+// Init
+// ============================================================
+
+window.addEventListener("DOMContentLoaded", () => {
+    switchView("idle");
+    lastState = "idle";
+
+    startBlinking();
+    startEyeTracking();
+    setupMascotClick();
+
+    setInterval(pollStatus, 500);
+});
+
+// Expõe pro HTML
+window.cancelTask = cancelTask;
+window.resetWidget = resetWidget;
+window.closeWidget = closeWidget;

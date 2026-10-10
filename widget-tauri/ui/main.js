@@ -14,12 +14,15 @@ async function setWindowSize(state) {
     const compact = document.body.dataset.compact === "on";
     let w = state === "idle" ? IDLE_W : CARD_W;
     const h = state === "idle" ? IDLE_H : CARD_H;
-    if (state === "idle" && compact) w = 60;
-    try {
-        await invoke('resize_window', { width: w, height: h });
-    } catch (e) {
-        console.error("[RESIZE]", e);
-    }
+    if (state === "idle" && compact) w = 90;
+    // Espera a animacao CSS (300ms) antes de redimensionar a janela
+    setTimeout(async () => {
+        try {
+            await invoke('resize_window', { width: w, height: h });
+        } catch (e) {
+            console.error("[RESIZE]", e);
+        }
+    }, 320);
 }
 
 function switchView(state) {
@@ -131,7 +134,7 @@ async function pollStatus() {
         const state = status.state || "idle";
 
         if (state !== lastState) {
-            console.log("[POLL] " + lastState + " -> " + state);
+            console.log("[POLL] " + lastState + " -> " + state + " | passo=" + status.passo_atual + " num=" + status.passo_num);
             lastState = state;
 
             if (state === "running") {
@@ -203,7 +206,7 @@ window.addEventListener("DOMContentLoaded", () => {
     startBlinking();
     startEyeTracking();
     setupMascotClick();
-    setInterval(pollStatus, 500);
+    setInterval(pollStatus, 300);
 });
 
 window.cancelTask = cancelTask;

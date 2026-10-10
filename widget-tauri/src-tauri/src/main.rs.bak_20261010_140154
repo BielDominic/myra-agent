@@ -1,0 +1,95 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+use serde_json::Value;
+use tauri::Manager;
+
+const AGENT_URL: &str = "http://127.0.0.1:8000";
+
+#[tauri::command]
+fn get_task_status() -> Value {
+    let client = match reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(3))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return serde_json::json!({ "state": "idle", "error": "client" }),
+    };
+
+    match client.get(format!("{}/task_status", AGENT_URL)).send() {
+        Ok(r) => r.json().unwrap_or_else(|_| serde_json::json!({ "state": "idle" })),
+        Err(_) => serde_json::json!({ "state": "idle", "error": "offline" }),
+    }
+}
+
+#[tauri::command]
+fn cancel_task() -> Value {
+    let client = reqwest::blocking::Client::new();
+    match client.post(format!("{}/task_cancel", AGENT_URL)).send() {
+        Ok(r) => r.json().unwrap_or_else(|_| serde_json::json!({ "status": "ok" })),
+        Err(_) => serde_json::json!({ "status": "erro" }),
+    }
+}
+
+#[tauri::command]
+fn resize_window(window: tauri::Window, width: u32, height: u32) -> Result<(), String> {
+    window
+        .set_size(tauri::LogicalSize::new(width, height))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_gpu_info() -> Value {
+    use std::process::Command;
+
+    let output = match Command::new("nvidia-smi")
+        .args([
+            "--query-gpu=memory.used,memory.total",
+            "--format=csv,noheader,nounits",
+        ])
+        .output()
+    {
+        Ok(o) => o,
+        Err(_) => return serde_json::json!({ "ok": false, "error": "nvidia-smi nao encontrado" }),
+    };
+
+    if !output.status.success() {
+        return serde_json::json!({ "ok": false, "error": "nvidia-smi falhou" });
+    }
+
+    let s = String::from_utf8_lossy(&output.stdout);
+    let line = s.lines().next().unwrap_or("");
+    let parts: Vec<&str> = line.split(',').map(|x| x.trim()).collect();
+    if parts.len() < 2 {
+        return serde_json::json!({ "ok": false, "error": "parse falhou" });
+    }
+
+    let used: u64 = parts[0].parse().unwrap_or(0);
+    let total: u64 = parts[1].parse().unwrap_or(0);
+
+    serde_json::json!({
+        "ok": true,
+        "used": used,
+        "total": total,
+    })
+}
+
+// Fix: botao "sempre no topo" agora funciona de verdade
+#[tauri::command]
+fn toggle_always_on_top(app: tauri::AppHandle, on_top: bool) -> Result<bool, String> {
+    let win = app.get_webview_window("main").ok_or("janela main nao encontrada")?;
+    win.set_always_on_top(on_top).map_err(|e| e.to_string())?;
+    Ok(on_top)
+}
+
+fn main() {
+    tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![
+            get_task_status,
+            cancel_task,
+            resize_window,
+            get_gpu_info,
+            toggle_always_on_top
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running myra-widget");
+}

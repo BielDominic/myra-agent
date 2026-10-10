@@ -12,7 +12,7 @@
     <div id="island" class="island idle">
 
         <!-- VIEW: idle -->
-        <div class="view view-idle active">
+        <div class="view view-idle active" data-tauri-drag-region>
             <div class="mascot idle" id="mascot">
                 <div class="eye left"></div>
                 <div class="eye right"></div>
@@ -20,16 +20,17 @@
                 <div class="zzz">zZz</div>
                 <div class="speech" id="speech"></div>
             </div>
-            <span class="label">MYRA</span>
+            <span class="label" data-tauri-drag-region>MYRA</span>
             <span class="status-dot"></span>
             <button id="btn-open-settings" title="Configuracoes">&#9881;</button>
         </div>
 
         <!-- VIEW: configuracoes (ocupa o island inteiro) -->
-        <div class="view view-settings">
-            <div class="header">
+        <div class="view view-settings" data-tauri-drag-region>
+            <div class="header" data-tauri-drag-region>
+                <button class="btn-back" id="btn-back-settings" title="Voltar">&#8592;</button>
                 <span class="label">Configuracoes</span>
-                <button class="btn-close" id="btn-close-settings" title="Fechar">&#10005;</button>
+                <button class="btn-close" id="btn-close-widget" title="Fechar widget">&#10005;</button>
             </div>
             <div class="content">
 
@@ -65,20 +66,20 @@
 
             </div>
             <div class="footer">
-                <button class="btn btn-cancel" id="btn-quit">Fechar widget</button>
+                <span class="meta">MYRA v0.1</span>
             </div>
         </div>
 
         <!-- VIEW: running -->
         <div class="view view-running">
-            <div class="header">
+            <div class="header" data-tauri-drag-region>
                 <div class="mascot running" id="mascot-running">
                     <div class="eye left"></div>
                     <div class="eye right"></div>
                     <div class="mouth"></div>
                     <div class="speech"></div>
                 </div>
-                <span class="label">MYRA</span>
+                <span class="label" data-tauri-drag-region>MYRA</span>
                 <button class="btn-close" onclick="closeWidget()" title="Fechar">&times;</button>
             </div>
             <div class="content">
@@ -99,14 +100,14 @@
 
         <!-- VIEW: done -->
         <div class="view view-done">
-            <div class="header">
+            <div class="header" data-tauri-drag-region>
                 <div class="mascot done" id="mascot-done">
                     <div class="eye left"></div>
                     <div class="eye right"></div>
                     <div class="mouth"></div>
                     <div class="speech"></div>
                 </div>
-                <span class="label">MYRA</span>
+                <span class="label" data-tauri-drag-region>MYRA</span>
                 <button class="btn-close" onclick="closeWidget()" title="Fechar">&times;</button>
             </div>
             <div class="content">
@@ -127,14 +128,14 @@
 
         <!-- VIEW: error -->
         <div class="view view-error">
-            <div class="header">
+            <div class="header" data-tauri-drag-region>
                 <div class="mascot error" id="mascot-error">
                     <div class="eye left"></div>
                     <div class="eye right"></div>
                     <div class="mouth"></div>
                     <div class="speech"></div>
                 </div>
-                <span class="label">MYRA</span>
+                <span class="label" data-tauri-drag-region>MYRA</span>
                 <button class="btn-close" onclick="closeWidget()" title="Fechar">&times;</button>
             </div>
             <div class="content">

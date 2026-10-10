@@ -17,9 +17,11 @@
         "transparent": true,
         "decorations": false,
         "shadow": false,
-        "alwaysOnTop": false,
+        "alwaysOnTop": true,
         "skipTaskbar": false,
-        "resizable": true
+        "resizable": false,
+        "minimizable": false,
+        "maximizable": false
       }
     ],
     "security": { "csp": null }
