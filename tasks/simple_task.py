@@ -255,6 +255,17 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
 
         acao = decisao.get("acao", "")
 
+        # Compatibilidade com chamadas de ferramenta emitidas diretamente pelo LLM
+        # (ex.: {"acao":"browser_read_active_tab","args":[]}), além do formato
+        # canônico {"acao":"chamar","ferramenta":"...","args":{...}}.
+        if acao in FERRAMENTAS_DISPONIVEIS:
+            decisao = {
+                **decisao,
+                "ferramenta": acao,
+                "acao": "chamar",
+            }
+            acao = "chamar"
+
         if acao == "finalizar":
             print(f"[TASK] LLM decidiu finalizar: {decisao.get('motivo', '')}")
             break
@@ -263,6 +274,19 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
             ferramenta = decisao.get("ferramenta", "")
             args = decisao.get("args", {}) or {}
             motivo = decisao.get("motivo", "")
+
+            # Alguns modelos retornam argumentos posicionais como lista. Converte
+            # para kwargs usando a assinatura registrada da ferramenta.
+            if isinstance(args, list):
+                import inspect
+                parametros = [
+                    p for p in inspect.signature(FERRAMENTAS_DISPONIVEIS[ferramenta]).parameters.values()
+                    if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+                    and p.default is inspect.Parameter.empty
+                ] if ferramenta in FERRAMENTAS_DISPONIVEIS else []
+                args = {p.name: valor for p, valor in zip(parametros, args)}
+            elif not isinstance(args, dict):
+                args = {}
 
             if ferramenta not in FERRAMENTAS_DISPONIVEIS:
                 print(f"[TASK] ferramenta invalida: {ferramenta}")
