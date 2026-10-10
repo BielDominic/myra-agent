@@ -7,7 +7,11 @@ Extensão Chrome Manifest V3 e fila local de comandos para permitir que o planne
 No PowerShell do Windows, gere um token aleatório e guarde-o em um gerenciador de senhas:
 
 ```powershell
-$token = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+$bytes = New-Object byte[] 32
+$rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($bytes)
+$rng.Dispose()
+$token = -join ($bytes | ForEach-Object { $_.ToString("x2") })
 [Environment]::SetEnvironmentVariable("MYRA_BROWSER_BRIDGE_TOKEN", $token, "User")
 Write-Host $token
 ```
@@ -23,6 +27,7 @@ Se o MYRA estiver rodando como serviço ou iniciado por outro shell, configure a
 3. Clique em **Carregar sem compactação**.
 4. Selecione a pasta `browser-extension` do repositório.
 5. Abra o popup da extensão, cole o token gerado, marque **Habilitar integração automática** e clique **Salvar e conectar**.
+6. Confirme a permissão do Chrome para acessar páginas HTTP/HTTPS quando o navegador perguntar. A extensão não injeta scripts em todos os sites em segundo plano; o acesso amplo é opcional e solicitado só quando você habilita a integração.
 6. Deixe o Chrome aberto enquanto testa o planner.
 
 ## 3. Ferramentas do planner
