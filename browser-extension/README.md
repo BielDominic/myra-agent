@@ -1,29 +1,43 @@
-# MYRA Browser Bridge (protótipo)
+# MYRA Browser Bridge
 
-Esta extensão é a primeira etapa para usar abas do Chrome já abertas e autenticadas, sem copiar o perfil para `C:\\chrome-debug` nem iniciar um segundo Chrome.
+Extensão Chrome Manifest V3 e fila local de comandos para permitir que o planner do MYRA opere na aba ativa do Chrome do usuário. A extensão usa APIs oficiais do Chrome e não lê cookies, senhas, tokens de sessão nem local storage de sites.
 
-## Estado atual
+## 1. Configure o backend
 
-**Protótipo isolado; ainda não está conectado ao planner do `agent.py`.** O popup permite testar leitura de texto da aba ativa, navegação e clique por texto. A integração com o planner exige endpoints autenticados no backend e registro de ferramentas em `tasks/simple_task.py`; não declare a extensão como integração completa até isso estar implementado e testado.
+No PowerShell do Windows, gere um token aleatório e guarde-o em um gerenciador de senhas:
 
-## Instalar para teste local
+```powershell
+$token = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+[Environment]::SetEnvironmentVariable("MYRA_BROWSER_BRIDGE_TOKEN", $token, "User")
+Write-Host $token
+```
+
+Feche e reinicie o terminal/processo que inicia `agent.py` para que ele leia a variável de ambiente. Não publique o token em issues, commits, screenshots ou mensagens.
+
+Se o MYRA estiver rodando como serviço ou iniciado por outro shell, configure a variável nesse mesmo ambiente e reinicie o processo.
+
+## 2. Carregue a extensão
 
 1. Abra `chrome://extensions`.
 2. Ative **Modo do desenvolvedor**.
 3. Clique em **Carregar sem compactação**.
-4. Selecione a pasta `browser-extension` deste repositório.
-5. Abra uma página de teste não sensível e clique no ícone da extensão.
-6. Teste **Ler aba ativa**, **Navegar na aba atual** e **Clicar por texto**.
+4. Selecione a pasta `browser-extension` do repositório.
+5. Abra o popup da extensão, cole o token gerado, marque **Habilitar integração automática** e clique **Salvar e conectar**.
+6. Deixe o Chrome aberto enquanto testa o planner.
 
-## Segurança
+## 3. Ferramentas do planner
 
-- Não lê nem exporta cookies, senhas, tokens de sessão ou local storage.
-- A API configurada é limitada a `localhost` / `127.0.0.1`.
-- Não use inicialmente em banco, pagamentos ou ações irreversíveis.
-- As permissões de leitura/execução são amplas o suficiente para operar na aba ativa; mantenha a extensão desabilitada quando não estiver testando.
-- Login, CAPTCHA, MFA e bloqueios do site continuam sob controle do site; a extensão não os contorna.
-- Este protótipo não contém polling de comandos nem endpoints de execução remota.
+- `browser_read_active_tab`: devolve título, URL e texto visível da aba ativa (até 12.000 caracteres).
+- `browser_navigate_active_tab(url)`: navega a aba ativa para uma URL HTTP/HTTPS.
+- `browser_click_text(text)`: clica em um botão/link visível com texto exato.
 
-## Próxima etapa de integração
+Os comandos expiram após 40 segundos se a extensão não responder. Teste em páginas não sensíveis antes de usar em contas autenticadas. Não use clique automático para confirmar pagamentos, excluir dados, enviar mensagens ou outras ações irreversíveis sem confirmação explícita do usuário.
 
-Implementar no backend uma fila de comandos local com token de uso local, endpoints de claim/complete, limites de timeout e confirmação explícita para ações sensíveis. Depois, registrar ferramentas `browser_read_active_tab`, `browser_navigate_active_tab` e `browser_click_text` no planner. Não exponha esses endpoints à rede local ou pública.
+## Segurança e limitações
+
+- Os endpoints da extensão exigem `MYRA_BROWSER_BRIDGE_TOKEN` e rejeitam clientes não locais.
+- Configure a variável de ambiente antes de iniciar o backend. Sem ela, a API do bridge permanece indisponível.
+- A API principal do MYRA tem outras rotas preexistentes; este bridge não altera sua configuração de rede global.
+- A extensão não contorna login, MFA, CAPTCHA, bloqueios anti-automação ou permissões do site.
+- O service worker do Chrome pode ser suspenso pelo navegador. Se a ferramenta expirar, abra o popup e confirme que a integração está habilitada.
+- Este commit foi criado pelo GitHub API e não foi executado no seu PC. Faça teste manual após atualizar o checkout e recarregar a extensão.
