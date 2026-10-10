@@ -83,7 +83,7 @@ async function pollOnce() {
     } catch (error) {
       result = { ok: false, error: error?.message || String(error) };
     }
-    await bridgeFetch("/browser_bridge/complete?token=" + encodeURIComponent(settings.myraToken), settings, {
+    await bridgeFetch("/browser_bridge/complete", settings, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command_id: command.command_id, result })
