@@ -137,3 +137,11 @@ config_local.*
 widget-tauri/src-tauri/target/
 widget-tauri/src-tauri/gen/
 **/*.rs.bk
+
+# Backups locais
+_backups/
+*.bak_*
+*.backup_*
+*.bak
+*.backup
+`) 
