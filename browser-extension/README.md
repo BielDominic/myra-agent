@@ -35,7 +35,7 @@ Os comandos expiram após 40 segundos se a extensão não responder. Teste em p�
 
 ## Segurança e limitações
 
-- Os endpoints da extensão exigem `MYRA_BROWSER_BRIDGE_TOKEN` e rejeitam clientes não locais.
+- Os endpoints da extensão exigem `MYRA_BROWSER_BRIDGE_TOKEN` no cabeçalho `X-MYRA-BRIDGE-TOKEN` e rejeitam clientes não locais.
 - Configure a variável de ambiente antes de iniciar o backend. Sem ela, a API do bridge permanece indisponível.
 - A API principal do MYRA tem outras rotas preexistentes; este bridge não altera sua configuração de rede global.
 - A extensão não contorna login, MFA, CAPTCHA, bloqueios anti-automação ou permissões do site.
