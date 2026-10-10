@@ -1,6 +1,7 @@
 const DEFAULT_API = "http://127.0.0.1:8000";
-let polling = false;
-let pollRequested = false;
+
+// Recria/garante o alarme sempre que o service worker é iniciado.
+chrome.alarms.create("myra-bridge-poll", { periodInMinutes: 0.5 });
 
 // Open WebUI is the command source, not the page the user usually wants MYRA to inspect.
 function isMyraUiTab(tab) {
@@ -130,12 +131,15 @@ async function executeBridgeCommand(command) {
 async function pollOnce() {
   const settings = await getSettings();
   if (!settings.myraEnabled || !settings.myraToken) return;
+  console.log("[MYRA Bridge] polling...");
   try {
     const response = await bridgeFetch("/browser_bridge/next?wait=20", settings);
+    console.log("[MYRA Bridge] next HTTP", response.status);
     if (!response.ok) throw new Error("Backend Bridge respondeu HTTP " + response.status);
     const payload = await response.json();
     const command = payload.command;
     if (!command) return;
+    console.log("[MYRA Bridge] comando:", command.action);
     let result;
     try {
       result = await executeBridgeCommand(command);
@@ -147,24 +151,17 @@ async function pollOnce() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command_id: command.command_id, result })
     });
+    console.log("[MYRA Bridge] completado");
   } catch (error) {
     console.warn("[MYRA Bridge]", error?.message || error);
-    await new Promise(resolve => setTimeout(resolve, 1200));
   }
 }
 
 async function startPolling() {
-  pollRequested = true;
-  if (polling) return;
-  polling = true;
   try {
-    while (pollRequested) {
-      const settings = await getSettings();
-      if (!settings.myraEnabled || !settings.myraToken) break;
-      await pollOnce();
-    }
-  } finally {
-    polling = false;
+    await pollOnce();
+  } catch (error) {
+    console.warn("[MYRA Bridge]", error?.message || error);
   }
 }
 
@@ -173,10 +170,16 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 chrome.runtime.onStartup.addListener(() => {
   chrome.alarms.create("myra-bridge-poll", { periodInMinutes: 0.5 });
-  startPolling();
 });
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === "myra-bridge-poll") startPolling();
+
+// Cada alarme executa apenas uma rodada; o service worker pode ser suspenso entre elas.
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== "myra-bridge-poll") return;
+  try {
+    await pollOnce();
+  } catch (error) {
+    console.warn("[MYRA Bridge]", error?.message || error);
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
