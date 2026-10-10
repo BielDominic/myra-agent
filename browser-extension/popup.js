@@ -11,8 +11,13 @@ const send = (message) => new Promise((resolve) => chrome.runtime.sendMessage(me
 })();
 
 $("save").addEventListener("click", async () => {
-  const result = await send({ type: "MYRA_SAVE_SETTINGS", api: $("api").value.trim(), enabled: $("enabled").checked });
-  show(result?.ok ? "Configuração salva." : result?.error || "Falha ao salvar.");
+  const result = await send({
+    type: "MYRA_SAVE_SETTINGS",
+    api: $("api").value.trim(),
+    token: $("token").value.trim(),
+    enabled: $("enabled").checked
+  });
+  show(result?.ok ? "Configuração salva. A extensão está conectada enquanto o Chrome mantiver o serviço ativo." : result?.error || "Falha ao salvar.");
 });
 $("read").addEventListener("click", async () => {
   show(await send({ type: "MYRA_READ_ACTIVE_TAB" }));
