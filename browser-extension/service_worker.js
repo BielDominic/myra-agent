@@ -78,11 +78,18 @@ async function bridgeFetch(path, settings, options = {}) {
   const api = settings.myraApi || DEFAULT_API;
   const token = settings.myraToken || "";
   if (!token) throw new Error("Configure o token MYRA Browser Bridge na extensão.");
-  return fetch(api + path, {
-    ...options,
-    headers: { ...(options.headers || {}), "X-MYRA-BRIDGE-TOKEN": token },
-    cache: "no-store"
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    return await fetch(api + path, {
+      ...options,
+      headers: { ...(options.headers || {}), "X-MYRA-BRIDGE-TOKEN": token },
+      cache: "no-store",
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function executeBridgeCommand(command) {
@@ -138,7 +145,7 @@ async function pollOnce() {
   if (!settings.myraEnabled || !settings.myraToken) return;
   console.log("[MYRA Bridge] polling...");
   try {
-    const response = await bridgeFetch("/browser_bridge/next?wait=20", settings);
+    const response = await bridgeFetch("/browser_bridge/next?wait=5", settings);
     console.log("[MYRA Bridge] next HTTP", response.status);
     if (!response.ok) throw new Error("Backend Bridge respondeu HTTP " + response.status);
     const payload = await response.json();
@@ -158,7 +165,7 @@ async function pollOnce() {
     });
     console.log("[MYRA Bridge] completado");
   } catch (error) {
-    console.warn("[MYRA Bridge]", error?.message || error);
+    console.warn("[MYRA Bridge] erro:", error?.name, error?.message || error);
   }
 }
 
