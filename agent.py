@@ -82,10 +82,15 @@ _widget_listeners = []
 
 
 def _widget_notify():
-    """Notifica todos os listeners SSE que o status mudou."""
-    for queue in list(_widget_listeners):
+    """Publica imediatamente o snapshot atual para cada listener SSE."""
+    snapshot = dict(_widget_status)
+    for listener in list(_widget_listeners):
         try:
-            queue.put_nowait("update")
+            loop, event_queue = listener
+            if loop.is_closed():
+                continue
+            # _widget_set tambem pode ser chamado por threads do executor.
+            loop.call_soon_threadsafe(event_queue.put_nowait, snapshot)
         except Exception:
             pass
 
@@ -1016,27 +1021,29 @@ def task_cancel():
 
 @app.get("/task_events")
 async def task_events(request: Request):
-    """SSE (Server-Sent Events) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â envia atualizaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes em tempo real pro widget."""
+    """SSE: envia atualizacoes assim que o estado do widget muda."""
     from fastapi.responses import StreamingResponse
     import asyncio
+    import json as _json
 
     async def event_generator():
-        import json as _json
-        yield f"data: {_json.dumps(_widget_status, ensure_ascii=False)}\n\n"
-
-        ultimo_envio = time.time()
-        while True:
-            if await request.is_disconnected():
-                break
-
-            agora = time.time()
-            if agora - ultimo_envio > 1:
-                yield f"data: {_json.dumps(_widget_status, ensure_ascii=False)}\n\n"
-                ultimo_envio = agora
-            else:
-                yield ": ping\n\n"
-
-            await asyncio.sleep(0.5)
+        loop = asyncio.get_running_loop()
+        event_queue = asyncio.Queue()
+        listener = (loop, event_queue)
+        _widget_listeners.append(listener)
+        try:
+            yield f"data: {_json.dumps(dict(_widget_status), ensure_ascii=False)}\\n\\n"
+            while not await request.is_disconnected():
+                try:
+                    snapshot = await asyncio.wait_for(event_queue.get(), timeout=15)
+                    yield f"data: {_json.dumps(snapshot, ensure_ascii=False)}\\n\\n"
+                except asyncio.TimeoutError:
+                    yield ": ping\\n\\n"
+        finally:
+            try:
+                _widget_listeners.remove(listener)
+            except ValueError:
+                pass
 
     return StreamingResponse(
         event_generator(),
@@ -1044,6 +1051,7 @@ async def task_events(request: Request):
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
         },
     )
 
