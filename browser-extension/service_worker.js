@@ -90,6 +90,7 @@ async function pollOnce() {
     });
   } catch (error) {
     console.warn("[MYRA Bridge]", error?.message || error);
+    await new Promise(resolve => setTimeout(resolve, 1200));
   }
 }
 
