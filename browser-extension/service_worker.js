@@ -1,7 +1,12 @@
 const DEFAULT_API = "http://127.0.0.1:8000";
 
 // Recria/garante o alarme sempre que o service worker é iniciado.
-chrome.alarms.create("myra-bridge-poll", { periodInMinutes: 0.5 });
+chrome.alarms.get("myra-bridge-poll", (alarm) => {
+  if (!alarm) {
+    chrome.alarms.create("myra-bridge-poll", { periodInMinutes: 0.5 });
+    console.log("[MYRA Bridge] alarme criado");
+  }
+});
 
 // Open WebUI is the command source, not the page the user usually wants MYRA to inspect.
 function isMyraUiTab(tab) {
@@ -166,10 +171,20 @@ async function startPolling() {
 }
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.alarms.create("myra-bridge-poll", { periodInMinutes: 0.5 });
+  chrome.alarms.get("myra-bridge-poll", (alarm) => {
+  if (!alarm) {
+    chrome.alarms.create("myra-bridge-poll", { periodInMinutes: 0.5 });
+    console.log("[MYRA Bridge] alarme criado");
+  }
+});
 });
 chrome.runtime.onStartup.addListener(() => {
-  chrome.alarms.create("myra-bridge-poll", { periodInMinutes: 0.5 });
+  chrome.alarms.get("myra-bridge-poll", (alarm) => {
+  if (!alarm) {
+    chrome.alarms.create("myra-bridge-poll", { periodInMinutes: 0.5 });
+    console.log("[MYRA Bridge] alarme criado");
+  }
+});
 });
 
 // Cada alarme executa apenas uma rodada; o service worker pode ser suspenso entre elas.
