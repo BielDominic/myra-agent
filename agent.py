@@ -18,11 +18,13 @@ import re as _re
 import yt_dlp
 from tasks.simple_task import executar_task, registrar_ferramenta
 from tasks import structured_tools as st
+from tasks import browser_bridge as browser_bridge
 from email.message import EmailMessage
 from email.header import decode_header
 import email as email_lib
 
 app = FastAPI()
+app.include_router(browser_bridge.router)
 
 # CORS ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â permite o widget (pywebview) acessar a API
 app.add_middleware(
@@ -2999,6 +3001,7 @@ registrar_ferramenta(
 
 # FASE 24.2 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Ferramentas estruturadas (devolvem JSON)
 st.registrar_todas(registrar_ferramenta)
+browser_bridge.registrar_ferramentas(registrar_ferramenta)
 
 
 # FASE 24.4 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Injeta _widget_set no simple_task (evita import circular)
