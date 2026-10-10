@@ -1036,7 +1036,7 @@ async def task_events(request: Request):
             while not await request.is_disconnected():
                 try:
                     snapshot = await asyncio.wait_for(event_queue.get(), timeout=15)
-                    yield f"data: {_json.dumps(snapshot, ensure_ascii=False)}\\n\\n"
+                    yield f"data: {_json.dumps(snapshot, ensure_ascii=False)}\n\n"
                 except asyncio.TimeoutError:
                     yield ": ping\n\n"
         finally:
