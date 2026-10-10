@@ -7,7 +7,7 @@ function isMyraUiTab(tab) {
   try {
     const url = new URL(tab?.url || "");
     const host = url.hostname.toLowerCase();
-    const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(host);
+    const isLocalHost = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(host);
     return isLocalHost && url.port === "8080";
   } catch {
     return false;
