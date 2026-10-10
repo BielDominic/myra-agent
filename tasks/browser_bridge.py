@@ -7,6 +7,7 @@ processes. Set MYRA_BROWSER_BRIDGE_DB to override the database location.
 from __future__ import annotations
 
 import hmac
+from contextlib import closing
 import json
 import os
 import sqlite3
@@ -82,7 +83,7 @@ def _require_local_and_token(request: Request, token: str | None = None) -> None
 
 def _enqueue_command(command_id: str, action: str, args: dict) -> None:
     now = time.time()
-    with _connect_db() as conn:
+    with closing(_connect_db()) as conn:
         conn.execute(
             """
             INSERT INTO browser_bridge_commands
@@ -91,6 +92,7 @@ def _enqueue_command(command_id: str, action: str, args: dict) -> None:
             """,
             (command_id, action, json.dumps(args, ensure_ascii=False), now, now),
         )
+        conn.commit()
     print(
         f"[Bridge] ENQUEUE pid={os.getpid()} id={command_id} "
         f"action={action} db={_database_path()}",
@@ -100,7 +102,7 @@ def _enqueue_command(command_id: str, action: str, args: dict) -> None:
 
 def _take_next_command() -> dict | None:
     # BEGIN IMMEDIATE makes selection + claim atomic across concurrent pollers.
-    with _connect_db() as conn:
+    with closing(_connect_db()) as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
             """
@@ -138,7 +140,7 @@ def _take_next_command() -> dict | None:
 
 
 def _read_command(command_id: str) -> dict | None:
-    with _connect_db() as conn:
+    with closing(_connect_db()) as conn:
         row = conn.execute(
             "SELECT status, result_json FROM browser_bridge_commands WHERE command_id = ?",
             (command_id,),
@@ -152,11 +154,12 @@ def _read_command(command_id: str) -> dict | None:
 
 
 def _delete_command(command_id: str) -> None:
-    with _connect_db() as conn:
+    with closing(_connect_db()) as conn:
         conn.execute(
             "DELETE FROM browser_bridge_commands WHERE command_id = ?",
             (command_id,),
         )
+        conn.commit()
 
 
 def _run_command(action: str, **args) -> dict:
@@ -291,7 +294,7 @@ def browser_bridge_complete(
     token: str = Header(default="", alias="X-MYRA-BRIDGE-TOKEN"),
 ):
     _require_local_and_token(request, token)
-    with _connect_db() as conn:
+    with closing(_connect_db()) as conn:
         row = conn.execute(
             "SELECT status FROM browser_bridge_commands WHERE command_id = ?",
             (data.command_id,),
@@ -307,6 +310,7 @@ def browser_bridge_complete(
                 """,
                 (json.dumps(data.result, ensure_ascii=False), time.time(), data.command_id),
             )
+        conn.commit()
     print(
         f"[Bridge] COMPLETE pid={os.getpid()} id={data.command_id}",
         flush=True,
