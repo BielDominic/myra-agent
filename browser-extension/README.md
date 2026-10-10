@@ -39,7 +39,10 @@ Se o MYRA estiver rodando como serviço ou iniciado por outro shell, configure a
 
 ## 4. Ferramentas do planner
 
-- `browser_read_active_tab`: devolve título, URL e texto visível da aba-alvo (até 12.000 caracteres).
+- `browser_read_active_tab()`: devolve título, URL e texto visível da aba-alvo (até 12.000 caracteres).
+- `browser_read_active_tab(url_contains="github.com")`: procura em todas as janelas do Chrome uma aba cuja URL contenha esse trecho, sem diferenciar maiúsculas/minúsculas. Se várias abas corresponderem, lê a mais recentemente acessada. O trecho pode ser domínio, parte do caminho ou outro fragmento da URL; não precisa incluir o protocolo.
+- Se `url_contains` não for informado, mantém o comportamento padrão: usa a aba ativa ou, se ela for o Open WebUI, a página web mais recentemente acessada na mesma janela.
+- Se nenhuma aba corresponder a `url_contains`, retorna um erro claro e não lê outra aba por engano.
 - `browser_navigate_active_tab(url)`: navega a aba-alvo para uma URL HTTP/HTTPS.
 - `browser_click_text(text)`: clica em um botão/link visível com texto exato.
 
