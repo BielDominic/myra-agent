@@ -16,7 +16,7 @@ FERRAMENTAS_DESCRICOES = {}
 
 MAX_PASSOS_PADRAO = 15
 MAX_ERROS_CONSECUTIVOS = 3
-MAX_REPETICOES_MESMA_ACAO = 2
+MAX_REPETICOES_MESMA_ACAO = 1
 TAMANHO_MAX_RESULTADO_HISTORICO = 800
 TAMANHO_MAX_CONTEXTO_SINTESE = 6000
 
@@ -129,7 +129,7 @@ def _decidir_proximo_passo(objetivo: str, historico: list) -> dict:
         if not (eh_navegacao and nome in ferramentas_ocultas_navegacao)
     )
     if FERRAMENTAS_DESCRICOES:
-        ferramentas_str = "\\n".join(
+        ferramentas_str = "\n".join(
             f"- {nome}: {FERRAMENTAS_DESCRICOES.get(nome, 'sem descricao')}"
             for nome in nomes_prompt
         )
