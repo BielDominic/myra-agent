@@ -175,9 +175,15 @@ def _delete_command(command_id: str) -> None:
         conn.commit()
 
 
-def _run_command(action: str, **args) -> dict:
-    if action not in {"read_active_tab", "navigate_active_tab", "click_text"}:
+def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> dict:
+    if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text"}:
         return {"status": "erro", "result": "Acao do navegador nao permitida."}
+    if action == "read_page_url":
+        raw_url = str(args.get("url", "")).strip()
+        parsed = urlparse(raw_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return {"status": "erro", "result": "URL invalida: use apenas http:// ou https://."}
+        args["url"] = raw_url
     if action == "navigate_active_tab":
         raw_url = str(args.get("url", "")).strip()
         parsed = urlparse(raw_url)
@@ -205,7 +211,8 @@ def _run_command(action: str, **args) -> dict:
         print(f"[Bridge] ENQUEUE_ERROR pid={os.getpid()} error={exc!r}", flush=True)
         return {"status": "erro", "result": f"Falha ao enfileirar comando no banco local: {exc}"}
 
-    deadline = time.monotonic() + COMMAND_TIMEOUT_SECONDS
+    effective_timeout = COMMAND_TIMEOUT_SECONDS if timeout_seconds is None else max(1, min(int(timeout_seconds), COMMAND_TIMEOUT_SECONDS))
+    deadline = time.monotonic() + effective_timeout
     while time.monotonic() < deadline:
         try:
             state = _read_command(command_id)
@@ -253,6 +260,16 @@ def browser_read_active_tab(url_contains: str = "") -> dict:
     return _run_command("read_active_tab", url_contains=url_contains)
 
 
+def browser_read_page(url: str) -> dict:
+    """Abre uma URL HTTP/HTTPS numa aba temporaria da extensao, le o conteudo e fecha a aba."""
+    return _run_command("read_page_url", url=url)
+
+
+def _browser_read_active_tab_for_route() -> dict:
+    """Tentativa curta para a rota legada poder cair no Playwright se a extensao nao responder."""
+    return _run_command("read_active_tab", timeout_seconds=12)
+
+
 def browser_navigate_active_tab(url: str) -> dict:
     """Navega a aba ativa do Chrome para uma URL HTTP/HTTPS."""
     return _run_command("navigate_active_tab", url=url)
@@ -268,6 +285,11 @@ def registrar_ferramentas(registrar_ferramenta) -> None:
         "browser_read_active_tab",
         browser_read_active_tab,
         "Lê título, URL e texto visível de uma aba do Chrome via extensão MYRA. Opcional: url_contains='github.com' seleciona uma aba cuja URL contenha esse trecho (case-insensitive), útil quando há várias abas. Sem url_contains, usa a aba ativa ou a aba web mais recente se o Open WebUI estiver ativo. Requer Chrome aberto e Browser Bridge habilitado."
+    )
+    registrar_ferramenta(
+        "browser_read_page",
+        browser_read_page,
+        "Abre uma URL HTTP/HTTPS em uma aba temporaria do Chrome, extrai titulo, URL, texto e links, e fecha a aba temporaria. Obrigatorio: url='https://example.com'. Requer permissao da extensao para o dominio."
     )
     registrar_ferramenta(
         "browser_navigate_active_tab",
