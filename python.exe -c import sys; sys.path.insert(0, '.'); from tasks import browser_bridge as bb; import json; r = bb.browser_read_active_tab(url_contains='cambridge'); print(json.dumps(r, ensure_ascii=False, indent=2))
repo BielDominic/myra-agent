@@ -1,0 +1,46 @@
+[1mdiff --git a/browser-extension/service_worker.js b/browser-extension/service_worker.js[m
+[1mindex 069c230..7631911 100644[m
+[1m--- a/browser-extension/service_worker.js[m
+[1m+++ b/browser-extension/service_worker.js[m
+[36m@@ -78,11 +78,18 @@[m [masync function bridgeFetch(path, settings, options = {}) {[m
+   const api = settings.myraApi || DEFAULT_API;[m
+   const token = settings.myraToken || "";[m
+   if (!token) throw new Error("Configure o token MYRA Browser Bridge na extensão.");[m
+[31m-  return fetch(api + path, {[m
+[31m-    ...options,[m
+[31m-    headers: { ...(options.headers || {}), "X-MYRA-BRIDGE-TOKEN": token },[m
+[31m-    cache: "no-store"[m
+[31m-  });[m
+[32m+[m[32m  const controller = new AbortController();[m
+[32m+[m[32m  const timeout = setTimeout(() => controller.abort(), 15000);[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    return await fetch(api + path, {[m
+[32m+[m[32m      ...options,[m
+[32m+[m[32m      headers: { ...(options.headers || {}), "X-MYRA-BRIDGE-TOKEN": token },[m
+[32m+[m[32m      cache: "no-store",[m
+[32m+[m[32m      signal: controller.signal[m
+[32m+[m[32m    });[m
+[32m+[m[32m  } finally {[m
+[32m+[m[32m    clearTimeout(timeout);[m
+[32m+[m[32m  }[m
+ }[m
+ [m
+ async function executeBridgeCommand(command) {[m
+[36m@@ -138,7 +145,7 @@[m [masync function pollOnce() {[m
+   if (!settings.myraEnabled || !settings.myraToken) return;[m
+   console.log("[MYRA Bridge] polling...");[m
+   try {[m
+[31m-    const response = await bridgeFetch("/browser_bridge/next?wait=20", settings);[m
+[32m+[m[32m    const response = await bridgeFetch("/browser_bridge/next?wait=5", settings);[m
+     console.log("[MYRA Bridge] next HTTP", response.status);[m
+     if (!response.ok) throw new Error("Backend Bridge respondeu HTTP " + response.status);[m
+     const payload = await response.json();[m
+[36m@@ -158,7 +165,7 @@[m [masync function pollOnce() {[m
+     });[m
+     console.log("[MYRA Bridge] completado");[m
+   } catch (error) {[m
+[31m-    console.warn("[MYRA Bridge]", error?.message || error);[m
+[32m+[m[32m    console.warn("[MYRA Bridge] erro:", error?.name, error?.message || error);[m
+   }[m
+ }[m
+ [m
