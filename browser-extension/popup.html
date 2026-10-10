@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MYRA Browser Bridge</title>
+  <style>
+    body{font:14px system-ui,sans-serif;width:330px;margin:0;padding:16px;background:#0a0a0f;color:#e8eef5}
+    h1{font-size:18px;margin:0 0 8px;color:#06b6d4}p{color:#aab4c0;line-height:1.45}
+    label{display:block;margin:12px 0 5px}input{box-sizing:border-box;width:100%;padding:9px;border-radius:7px;border:1px solid #343744;background:#14141d;color:#fff}
+    button{width:100%;padding:9px;margin-top:9px;border:0;border-radius:7px;background:#06b6d4;color:#071014;font-weight:650;cursor:pointer}
+    button.secondary{background:#262936;color:#e8eef5}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#14141d;padding:9px;border-radius:7px;max-height:180px;overflow:auto}
+    .small{font-size:12px}
+  </style>
+</head>
+<body>
+  <h1>MYRA Browser Bridge</h1>
+  <p>Protótipo inicial. Permite inspecionar a aba ativa e testar ações com a sessão já aberta no Chrome.</p>
+  <label for="api">API local do MYRA</label>
+  <input id="api" value="http://127.0.0.1:8000">
+  <label><input id="enabled" type="checkbox" style="width:auto"> Habilitar integração local (configuração)</label>
+  <button id="save">Salvar configuração</button>
+  <button id="read" class="secondary">Ler aba ativa</button>
+  <label for="url">URL para abrir na aba atual</label>
+  <input id="url" placeholder="https://example.com">
+  <button id="navigate" class="secondary">Navegar na aba atual</button>
+  <label for="text">Texto exato do botão/link</label>
+  <input id="text" placeholder="Continuar">
+  <button id="click" class="secondary">Clicar por texto</button>
+  <label>Resultado</label>
+  <pre id="result">Pronto.</pre>
+  <p class="small">Não extrai cookies ou senhas. Sites podem exigir autenticação ou bloquear ações automatizadas.</p>
+  <script src="popup.js"></script>
+</body>
+</html>
