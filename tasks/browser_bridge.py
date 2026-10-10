@@ -18,6 +18,7 @@ _pending: dict[str, dict] = {}
 _pending_lock = threading.Lock()
 COMMAND_TIMEOUT_SECONDS = 40
 MAX_TEXT_LENGTH = 500
+MAX_URL_CONTAINS_LENGTH = 300
 
 
 class CommandCompletion(BaseModel):
@@ -46,6 +47,14 @@ def _run_command(action: str, **args) -> dict:
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             return {"status": "erro", "result": "URL invalida: use apenas http:// ou https://."}
         args["url"] = raw_url
+    if action == "read_active_tab":
+        url_contains = str(args.get("url_contains") or "").strip()
+        if len(url_contains) > MAX_URL_CONTAINS_LENGTH:
+            return {"status": "erro", "result": "url_contains deve ter no máximo 300 caracteres."}
+        if url_contains:
+            args["url_contains"] = url_contains
+        else:
+            args.pop("url_contains", None)
     if action == "click_text":
         text = str(args.get("text", "")).strip()
         if not text or len(text) > MAX_TEXT_LENGTH:
@@ -74,9 +83,9 @@ def _run_command(action: str, **args) -> dict:
     return {"status": "ok", "result": payload, **(payload if isinstance(payload, dict) else {})}
 
 
-def browser_read_active_tab() -> dict:
-    """Lê o título, URL e texto visível da aba ativa do Chrome autenticado."""
-    return _run_command("read_active_tab")
+def browser_read_active_tab(url_contains: str = "") -> dict:
+    """Lê título, URL e texto visível de uma aba do Chrome; opcionalmente seleciona por trecho da URL."""
+    return _run_command("read_active_tab", url_contains=url_contains)
 
 
 def browser_navigate_active_tab(url: str) -> dict:
@@ -93,7 +102,7 @@ def registrar_ferramentas(registrar_ferramenta) -> None:
     registrar_ferramenta(
         "browser_read_active_tab",
         browser_read_active_tab,
-        "Lê título, URL e texto visível da aba ativa do Chrome do usuário, usando a extensão MYRA. Sem argumentos. Requer Chrome aberto e Browser Bridge habilitado."
+        "Lê título, URL e texto visível de uma aba do Chrome via extensão MYRA. Opcional: url_contains='github.com' seleciona uma aba cuja URL contenha esse trecho (case-insensitive), útil quando há várias abas. Sem url_contains, usa a aba ativa ou a aba web mais recente se o Open WebUI estiver ativo. Requer Chrome aberto e Browser Bridge habilitado."
     )
     registrar_ferramenta(
         "browser_navigate_active_tab",
