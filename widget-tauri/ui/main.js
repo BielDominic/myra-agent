@@ -209,6 +209,87 @@ window.addEventListener("DOMContentLoaded", () => {
     setInterval(pollStatus, 300);
 });
 
+// ============================================================
+// Acões dos botões do card "done"
+// ============================================================
+
+// Copia o texto do resultado pro clipboard
+async function copyResult() {
+    const resultEl = document.getElementById("result-text");
+    if (!resultEl) return;
+    const texto = resultEl.textContent || "";
+    if (!texto.trim()) return;
+
+    try {
+        // Tenta usar a API do Tauri (clipboard plugin) - se nao existir, usa fallback
+        if (window.__TAURI__ && window.__TAURI__.clipboardManager) {
+            await window.__TAURI__.clipboardManager.writeText(texto);
+        } else {
+            await navigator.clipboard.writeText(texto);
+        }
+        // Feedback visual: troca o texto do botao temporariamente
+        const botoes = document.querySelectorAll('.qa');
+        botoes.forEach(b => {
+            if (b.textContent.includes("Copiar")) {
+                const orig = b.textContent;
+                b.textContent = "✅ Copiado!";
+                setTimeout(() => { b.textContent = orig; }, 1500);
+            }
+        });
+    } catch (e) {
+        console.error("[COPY] Erro:", e);
+        // Fallback best-effort via textarea
+        try {
+            const ta = document.createElement("textarea");
+            ta.value = texto;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand("copy");
+            ta.remove();
+        } catch (e2) {
+            console.error("[COPY] Fallback falhou:", e2);
+        }
+    }
+}
+
+// Repete a última task enviando de novo pro agent
+async function repeatTask() {
+    const resultEl = document.getElementById("result-text");
+    if (!resultEl) return;
+    const objetivo = window.__ultimoObjetivo || null;
+    if (!objetivo) {
+        console.warn("[REPEAT] Sem objetivo salvo");
+        return;
+    }
+    try {
+        // Volta pra idle e manda o mesmo objetivo pro backend
+        await fetch("http://127.0.0.1:8000/task_simple", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ objetivo: objetivo })
+        }).catch(() => {});
+    } catch (e) {
+        console.error("[REPEAT] Erro:", e);
+    }
+}
+
+// Salva o objetivo sempre que uma task nova começa
+if (!window.__myraOriginalSwitchView) {
+    window.__myraOriginalSwitchView = switchView;
+    window.switchView = function(state) {
+        if (state === "running") {
+            // tenta pegar o objetivo do status atual
+            if (window.__ultimoStatus && window.__ultimoStatus.objetivo) {
+                window.__ultimoObjetivo = window.__ultimoStatus.objetivo;
+            }
+        }
+        return window.__myraOriginalSwitchView(state);
+    };
+}
+
+// Expõe no window
+window.copyResult = copyResult;
+window.repeatTask = repeatTask;
 window.cancelTask = cancelTask;
 window.resetWidget = resetWidget;
 window.closeWidget = closeWidget;
