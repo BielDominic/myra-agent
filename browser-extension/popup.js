@@ -11,13 +11,21 @@ const send = (message) => new Promise((resolve) => chrome.runtime.sendMessage(me
 })();
 
 $("save").addEventListener("click", async () => {
+  const enabled = $("enabled").checked;
+  if (enabled) {
+    const granted = await chrome.permissions.request({ origins: ["http://*/*", "https://*/*"] });
+    if (!granted) {
+      show("Permissão de acesso às páginas não concedida. A integração automática não foi habilitada.");
+      return;
+    }
+  }
   const result = await send({
     type: "MYRA_SAVE_SETTINGS",
     api: $("api").value.trim(),
     token: $("token").value.trim(),
-    enabled: $("enabled").checked
+    enabled
   });
-  show(result?.ok ? "Configuração salva. A extensão está conectada enquanto o Chrome mantiver o serviço ativo." : result?.error || "Falha ao salvar.");
+  show(result?.ok ? "Configuração salva. A integração está habilitada." : result?.error || "Falha ao salvar.");
 });
 $("read").addEventListener("click", async () => {
   show(await send({ type: "MYRA_READ_ACTIVE_TAB" }));
