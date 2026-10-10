@@ -2,6 +2,44 @@ const DEFAULT_API = "http://127.0.0.1:8000";
 let polling = false;
 let pollRequested = false;
 
+// Open WebUI is the command source, not the page the user usually wants MYRA to inspect.
+function isMyraUiTab(tab) {
+  try {
+    const url = new URL(tab?.url || "");
+    const host = url.hostname.toLowerCase();
+    const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(host);
+    return isLocalHost && url.port === "8080";
+  } catch {
+    return false;
+  }
+}
+
+async function getTargetTab() {
+  const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (!active || !Number.isInteger(active.id)) {
+    throw new Error("Nenhuma aba ativa encontrada no Chrome.");
+  }
+  if (!isMyraUiTab(active)) return active;
+
+  // If the command was submitted from Open WebUI, select the most recently
+  // accessed normal web page instead of reading MYRA's own prompt.
+  const tabs = await chrome.tabs.query({ lastFocusedWindow: true });
+  const candidates = tabs
+    .filter(tab => Number.isInteger(tab.id) && !isMyraUiTab(tab))
+    .filter(tab => {
+      try {
+        const url = new URL(tab.url || "");
+        return url.protocol === "http:" || url.protocol === "https:";
+      } catch {
+        return false;
+      }
+    })
+    .sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+
+  if (candidates.length) return candidates[0];
+  throw new Error("A aba ativa é o Open WebUI e não encontrei outra página HTTP/HTTPS no Chrome para ler. Abra a página desejada e tente novamente.");
+}
+
 async function getSettings() {
   return await chrome.storage.local.get(["myraApi", "myraEnabled", "myraToken"]);
 }
@@ -19,8 +57,7 @@ async function bridgeFetch(path, settings, options = {}) {
 
 async function executeBridgeCommand(command) {
   if (command.action === "read_active_tab") {
-    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    if (!tab || !Number.isInteger(tab.id)) throw new Error("Nenhuma aba ativa encontrada.");
+    const tab = await getTargetTab();
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: () => ({
@@ -33,8 +70,7 @@ async function executeBridgeCommand(command) {
   }
 
   if (command.action === "navigate_active_tab") {
-    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    if (!tab || !Number.isInteger(tab.id)) throw new Error("Nenhuma aba ativa encontrada.");
+    const tab = await getTargetTab();
     const url = new URL(String(command.args?.url || ""));
     if (!["http:", "https:"].includes(url.protocol)) throw new Error("Somente URLs HTTP/HTTPS são permitidas.");
     await chrome.tabs.update(tab.id, { url: url.href });
@@ -42,8 +78,7 @@ async function executeBridgeCommand(command) {
   }
 
   if (command.action === "click_text") {
-    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    if (!tab || !Number.isInteger(tab.id)) throw new Error("Nenhuma aba ativa encontrada.");
+    const tab = await getTargetTab();
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: (needle) => {
