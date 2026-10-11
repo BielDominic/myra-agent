@@ -176,7 +176,7 @@ def _delete_command(command_id: str) -> None:
 
 
 def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> dict:
-    if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text", "get_tabs", "type_text"}:
+    if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text", "get_tabs", "type_text", "new_tab"}:
         return {"status": "erro", "result": "Acao do navegador nao permitida."}
     if action == "read_page_url":
         raw_url = str(args.get("url", "")).strip()
@@ -184,11 +184,11 @@ def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> 
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             return {"status": "erro", "result": "URL invalida: use apenas http:// ou https://."}
         args["url"] = raw_url
-    if action == "navigate_active_tab":
+    if action in {"navigate_active_tab", "new_tab"}:
         raw_url = str(args.get("url", "")).strip()
         parsed = urlparse(raw_url)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            return {"status": "erro", "result": "URL invalida: use apenas http:// ou https://."}
+        if len(raw_url) > 2000 or parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return {"status": "erro", "result": "URL invalida: use uma URL HTTP/HTTPS completa com até 2000 caracteres."}
         args["url"] = raw_url
     if action == "read_active_tab":
         url_contains = str(args.get("url_contains") or "").strip()
@@ -289,6 +289,11 @@ def browser_navigate_active_tab(url: str) -> dict:
     return _run_command("navigate_active_tab", url=url)
 
 
+def browser_new_tab(url: str) -> dict:
+    """Abre uma URL HTTP/HTTPS completa em uma nova aba ativa do Chrome."""
+    return _run_command("new_tab", url=url)
+
+
 def browser_type_text(campo: str, texto: str) -> dict:
     """Substitui o conteúdo de um campo de formulário identificado por seletor CSS ou label exato."""
     return _run_command("type_text", campo=campo, texto=texto)
@@ -319,6 +324,11 @@ def registrar_ferramentas(registrar_ferramenta) -> None:
         "browser_navigate_active_tab",
         browser_navigate_active_tab,
         "Abre uma URL http/https na aba ativa do Chrome do usuário, usando a extensão MYRA. Obrigatório: url='https://...'."
+    )
+    registrar_ferramenta(
+        "browser_new_tab",
+        browser_new_tab,
+        "Abre uma URL HTTP/HTTPS completa em uma nova aba ativa do Chrome sem substituir a aba atual. Obrigatório: url='https://example.com'. Retorna tabId, URL, título e estado de carregamento."
     )
     registrar_ferramenta(
         "browser_type_text",

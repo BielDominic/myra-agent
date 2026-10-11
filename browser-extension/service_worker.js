@@ -250,6 +250,42 @@ async function executeBridgeCommand(command) {
       }
     }
   }
+  if (command.action === "new_tab") {
+    const rawUrl = String(command.args?.url || "").trim();
+    let url;
+    try {
+      url = new URL(rawUrl);
+    } catch {
+      throw new Error("URL inválida. Informe uma URL HTTP/HTTPS completa.");
+    }
+    if (!["http:", "https:"].includes(url.protocol)) {
+      throw new Error("Somente URLs HTTP/HTTPS podem ser abertas em nova aba.");
+    }
+    const tab = await chrome.tabs.create({ url: url.href, active: true });
+    try {
+      await waitForTabComplete(tab.id, 20000);
+    } catch (e) {
+      return {
+        ok: true,
+        result: {
+          tabId: tab.id,
+          url: tab.url || url.href,
+          loaded: false,
+          warning: e?.message || String(e)
+        }
+      };
+    }
+    const loadedTab = await chrome.tabs.get(tab.id);
+    return {
+      ok: true,
+      result: {
+        tabId: loadedTab.id,
+        url: loadedTab.url || url.href,
+        title: loadedTab.title || "",
+        loaded: true
+      }
+    };
+  }
   if (command.action === "navigate_active_tab") {
     const tab = await getTargetTab();
     const url = new URL(String(command.args?.url || ""));
