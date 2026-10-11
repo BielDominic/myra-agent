@@ -4,6 +4,7 @@ Cada iteracao: LLM decide 1 passo -> executa -> observa -> repete.
 Integrado com o widget: notifica passo_atual, passo_num, historico.
 """
 import json
+from tasks.cancel_state import esta_cancelada
 import re
 import time
 import urllib.request
@@ -345,6 +346,19 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
     _widget_notify(passo_total=max_passos, state="running")
 
     for passo_num in range(1, max_passos + 1):
+        # Checa cancelamento antes de cada passo
+        if esta_cancelada():
+            print("[TASK] cancelada pelo usuario - abortando")
+            _widget_notify(state="idle")
+            return {
+                "status": "cancelado",
+                "objetivo": objetivo,
+                "plano": [],
+                "historico": historico,
+                "resultado_final": None,
+                "erro": None,
+            }
+
         print(f"\n[TASK] === PASSO {passo_num}/{max_passos} ===")
 
         # Notifica o widget: novo passo
@@ -352,6 +366,12 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
             passo_num=passo_num,
             historico=[{"ferramenta": h["ferramenta"]} for h in historico],
         )
+
+        if esta_cancelada():
+            print("[TASK] cancelada antes de decidir")
+            _widget_notify(state="idle")
+            return {"status": "cancelado", "objetivo": objetivo, "plano": [],
+                    "historico": historico, "resultado_final": None, "erro": None}
 
         try:
             decisao = _decidir_proximo_passo(objetivo, historico)
@@ -393,6 +413,12 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
                 args = {p.name: valor for p, valor in zip(parametros, args)}
             elif not isinstance(args, dict):
                 args = {}
+
+            if esta_cancelada():
+                print("[TASK] cancelada antes de executar ferramenta")
+                _widget_notify(state="idle")
+                return {"status": "cancelado", "objetivo": objetivo, "plano": [],
+                        "historico": historico, "resultado_final": None, "erro": None}
 
             if ferramenta not in FERRAMENTAS_DISPONIVEIS:
                 print(f"[TASK] ferramenta invalida: {ferramenta}")

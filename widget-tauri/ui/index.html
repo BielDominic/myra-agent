@@ -55,7 +55,7 @@
                         <button class="set-btn" id="btn-dnd">&#128277; Nao perturbe</button>
                     </div>
                     <div class="set-row">
-                        <button class="set-btn" id="btn-top">&#128204; Fixar no topo</button>
+                        <button class="set-btn" id="btn-top">&#128204; Travar posicao</button>
                     </div>
                 </div>
 
@@ -80,6 +80,10 @@
                     <div class="speech"></div>
                 </div>
                 <span class="label" data-tauri-drag-region>MYRA</span>
+                <span class="status-dot running-dot"></span>
+                <span class="pill-timer" id="pill-timer"></span>
+                <button class="btn-toggle-mode" id="btn-toggle-running-mode" title="Alternar modo">&#9660;</button>
+                <button class="btn-cancel-pill" id="btn-cancel-pill" title="Cancelar task">&#10005;</button>
                 <button class="btn-close" onclick="closeWidget()" title="Fechar">&times;</button>
             </div>
             <div class="content">

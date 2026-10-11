@@ -4,7 +4,7 @@
 
 const invoke = window.__TAURI__.core.invoke;
 
-const IDLE_W = 200, IDLE_H = 44;
+const IDLE_W = 220, IDLE_H = 96;
 const CARD_W = 440, CARD_H = 340;
 
 let lastState = null;
@@ -12,9 +12,20 @@ let resetting = false;
 
 async function setWindowSize(state) {
     const compact = document.body.dataset.compact === "on";
-    let w = state === "idle" ? IDLE_W : CARD_W;
-    const h = state === "idle" ? IDLE_H : CARD_H;
-    if (state === "idle" && compact) w = 90;
+    const runningMode = document.body.dataset.runningMode || "full";
+
+    let w, h;
+    if (state === "idle") {
+        w = compact ? 90 : IDLE_W;
+        h = IDLE_H;
+    } else if (state === "running" && runningMode === "pill") {
+        w = IDLE_W;
+        h = IDLE_H;
+    } else {
+        w = CARD_W;
+        h = CARD_H;
+    }
+
     // Espera a animacao CSS (300ms) antes de redimensionar a janela
     setTimeout(async () => {
         try {
@@ -86,9 +97,19 @@ function startEyeTracking() {
             const factor = Math.min(dist / 100, 1);
             const ox = (dx / (dist || 1)) * maxOffset * factor;
             const oy = (dy / (dist || 1)) * maxOffset * factor;
+            // Olhos: movimento total + leve inclinacao
+            const tilt = (ox / 3) * 10;
             mascot.querySelectorAll('.eye').forEach(eye => {
-                eye.style.transform = "translate(" + ox + "px, " + oy + "px)";
+                eye.style.transform = "translate(" + ox + "px, " + oy + "px) rotate(" + tilt + "deg)";
             });
+            // Boca: so mexe se ela ta visivel (balao aberto) - evita artefato do WebView2
+            const mouth = mascot.querySelector('.mouth');
+            const speechOpen = mascot.querySelector('.speech.show');
+            if (mouth && speechOpen) {
+                const mx = ox * 0.5;
+                const my = oy * 0.5;
+                mouth.style.transform = "translateX(-50%) translate(" + mx + "px, " + my + "px)";
+            }
         });
     });
 }
@@ -144,6 +165,11 @@ async function pollStatus() {
             if (state === "done") {
                 const result = document.getElementById("result-text");
                 if (result) result.textContent = status.resultado || "(sem resultado)";
+                // Tempo de resposta
+                if (status.iniciado_em && status.terminado_em) {
+                    const dur = Math.round(status.terminado_em - status.iniciado_em);
+                    window.__ultimaDuracao = dur;
+                }
                 if (window.myraOnDone) window.myraOnDone();
             }
             if (state === "error") {
@@ -161,8 +187,16 @@ async function pollStatus() {
                 tempo.textContent = "\u23F1 " + s + "s";
             }
             const passos = document.getElementById("meta-passos");
-            if (passos && status.passo_num !== undefined && status.passo_total) {
-                passos.textContent = "\u2699 " + status.passo_num + "/" + status.passo_total;
+            if (passos && status.passo_num !== undefined) {
+                // Mostra o passo atual. Se o backend mandar "passo_total_conhecido", usa.
+                const atual = status.passo_num || 0;
+                passos.textContent = "\u2699 " + atual + (atual === 1 ? " passo" : " passos");
+            }
+            // Timer pequeno da pilula
+            const pillTimer = document.getElementById("pill-timer");
+            if (pillTimer && status.iniciado_em) {
+                const s = Math.floor(Date.now() / 1000 - status.iniciado_em);
+                pillTimer.textContent = s + "s";
             }
         }
     } catch (e) { /* offline */ }
@@ -293,3 +327,148 @@ window.repeatTask = repeatTask;
 window.cancelTask = cancelTask;
 window.resetWidget = resetWidget;
 window.closeWidget = closeWidget;
+
+// ============================================================
+// Handlers dos botoes das Configuracoes
+// ============================================================
+window.addEventListener("DOMContentLoaded", () => {
+    // --- Tema ---
+    const btnTheme = document.getElementById("btn-theme");
+    if (btnTheme) {
+        btnTheme.addEventListener("click", () => {
+            const cur = document.body.dataset.theme || "dark";
+            const nxt = cur === "dark" ? "light" : "dark";
+            document.body.dataset.theme = nxt;
+            localStorage.setItem("myra-theme", nxt);
+            btnTheme.classList.toggle("active", nxt === "light");
+        });
+        const saved = localStorage.getItem("myra-theme");
+        if (saved) document.body.dataset.theme = saved;
+        btnTheme.classList.toggle("active", document.body.dataset.theme === "light");
+    }
+
+    // --- Compacto ---
+    const btnCompact = document.getElementById("btn-compact");
+    if (btnCompact) {
+        btnCompact.addEventListener("click", () => {
+            const cur = document.body.dataset.compact === "on";
+            document.body.dataset.compact = cur ? "off" : "on";
+            localStorage.setItem("myra-compact", cur ? "off" : "on");
+            btnCompact.classList.toggle("active", !cur);
+            // Redimensiona janela
+            setWindowSize(lastState || "idle");
+        });
+        const saved = localStorage.getItem("myra-compact");
+        if (saved === "on") {
+            document.body.dataset.compact = "on";
+            btnCompact.classList.add("active");
+        }
+    }
+
+    // --- Som ---
+    const btnSound = document.getElementById("btn-sound");
+    if (btnSound) {
+        btnSound.addEventListener("click", () => {
+            const cur = localStorage.getItem("myra-sound") === "on";
+            const nxt = !cur;
+            localStorage.setItem("myra-sound", nxt ? "on" : "off");
+            btnSound.classList.toggle("active", nxt);
+        });
+        btnSound.classList.toggle("active", localStorage.getItem("myra-sound") === "on");
+    }
+
+    // --- Nao perturbe ---
+    const btnDnd = document.getElementById("btn-dnd");
+    if (btnDnd) {
+        btnDnd.addEventListener("click", () => {
+            const cur = localStorage.getItem("myra-dnd") === "on";
+            const nxt = !cur;
+            localStorage.setItem("myra-dnd", nxt ? "on" : "off");
+            btnDnd.classList.toggle("active", nxt);
+        });
+        btnDnd.classList.toggle("active", localStorage.getItem("myra-dnd") === "on");
+    }
+
+    // --- Modo pilula em running ---
+    const btnToggleMode = document.getElementById("btn-toggle-running-mode");
+    if (btnToggleMode) {
+        let runningMode = localStorage.getItem("myra-running-mode") || "full";
+        document.body.dataset.runningMode = runningMode;
+
+        const updateToggleBtn = () => {
+            btnToggleMode.textContent = runningMode === "pill" ? "\u25B2" : "\u25BC";
+            btnToggleMode.title = runningMode === "pill" ? "Expandir" : "Recolher";
+        };
+        updateToggleBtn();
+
+        btnToggleMode.addEventListener("click", (e) => {
+            e.stopPropagation();
+            runningMode = runningMode === "pill" ? "full" : "pill";
+            document.body.dataset.runningMode = runningMode;
+            localStorage.setItem("myra-running-mode", runningMode);
+            updateToggleBtn();
+            // Redimensiona janela
+            setWindowSize(lastState || "running");
+        });
+    }
+
+    // --- Cancelar pela pilula ---
+    const btnCancelPill = document.getElementById("btn-cancel-pill");
+    if (btnCancelPill) {
+        btnCancelPill.addEventListener("click", (e) => {
+            e.stopPropagation();
+            cancelTask();
+        });
+        // So mostra no modo pilula
+        const updateCancelVisibility = () => {
+            const mode = document.body.dataset.runningMode || "full";
+            btnCancelPill.style.display = mode === "pill" ? "" : "none";
+        };
+        updateCancelVisibility();
+        // Observa mudanca de modo
+        const observer = new MutationObserver(updateCancelVisibility);
+        observer.observe(document.body, { attributes: true, attributeFilter: ["data-running-mode"] });
+    }
+
+    // --- Travar posicao (NAO mexe em alwaysOnTop, que fica sempre ligado) ---
+    const btnTop = document.getElementById("btn-top");
+    if (btnTop) {
+        let travado = localStorage.getItem("myra-travado") === "on"; // default: destravado
+
+        const aplicarTrava = (trav) => {
+            if (trav) {
+                const elementos = document.querySelectorAll("[data-tauri-drag-region]");
+                elementos.forEach(el => {
+                    if (!el.dataset.myraDragBackup) {
+                        el.dataset.myraDragBackup = "1";
+                    }
+                    el.removeAttribute("data-tauri-drag-region");
+                });
+            } else {
+                const elementos = document.querySelectorAll("[data-myra-drag-backup]");
+                elementos.forEach(el => {
+                    el.setAttribute("data-tauri-drag-region", "");
+                    delete el.dataset.myraDragBackup;
+                });
+            }
+        };
+
+        const updateTopBtn = () => {
+            btnTop.classList.toggle("active", travado);
+            btnTop.textContent = travado ? "\u{1F512} Posicao travada" : "\u{1F4CC} Travar posicao";
+        };
+
+        // Aplica estado salvo no boot (so a trava, alwaysOnTop vem do conf)
+        aplicarTrava(travado);
+        updateTopBtn();
+        console.log("[TRAVA] estado inicial:", travado ? "travado" : "livre");
+
+        btnTop.addEventListener("click", () => {
+            travado = !travado;
+            aplicarTrava(travado);
+            localStorage.setItem("myra-travado", travado ? "on" : "off");
+            updateTopBtn();
+            console.log("[TRAVA]", travado ? "travado" : "livre");
+        });
+    }
+});

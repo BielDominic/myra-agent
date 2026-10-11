@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import datetime
 import time
+from tasks.cancel_state import marcar_cancelada, resetar
 import json
 import urllib.request
 import urllib.parse
@@ -1037,6 +1038,10 @@ def task_status():
 
 @app.post("/task_cancel")
 def task_cancel():
+    from tasks.cancel_state import marcar_cancelada
+    marcar_cancelada()
+    print("[CANCEL] flag de cancelamento setada")
+
     """
     Cancela a task em execuÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o OU volta pra idle se jÃƒÆ’Ã‚Â¡ terminou.
     Chamado quando o usuÃƒÆ’Ã‚Â¡rio clica em OK, X ou Cancelar.
@@ -3213,6 +3218,8 @@ async def openai_chat_completions(request: Request):
     import asyncio
     import concurrent.futures
 
+    resetar()  # limpa flag ANTES de comecar
+
     try:
         # Roda executar_task em thread separada (libera o FastAPI pra servir /task_status)
         loop = asyncio.get_event_loop()
@@ -3223,6 +3230,10 @@ async def openai_chat_completions(request: Request):
         if resultado.get("status") == "ok":
             resposta_texto = resultado.get("resultado_final") or "(sem resultado)"
             _widget_set(state="done", terminado_em=time.time(), resultado=resposta_texto, erro=None)
+        elif resultado.get("status") == "cancelado":
+            resposta_texto = "Task cancelada pelo usuario."
+            _widget_set(state="idle", terminado_em=time.time(), resultado=None, erro=None)
+            print("[TASK] finalizada como cancelada - resposta limpa ao chat")
         else:
             resposta_texto = f"Erro: {resultado.get('erro') or resultado.get('result') or 'desconhecido'}"
             _widget_set(state="error", terminado_em=time.time(), erro=resposta_texto)

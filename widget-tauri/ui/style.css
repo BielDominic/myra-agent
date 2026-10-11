@@ -48,8 +48,10 @@ html, body {
 
 body {
     display: flex;
-    align-items: flex-start;
+    align-items: flex-end;
     justify-content: center;
+    padding-bottom: 8px;
+    padding-top: 42px;
 }
 
 .mascot, button, .qa, .btn, .set-btn { cursor: pointer; }
@@ -381,6 +383,23 @@ body[data-compact="on"] .view-idle .status-dot { display: none; }
     transform: translateX(-50%) scale(1);
 }
 
+/* Quando o balao ta mostrando, a boca aparece e fala */
+.mascot:has(.speech.show) .mouth {
+    opacity: 1;
+    width: 9px;
+    height: 3px;
+    background: white;
+    border-radius: 0 0 9px 9px;
+    bottom: 6px;
+    animation: talk 220ms ease-in-out infinite;
+}
+@keyframes talk {
+    0%, 100% { height: 3px; }
+    50%      { height: 6px; }
+}
+
+
+
 /* ---------- Header / Content / Footer ---------- */
 .header {
     display: flex;
@@ -650,3 +669,86 @@ body:has(.island.settings) #gpu-badge {
 
 /* Em compacto nunca mostra */
 body[data-compact="on"] #gpu-badge { display: none !important; }
+
+/* ============================================================
+   MODO PILULA EM RUNNING
+   ============================================================ */
+
+/* Botao toggle modo */
+.btn-toggle-mode {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 6px;
+    line-height: 1;
+    margin-left: auto;
+    transition: all 150ms ease;
+}
+.btn-toggle-mode:hover {
+    background: rgba(99, 102, 241, 0.2);
+    color: var(--text-accent);
+}
+
+/* Botao cancel pequeno na pilula */
+.btn-cancel-pill {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 6px;
+    line-height: 1;
+    transition: all 150ms ease;
+}
+.btn-cancel-pill:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+/* Dot pulsante no modo running */
+.status-dot.running-dot {
+    background: #f59e0b;
+    box-shadow: 0 0 8px #f59e0b;
+    animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+/* Timer pequeno na pilula */
+.pill-timer {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    font-family: "Consolas", monospace;
+    white-space: nowrap;
+}
+
+/* Esconde no modo quadrado */
+body:not([data-running-mode="pill"]) .view-running .running-dot,
+body:not([data-running-mode="pill"]) .view-running .pill-timer {
+    display: none;
+}
+
+/* No modo pilula: esconde content/footer, mostra timer/dot */
+body[data-running-mode="pill"] .view-running .content,
+body[data-running-mode="pill"] .view-running .footer {
+    display: none !important;
+}
+body[data-running-mode="pill"] .island.running {
+    width: 220px;
+    height: 96px;
+}
+body[data-running-mode="pill"] .view-running .header {
+    height: 100%;
+    border-bottom: none;
+    padding: 0 10px 0 14px;
+    align-items: center;
+}
+body[data-running-mode="pill"] .view-running .btn-close {
+    display: none;
+}
+body[data-running-mode="pill"] .view-running .btn-toggle-mode {
+    margin-left: 0;
+}
