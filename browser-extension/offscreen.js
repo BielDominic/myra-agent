@@ -7,13 +7,12 @@ const POLL_INTERVAL_MS = 5000;
 let pollTimer = null;
 let pollInFlight = false;
 
-async function getSettings() {
-  const data = await chrome.storage.local.get(["myraApi", "myraEnabled", "myraToken"]);
-  if (data.myraToken && data.myraEnabled !== true) {
-    data.myraEnabled = true;
-    try { await chrome.storage.local.set({ myraEnabled: true }); } catch (e) {}
+async function fetchSettingsFromSW() {
+  const response = await chrome.runtime.sendMessage({ type: "MYRA_GET_SETTINGS" });
+  if (!response || response.ok === false) {
+    throw new Error(response?.error || "O service worker não devolveu as configurações do Browser Bridge.");
   }
-  return data;
+  return response.settings || response;
 }
 
 async function bridgeFetch(path, settings, options = {}) {
@@ -48,7 +47,7 @@ async function pollOnce() {
   if (pollInFlight) return;
   pollInFlight = true;
   try {
-    const settings = await getSettings();
+    const settings = await fetchSettingsFromSW();
     if (!settings.myraEnabled || !settings.myraToken) return;
 
     for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
@@ -102,19 +101,23 @@ function stopPolling() {
 }
 
 async function syncPollingWithSettings() {
-  const settings = await getSettings();
-  if (settings.myraEnabled && settings.myraToken) startPolling();
-  else stopPolling();
+  try {
+    const settings = await fetchSettingsFromSW();
+    if (settings.myraEnabled && settings.myraToken) startPolling();
+    else stopPolling();
+  } catch (e) {
+    console.warn("[MYRA Bridge Offscreen] settings err:", e?.message || e);
+    stopPolling();
+  }
 }
 
-chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === "local" &&
-      (changes.myraEnabled || changes.myraToken || changes.myraApi)) {
-    syncPollingWithSettings().catch(e => console.warn("[MYRA Bridge Offscreen] settings err:", e?.message || e));
-  }
-});
-
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "MYRA_SYNC_SETTINGS") {
+    syncPollingWithSettings()
+      .then(() => sendResponse({ ok: true, polling: Boolean(pollTimer) }))
+      .catch(e => sendResponse({ ok: false, error: e?.message || String(e) }));
+    return true;
+  }
   if (message?.type === "MYRA_OFFSCREEN_STATUS") {
     sendResponse({ ok: true, polling: Boolean(pollTimer), inFlight: pollInFlight });
   }
