@@ -324,6 +324,14 @@ def browser_new_tab(url: str) -> dict:
     return _run_command("new_tab", url=url)
 
 
+def browser_wait(ms: int) -> dict:
+    """Aguarda de 100 a 30000 milissegundos localmente."""
+    if isinstance(ms, bool) or not isinstance(ms, int) or not 100 <= ms <= 30000:
+        return {"status": "erro", "result": "ms deve ser um inteiro entre 100 e 30000."}
+    time.sleep(ms / 1000.0)
+    return {"status": "ok", "result": {"waited": ms}, "waited": ms}
+
+
 def browser_search_google(termo: str) -> dict:
     """Pesquisa um termo no Google em aba temporária e retorna conteúdo estruturado."""
     return _run_command("search_google", term=termo)
