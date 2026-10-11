@@ -398,6 +398,21 @@ def registrar_ferramentas(registrar_ferramenta) -> None:
         browser_click_text,
         "Clica em botão/link cujo texto corresponda exatamente. Obrigatório: text='Continuar'. Use apenas quando a ação estiver claramente autorizada pelo objetivo do usuário."
     )
+    registrar_ferramenta(
+        "browser_scroll",
+        browser_scroll,
+        "Rola a aba web alvo. Argumentos opcionais: direcao='up'|'down'|'top'|'bottom' e quantidade em pixels."
+    )
+    registrar_ferramenta(
+        "browser_search_google",
+        browser_search_google,
+        "Pesquisa um termo no Google em aba temporária e retorna resultados estruturados. Obrigatório: termo."
+    )
+    registrar_ferramenta(
+        "browser_wait",
+        browser_wait,
+        "Aguarda localmente de 100 a 30000 milissegundos. Obrigatório: ms inteiro."
+    )
 
 
 @router.get("/browser_bridge/next")
