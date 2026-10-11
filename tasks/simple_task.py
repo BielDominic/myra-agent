@@ -17,8 +17,8 @@ FERRAMENTAS_DESCRICOES = {}
 MAX_PASSOS_PADRAO = 15
 MAX_ERROS_CONSECUTIVOS = 3
 MAX_REPETICOES_MESMA_ACAO = 1
-TAMANHO_MAX_RESULTADO_HISTORICO = 800
-TAMANHO_MAX_CONTEXTO_SINTESE = 6000
+TAMANHO_MAX_RESULTADO_HISTORICO = 5000
+TAMANHO_MAX_CONTEXTO_SINTESE = 12000
 
 
 # Referencia global injetada pelo agent.py no startup
@@ -82,6 +82,37 @@ def _extrair_json(texto: str):
     return None
 
 
+def _formatar_resultado(res: dict) -> str:
+    """Formata resultados do navegador priorizando texto e tabelas estruturadas."""
+    partes = []
+    if res.get("title"):
+        partes.append(f"Title: {res['title']}")
+    if res.get("url"):
+        partes.append(f"URL: {res['url']}")
+    if res.get("text"):
+        partes.append(f"\nTexto visivel:\n{str(res['text'])[:2500]}")
+    if res.get("tables"):
+        partes.append("\n=== TABELAS ===")
+        for i, tabela in enumerate(res["tables"][:3], 1):
+            caption = tabela.get("caption") or f"tabela {i}"
+            partes.append(f"\n--- {caption} ---")
+            for row in tabela.get("rows", [])[:30]:
+                celulas = [str(c).strip() for c in row if c is not None]
+                if len(celulas) == 2:
+                    partes.append(f"{celulas[0]}: {celulas[1]}")
+                elif celulas:
+                    partes.append(" | ".join(celulas))
+    if res.get("links"):
+        partes.append("\n=== LINKS ===")
+        for link in res["links"][:10]:
+            partes.append(f"{link.get('text', '')}: {link.get('href', '')}")
+    if res.get("buttons"):
+        partes.append(f"\nBotoes: {', '.join(str(b) for b in res['buttons'][:15])}")
+    if res.get("inputs"):
+        partes.append(f"\nCampos: {len(res['inputs'])} inputs")
+    return "\n".join(partes)
+
+
 def _formatar_historico(historico: list) -> str:
     if not historico:
         return "(nenhum passo executado ainda)"
@@ -93,7 +124,10 @@ def _formatar_historico(historico: list) -> str:
         if h["ok"]:
             res = h["resultado"]
             if isinstance(res, dict):
-                res_str = res.get("result", json.dumps(res, ensure_ascii=False))
+                if "tables" in res or "text" in res:
+                    res_str = _formatar_resultado(res)
+                else:
+                    res_str = res.get("result", json.dumps(res, ensure_ascii=False))
             else:
                 res_str = str(res)
             if len(res_str) > TAMANHO_MAX_RESULTADO_HISTORICO:
@@ -225,7 +259,10 @@ def _sintetizar(objetivo: str, historico: list) -> str:
         f"HISTORICO DE EXECUCAO:\n{contexto[:TAMANHO_MAX_CONTEXTO_SINTESE]}\n\n"
         f"Com base APENAS nos resultados acima, responda o objetivo em portugues, "
         f"de forma clara e direta. Se os resultados nao tiverem a informacao, "
-        f"diga exatamente o que conseguiu e o que nao conseguiu."
+        f"diga exatamente o que conseguiu e o que nao conseguiu. "
+        f"Se a tarefa pede um dado especifico (populacao, preco, data ou numero), "
+        f"procure tambem nas TABELAS listadas no historico, nao apenas no texto corrido. "
+        f"Dados estruturados costumam estar em tabelas ou listas."
     )
     try:
         return _llm(
