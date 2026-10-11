@@ -1,484 +1,536 @@
-﻿# 📄 README.md — atualizado com o estado atual
+# MYRA — Local AI Computer Agent
 
-Antes de commitar, vamos atualizar o README pra refletir tudo que a MYRA é **hoje**. Vou fazer uma versão limpa, profissional e completa.
+[![Python](https://img.shields.io/badge/Python-3.14-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Ollama](https://img.shields.io/badge/LLM-Ollama-111111?style=flat-square&logo=ollama&logoColor=white)](https://ollama.com/)
+[![Chrome](https://img.shields.io/badge/Browser-Chrome%20MV3-4285F4?style=flat-square&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/)
+[![Docker](https://img.shields.io/badge/UI-Open%20WebUI-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docs.openwebui.com/)
+[![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?style=flat-square&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
+[![Status](https://img.shields.io/badge/Status-Active%20development-orange?style=flat-square)]()
+[![Repository](https://img.shields.io/badge/Repository-Private-lightgrey?style=flat-square)]()
 
-**Abre o arquivo:**
+**MYRA is a local-first personal AI agent designed to do more than answer questions: it can use tools to interact with a browser and desktop, work with files, handle email, assist with code, and carry out multi-step tasks.**
 
-```powershell
-notepad C:\computer-agent\README.md
-```
+The project combines a locally hosted language model with a FastAPI backend, browser automation, desktop controls, a vision service, and an Open WebUI-based chat interface. The goal is to build a practical computer-use agent whose capabilities can be inspected, developed, and run on a Windows machine.
 
-Se quiser fazer backup antes:
+> **Project status:** experimental and under active development. Capabilities, setup steps, and safety boundaries may change. This README describes the documented architecture; not every feature has the same level of testing or polish.
 
-```powershell
-Copy-Item C:\computer-agent\README.md C:\computer-agent\README_backup.md -Force
-```
+## Contents
 
-Cola o conteúdo abaixo (substitui tudo), salva em **UTF-8**:
+- [Highlights](#highlights)
+- [Capabilities](#capabilities)
+- [Architecture](#architecture)
+- [Technology stack](#technology-stack)
+- [Services and local endpoints](#services-and-local-endpoints)
+- [Requirements](#requirements)
+- [Getting started](#getting-started)
+- [Using the agent](#using-the-agent)
+- [Available tool groups](#available-tool-groups)
+- [Repository layout](#repository-layout)
+- [Roadmap](#roadmap)
+- [Security and privacy](#security-and-privacy)
+- [Development workflow](#development-workflow)
+- [Troubleshooting](#troubleshooting)
+- [Contributing and project status](#contributing-and-project-status)
+- [License](#license)
+- [Acknowledgements](#acknowledgements)
 
----
+## Highlights
 
-```markdown
-# 🤖 MYRA — Agente de Computador Local
+- **Multi-step task planning:** the model can choose a tool, review its result, and decide what to do next.
+- **Local language model:** inference is provided through [Ollama](https://ollama.com/).
+- **Browser automation:** interact with pages, search the web, read page content, and use a dedicated Chrome profile.
+- **Desktop control:** mouse, keyboard, window management, and screenshots on Windows.
+- **Vision service:** a locally hosted vision model can analyse screenshots and describe visible content.
+- **Email and files:** Gmail IMAP/SMTP operations and workspace-focused file tools.
+- **Coding assistance:** tools for generating, reviewing, testing, documenting, and analysing code.
+- **YouTube workflows:** transcript retrieval, summaries, questions, and saved transcripts.
+- **Extensible backend:** FastAPI routes and separate tool modules organise capabilities.
 
-**Um agente de IA que roda 100% na sua máquina, 100% grátis, com controle total sobre o computador.**
+**MYRA is local-first, not universally offline.** Model inference and several services can run locally, but web search, browsing, weather, YouTube, and email require network access when used. External sites and providers remain subject to their own availability and policies.
 
-MYRA (antes "Computer Agent") é uma IA pessoal capaz de navegar na internet, controlar o PC, ler/escrever arquivos, gerenciar emails, programar, transcrever vídeos e — desde a FASE 24 — **planejar e executar tarefas de forma autônoma**, decidindo passo a passo qual ferramenta usar.
+## Capabilities
 
----
+### Autonomous task loop
 
-## ✨ O QUE A MYRA FAZ HOJE
+The task planner receives an objective, chooses an available tool, observes the returned result, and continues until it can respond or reaches its step limit. Structured tools are designed to make results easier for the planner to interpret.
 
-### 🧠 Autonomia (o coração)
-- **Planeja** tarefas sozinha: você descreve o objetivo, ela decide os passos
-- **Encadeia** ferramentas: busca web → abre site → lê → resume
-- **Adapta**: se uma ferramenta falha, tenta outra abordagem
-- **Sintetiza** respostas em português, fiéis ao conteúdo real
-- **Retry** automático em caso de erro
+Example objectives:
+- Search for a topic, open a relevant result, and summarise the page.
+- Find a YouTube channel's latest video and report its title.
+- Retrieve a video transcript and summarise the main points.
+- Check the current time or retrieve weather information.
 
-### 🌐 Navegador (Playwright + Chrome real)
-- Abre URLs, pesquisa Google/DuckDuckGo
-- Clica por texto, descrição ou seletor
-- Digita em campos (detecta email, senha, usuário)
-- Lê páginas (estruturado ou texto solto)
-- Tira screenshots
-- Perfil persistente (login uma vez, mantém sessão)
+The planner is experimental. Multi-step execution can fail, choose a suboptimal tool, or require a clearer objective.
 
-### 🎬 YouTube
-- Transcrição automática com **detecção de idioma** (pt > en > outros)
-- Prioriza legenda manual sobre auto-gerada
-- Resumo, perguntas, salvar, listar, ler
-- Correção automática de encoding (VTT duplo)
+### Browser automation
 
-### 📧 Email (Gmail IMAP/SMTP)
-- Lista, lê, busca, marca lido/não lido
-- Envia, responde, move, deleta
-- Delete em massa por termo ("apague 5 emails do LinkedIn")
-- **Confirmação** antes de ações destrutivas
+The project includes browser automation and a Chrome extension bridge. Depending on the active implementation and configuration, browser tools can:
+- Open URLs and navigate between pages.
+- Search Google or DuckDuckGo.
+- Read the active tab or page content.
+- Inspect structured page data such as links, buttons, and form fields.
+- Click elements and enter text.
+- Open and close tabs, scroll, wait, and capture screenshots.
+- Reuse a dedicated browser profile and its sessions.
 
-### 📂 Arquivos (workspace)
-- Lista, lê, escreve, cria, move, deleta
-- Busca texto em múltiplos arquivos
-- Acesso restrito ao `workspace/` (segurança)
+Browser actions may affect authenticated sessions. Use a dedicated profile and supervise sensitive workflows.
 
-### 💻 Coding Agent (21 ferramentas)
-- Gera, explica, analisa, refatora, otimiza, converte código
-- Code review, lint, métricas, dependências
-- Testes, documentação, SQL, regex, scaffold
-- Executa código (Python) e interpreta output
+### Desktop control and vision
 
-### 🖥️ Controle do PC
-- Mouse: move, clique, duplo clique, clique direito, scroll
-- Teclado: digita, pressiona tecla, combina teclas (Ctrl+C, Alt+Tab, Win+D)
-- Janelas: lista, foca, pega ativa
-- Screenshots do desktop
+Desktop tools provide mouse and keyboard actions, window inspection/focus, and screenshots. The separate vision service can analyse screenshots using a locally hosted multimodal model.
 
-### 👁️ Visão
-- Vê a tela via Qwen3.5-0.8B (llama-server local)
-- Responde perguntas sobre o que está vendo
+Vision-based interpretation is still evolving; it does not guarantee that an element was identified correctly or that an action succeeded.
 
-### 🌦️ Info do mundo
-- Clima (Open-Meteo)
-- Hora/data
-- Web search estruturado (links + snippets)
-- YouTube search
+### Email
 
-### 📊 Gráficos e dados
-- Plotly: gráficos, tabelas, heatmaps, timelines (Visuals Core)
+Gmail access is implemented through IMAP/SMTP. Documented operations include listing, reading, searching, sending, replying, marking read/unread, moving, and deleting messages. Some destructive operations are designed to require confirmation.
 
-### 💬 Gerenciamento de chats
-- Lista, renomeia, deleta chats (individual ou por busca)
+Email actions can have real-world consequences. Verify recipients and message contents before sending, and review the configured confirmation behaviour before enabling destructive operations.
 
-### 🌐 Ferramentas estruturadas (novo!)
-- `search_google_structured` → lista de links
-- `web_search_structured` → lista de links
-- `youtube_search` → lista de vídeos
-- `youtube_channel_latest` → últimos vídeos de um canal
-- `get_current_url` → URL atual do navegador
-- `read_page_structured` → texto + links + botões + inputs
+### Files and coding
 
----
+File tools support workspace operations such as listing, reading, writing, creating, moving, deleting, and searching files. Coding tools cover generation, explanation, analysis, review, refactoring, optimisation, conversion, tests, documentation, SQL, regular expressions, dependency inspection, linting, metrics, and Python execution.
 
-## 🏗️ ARQUITETURA
+Treat generated code as untrusted until reviewed. Do not give the agent access to sensitive directories or credentials unless the relevant boundaries are understood.
 
-```
-┌──────────────────────────────────────────────────┐
-│         Open WebUI (Docker, porta 8080)          │
-│         Interface do chat (customizado MYRA)     │
-└─────────────────────┬────────────────────────────┘
-                      │ HTTP
-                      ▼
-┌──────────────────────────────────────────────────┐
-│         agent.py (FastAPI, porta 8000)           │
-│         ~95 rotas, coração do sistema            │
-└──┬───────────────────────────────────────────┬───┘
-   │                                           │
-   │ Planejador + Loop adaptativo              │ Ações
-   │ (Ollama, porta 11434)                     │
-   ▼                                           ▼
-┌────────────────────┐              ┌─────────────────────┐
-│ tasks/             │              │ Navegador (Chrome)  │
-│ - simple_task.py   │              │ Sistema de arquivos │
-│ - structured_tools │              │ Email (Gmail)       │
-│   (loop + 6 tools) │              │ PC (mouse/teclado)  │
-└────────────────────┘              │ Visão (llama-server)│
-                                    └─────────────────────┘
-```
+### YouTube and structured search
 
-### 🧩 Componentes principais
+The project documents YouTube transcript retrieval, summarisation, question answering, saving and reading transcripts, language selection, and structured search. Other utilities include current time, weather, persistent notes, chart generation, and chat management where enabled.
 
-| Componente | Papel |
+## Architecture
+
+~~~text
+                         User
+                          |
+                          v
+              Open WebUI / MYRA interface
+                          |
+                          v
+                FastAPI backend (8000)
+                 /        |         \
+                /         |          \
+               v          v           v
+          Task planner  Tool modules  Task / event APIs
+               |          |
+               v          +-------------------------------+
+        Local LLM via     |               |               |
+           Ollama         v               v               v
+                       Browser         Desktop          Email/files
+                    Chrome bridge    mouse/keyboard    workspace/Gmail
+                          |
+                          v
+                    Chrome session
+
+        Vision service (8081) <--- screenshots
+        Ollama service (11434) <--- local model inference
+        Open WebUI / proxy (configured locally)
+~~~
+
+### Main components
+
+| Component | Responsibility |
 |---|---|
-| **`agent.py`** | Servidor FastAPI com ~95 rotas (navegador, email, PC, YouTube, code, task) |
-| **`tasks/simple_task.py`** | Loop de autonomia adaptativo (LLM decide 1 passo por vez) |
-| **`tasks/structured_tools.py`** | 6 ferramentas que devolvem JSON (busca, YouTube, etc.) |
-| **`tools/browseragent.py`** | Tool do Open WebUI (expõe rotas do agent pro chat) |
-| **`tools/codeagent.py`** | Tool do Open WebUI (21 ferramentas de programação) |
-| **`tools/visuals_core.py`** | Tool do Open WebUI (gráficos) |
-| **`computer/`** | Módulo de automação do PC (mouse, teclado, janelas, tela) |
+| **agent.py** | FastAPI application and API routes |
+| **tasks/simple_task.py** | Adaptive planner and multi-step task loop |
+| **tasks/structured_tools.py** | Structured search and discovery tools |
+| **tasks/browser_bridge.py** | Browser bridge command queue and API routes |
+| **tasks/cancel_state.py** | Shared task-cancellation state |
+| **computer/controller.py** | Mouse and keyboard automation |
+| **computer/screen.py** | Screenshot capture |
+| **computer/windows.py** | Window listing and focus operations |
+| **browser-extension/** | Chrome Manifest V3 extension and offscreen bridge |
+| **tools/browseragent.py** | Open WebUI tool integration for browser/agent capabilities |
+| **tools/codeagent.py** | Coding assistant tools |
+| **tools/visuals_core.py** | Charts and visualisations |
+| **llm-eyes/** | Local vision service and model assets |
+| **widget-tauri/** | Desktop widget prototype, where present in the checkout |
+| **workspace/** | Working area for supported file operations |
 
----
+## Technology stack
 
-## 🔧 INFRAESTRUTURA
-
-### Serviços rodando localmente
-
-| Serviço | Porta | O que faz |
-|---|---|---|
-| **agent.py (FastAPI)** | 8000 | Servidor principal |
-| **Open WebUI (Docker)** | 8080 | Interface do chat |
-| **nginx proxy** | 8082 | Troca "Open WebUI" por "MYRA" |
-| **Ollama** | 11434 | LLM (qwen2.5:7b, llama3.1:8b, coders) |
-| **llama-server (visão)** | 8081 | Qwen3.5-0.8B para ver a tela |
-
-### Modelos Ollama
-
-| Modelo | Uso |
+| Area | Technology |
 |---|---|
-| **`qwen2.5:7b`** | Modelo principal do chat (tool calling nativo) |
-| **`llama3.1:8b`** | Alternativo (tool calling mais robusto) |
-| **`qwen3.5:4b`** | Com visão |
-| **`R4C3R/qwen2.5-coder-3b-heretic`** | CodeAgent primário (sem censura) |
-| **`qwen2.5-coder:7b`** | CodeAgent fallback |
-| **`Qwen3.5-0.8B + mmproj`** | Visão (via llama-server) |
+| Language | Python |
+| API | FastAPI, Uvicorn |
+| Local model runtime | Ollama |
+| Vision inference | llama.cpp / llama-server |
+| Chat interface | Open WebUI, optionally behind a local proxy |
+| Browser integration | Chrome Extension Manifest V3 and browser automation |
+| Desktop automation | PyAutoGUI, MSS, window-management libraries |
+| Persistence | SQLite and JSON files in relevant modules |
+| Containerisation | Docker Desktop |
+| Optional desktop UI | Tauri and Rust |
 
-### Hardware
+Exact versions and model choices may differ between machines. Use the dependency files and setup scripts in your current checkout as the source of truth.
 
-- **SO:** Windows 11
-- **GPU:** RTX A2000 Laptop (4 GB VRAM)
-- **CPU:** i7-11850H
-- **RAM:** 16 GB
+## Services and local endpoints
 
----
+The following are documented defaults. A service may be disabled or mapped to a different port in local configuration.
 
-## 🚀 COMO USAR
+| Service | Default port | Purpose |
+|---|---:|---|
+| MYRA FastAPI backend | **8000** | Agent and tool API |
+| Vision server | **8081** | Local screenshot/vision inference |
+| Ollama | **11434** | Local LLM inference |
+| Open WebUI / local proxy | **8082 and/or configured container port** | Chat interface |
 
-### Iniciar tudo
+Do not expose these services to a public network without reviewing authentication, firewall rules, and the security of each route.
 
-**Terminal 1 — Agent:**
-```powershell
+## Requirements
+
+The documented development environment is Windows 10/11. A typical setup may require:
+
+- Windows 10 or 11.
+- Python and a project virtual environment.
+- Ollama and at least one compatible model pulled locally.
+- Docker Desktop for Open WebUI, if using the container-based interface.
+- Google Chrome for the browser extension.
+- Git for source control.
+- Rust and the Tauri toolchain only if developing the optional Tauri widget.
+- Sufficient RAM, disk space, and GPU memory for the selected models.
+
+Model performance depends on quantisation, context length, available VRAM, and concurrent services. Choose a model that fits your hardware rather than assuming every listed model can run simultaneously.
+
+## Getting started
+
+MYRA is under active development, and setup details can change. Follow the scripts and configuration files present in your current branch. The commands below are a starting point for the documented Windows layout.
+
+### 1. Obtain the project and prepare the environment
+
+If you have not already cloned the repository:
+
+~~~powershell
+git clone https://github.com/BielDominic/myra-agent.git
+cd myra-agent
+~~~
+
+For an existing local installation using **C:\computer-agent\venv**, activate the environment:
+
+~~~powershell
 cd C:\computer-agent
-.\venv\Scripts\python.exe agent.py
-```
+.\venv\Scripts\Activate.ps1
+~~~
 
-**Terminal 2 — Visão (opcional, só se usar `see_image`):**
-```powershell
-C:\computer-agent\iniciar_visao.ps1
-```
+Install dependencies using the project's dependency manifest, if present:
 
-**Docker (Open WebUI):**
-```powershell
+~~~powershell
+python -m pip install -r requirements.txt
+~~~
+
+### 2. Prepare Ollama
+
+Install and start [Ollama](https://ollama.com/), then pull the model configured for your installation. The project documentation identifies **qwen2.5:7b** as a primary model in one configuration:
+
+~~~powershell
+ollama pull qwen2.5:7b
+ollama list
+~~~
+
+The model configured in Open WebUI and the model used by the task planner must match your actual setup. Check the local configuration before troubleshooting tool calling.
+
+### 3. Configure secrets and integrations
+
+Configure required values using your local environment or the project's existing configuration mechanism. **Do not commit API keys, bridge tokens, passwords, session cookies, or other secrets.**
+
+The browser bridge uses a shared token in configurations that enable it. Configure the intended token on both the backend and extension. Keep it private and do not expose the bridge to untrusted networks.
+
+For Gmail, configure the supported IMAP/SMTP credentials and authentication method for your account. Prefer provider-supported app passwords or OAuth-based methods where available; never put credentials in the README or source control.
+
+### 4. Start the backend and optional services
+
+Use the scripts that exist in your checkout. The project documentation has included these Windows scripts:
+
+~~~powershell
+# Main agent, if this script exists in your checkout
+.\iniciar_myra.ps1
+
+# Optional vision service
+.\iniciar_visao.ps1
+~~~
+
+If you run services manually, start the FastAPI backend from the project environment:
+
+~~~powershell
+python agent.py
+~~~
+
+Start Open WebUI using the Docker container name configured on your machine. For example, if your container is named **open-webui-custom**:
+
+~~~powershell
 docker start open-webui-custom
-```
-
-### Usar no chat
-
-Abre **http://127.0.0.1:8080** (ou `:8082` pelo proxy) no navegador:
-
-- **Modelo:** `qwen2.5:7b`
-- **Tool:** BrowserAgent ativada
-
-**Exemplos de comandos:**
-
-```
-Use task_run com o objetivo exato: "que horas sao agora?"
-
-Use task_run com o objetivo exato: "pesquise os melhores cursos de IA em Dublin e diga 3 nomes"
-
-Use task_run com o objetivo exato: "pesquise o canal do Post Malone no YouTube, ache o ultimo video dele e me diga o titulo"
-
-Use task_run com o objetivo exato: "resuma o video https://www.youtube.com/watch?v=m226f2reF28"
-```
-
-### Usar direto na API
-
-```powershell
-# Task autônoma
-$body = @{ objetivo = "pesquise X"; max_passos = 15 } | ConvertTo-Json
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/task_simple" -Method Post -Body $body -ContentType "application/json"
-
-# Ferramenta específica
-$body = @{ url = "https://youtu.be/..." } | ConvertTo-Json
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/youtube_transcript" -Method Post -Body $body -ContentType "application/json"
-```
-
----
-
-## 📁 ESTRUTURA DE PASTAS
-
-```
-C:\computer-agent\
-├── agent.py                    # Servidor FastAPI (~95 rotas)
-├── agent_backup_*.py           # Backups
-├── iniciar_myra.ps1            # Sobe o agent.py
-├── iniciar_visao.ps1           # Sobe o llama-server (visão)
-├── REINSTALACAO.md             # Guia completo de reinstalação
-├── README.md                   # Este arquivo
-├── ROADMAP.md                  # Planejamento (~230 itens)
-├── CONTEXTO.txt                # Estado atual
-├── .gitignore                  # Ignora venv, backups, screenshots
-│
-├── tasks/                      # Núcleo do agente autônomo
-│   ├── __init__.py
-│   ├── simple_task.py          # Loop adaptativo (LLM decide passo a passo)
-│   └── structured_tools.py     # 6 ferramentas JSON (busca, YouTube, etc.)
-│
-├── tools/                      # Tools do Open WebUI (versionadas)
-│   ├── browseragent.py         # Tool principal (~50 métodos)
-│   ├── codeagent.py            # 21 métodos de programação
-│   ├── visuals_core.py         # 10 métodos de gráficos
-│   ├── README.md
-│   └── upload/upload_tools.ps1
-│
-├── computer/                   # Automação do PC
-│   ├── controller.py           # Mouse/teclado (pyautogui)
-│   ├── screen.py               # Screenshot (mss)
-│   └── windows.py              # Janelas (pygetwindow + ctypes)
-│
-├── workspace/                  # Área segura de trabalho
-│   ├── code/                   # Código gerado pelo CodeAgent
-│   └── youtube/                # Transcrições salvas
-│
-├── screenshots/                # Prints
-├── chrome_profile/             # Perfil dedicado do Chrome
-├── venv/                       # Ambiente virtual Python 3.14
-│
-└── llm-eyes/                   # Modelo de visão
-    └── models/
-        ├── Qwen3.5-0.8B-UD-Q4_K_XL.gguf
-        └── mmproj-F16.gguf
-```
-
----
-
-## 📊 FASES DO PROJETO
-
-### ✅ Concluídas
-
-- **FASE 0-10** — Base: navegador, email, arquivos, chats, confirmação
-- **FASE 15** — Mais ferramentas de arquivo
-- **FASE 16** — Automação do PC (mouse, teclado, janelas)
-- **FASE 17** — CodeAgent (21 ferramentas)
-- **FASE 18-19** — Melhorias incrementais
-- **FASE 20** — YouTube (transcrição, resumo, perguntas)
-- **FASE 20.1** — Detecção automática de idioma do YouTube
-- **FASE 22-light** — Task simples (planner + loop + retry)
-- **FASE 24.1** — Loop de autonomia adaptativo ⭐
-- **FASE 24.2** — Ferramentas estruturadas (6 novas) ⭐
-
-### 🚧 Próximas
-
-- **FASE 22.5** — Polir o `responder` (respostas diretas)
-- **FASE 34** — Bot do Telegram (controle remoto)
-- **FASE 24.3** — Recuperação de erros no loop
-- **FASE 24.4** — Verificação visual
-- **FASE 24.5** — Persistência SQLite
+~~~
+
+### 5. Load the Chrome extension
+
+1. Open **chrome://extensions** in Chrome.
+2. Enable **Developer mode**.
+3. Choose **Load unpacked**.
+4. Select the repository's **browser-extension** directory.
+5. Open the extension popup/settings and configure the local API URL and bridge token as required by that version.
+6. Check the extension service-worker and offscreen-document consoles if the bridge does not connect.
+
+Extension files and options may change as the browser bridge evolves. Use the manifest and current extension UI as the definitive reference.
 
-### 📅 Médio prazo
+### 6. Open the chat interface
+
+Open the local Open WebUI or MYRA proxy address configured for your installation. Select the intended Ollama model and enable the relevant MYRA tool integration. The exact port can differ between the direct container mapping and the local proxy.
 
-- **FASE 14** — TTS + Whisper (MYRA fala e ouve)
-- **FASE 20.5** — Whisper (transcrição de áudio de vídeos sem legenda)
-- **FASE 12** — Geração de imagem
-- **FASE 31** — Scheduler (tarefas agendadas)
-- **FASE 32** — Notificações (Windows, Telegram, voz)
-- **FASE 33** — Memória de longo prazo
+## Using the agent
+
+### Example objectives
+
+Use clear, outcome-focused requests. For example:
+
+- “What time is it now?”
+- “Search for three reputable sources about local AI agents and summarise the differences.”
+- “Find the latest video on this YouTube channel and tell me its title.”
+- “Retrieve the transcript of this video and summarise the main points.”
 
-Ver **[ROADMAP.md](ROADMAP.md)** para lista completa (~230 itens).
+### Call the task API directly
+
+The task route documented by the project is **/task_simple**. Confirm the route and request schema in your current checkout before integrating against it.
 
----
+~~~powershell
+$body = @{
+    objetivo = "pesquise três fontes sobre agentes de IA locais"
+    max_passos = 15
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+    -Uri "http://127.0.0.1:8000/task_simple" `
+    -Method Post `
+    -Body $body `
+    -ContentType "application/json"
+~~~
 
-## 🔐 SEGURANÇA
+Example YouTube transcript request (verify the expected payload in your current API implementation):
 
-- **Workspace isolado**: arquivos só em `workspace/`
-- **Confirmação dupla** em ações destrutivas (delete, move, email)
-- **Perfil dedicado do Chrome** (não mexe no seu navegador pessoal)
-- **API key do Open WebUI** em variável de ambiente
-- **Nada sai da sua máquina** — tudo local
+~~~powershell
+$body = @{ url = "https://www.youtube.com/watch?v=VIDEO_ID" } | ConvertTo-Json
 
----
+Invoke-RestMethod `
+    -Uri "http://127.0.0.1:8000/youtube_transcript" `
+    -Method Post `
+    -Body $body `
+    -ContentType "application/json"
+~~~
 
-## 🎓 APRENDIZADOS IMPORTANTES
+## Available tool groups
+
+The following names are documented by the project. Availability depends on which tool modules are installed, registered, and enabled in your current environment.
+
+<details>
+<summary><strong>Browser and structured web tools</strong></summary>
+
+- **browser_get_tabs**
+- **browser_read_active_tab**
+- **browser_read_page**
+- **browser_navigate_active_tab**
+- **browser_new_tab**
+- **browser_close_tab**
+- **browser_type_text**
+- **browser_click_text**
+- **browser_scroll**
+- **browser_wait**
+- **browser_search_google**
+- **browser_search_google_visivel**
+- **search_google_structured**
+- **web_search_structured**
+- **youtube_search**
+- **youtube_channel_latest**
+- **get_current_url**
+- **read_page_structured**
+
+</details>
+
+<details>
+<summary><strong>Desktop</strong></summary>
+
+- **pc_move_mouse**
+- **pc_click**
+- **pc_double_click**
+- **pc_right_click**
+- **pc_type_text**
+- **pc_press_key**
+- **pc_hotkey**
+- **pc_scroll**
+- **pc_screenshot**
+- **pc_get_windows**
+- **pc_get_active_window**
+- **pc_focus_window**
+
+</details>
+
+<details>
+<summary><strong>Email</strong></summary>
 
-### ⚠️ Regras críticas
+- **email_list**, **email_read**, **email_send**, **email_reply**
+- **email_mark_read**, **email_mark_unread**, **email_move**, **email_delete**
+- **email_search**, **email_delete_by_search**
 
-1. **NUNCA editar `agent.py` via `Set-Content`, `-replace` ou `WriteAllText` do PowerShell** — trunca o arquivo. **Sempre** usar Notepad ou VSCode.
-2. **Sempre fazer backup** antes de grandes mudanças:
-   ```powershell
-   Copy-Item C:\computer-agent\agent.py C:\computer-agent\agent_backup_YYYYMMDD.py -Force
-   ```
-3. **Encoding:** sempre **UTF-8** ao salvar arquivos Python.
-4. **Após editar `agent.py`:** rodar `python -m py_compile C:\computer-agent\agent.py`.
-5. **Após editar Tool no Open WebUI:** `docker restart open-webui-custom`.
-6. **Após editar `agent.py`:** `Ctrl+C` na Janela 1 e `iniciar_myra.ps1`.
+</details>
 
-### 🐛 Bugs conhecidos e suas soluções
+<details>
+<summary><strong>Code assistant</strong></summary>
 
-| Bug | Sintoma | Solução |
-|---|---|---|
-| **PowerShell 5.1 + UTF-8** | `MÃºsica` em vez de `Música` na tela | Bug visual. Usar `curl.exe -o arquivo` e ler com UTF-8 |
-| **urllib no FastAPI** | `getaddrinfo failed` | Usar `requests` em vez de `urllib.request` |
-| **Post Malone no YouTube** | Handle `@Post Malone` (com espaço) dá 404 | Normalizar handle (lowercase, sem espaço) |
-| **LLM chama mesma ferramenta 2x** | Loop redundante | Limitação do `qwen2.5:7b`, ajustar prompt |
+- **code_generate**, **code_explain**, **code_analyze**, **code_review**
+- **code_refactor**, **code_optimize**, **code_convert**, **code_test**
+- **code_document**, **code_diff**, **code_sql**, **code_regex**
+- **code_scaffold**, **code_run**, **code_run_file**, **code_benchmark**
+- **code_dependencies**, **code_snippet**, **code_readme**, **code_metrics**, **code_lint**
 
-### 🎯 Arquitetura de decisão
+</details>
 
-Quando o LLM precisa escolher entre ferramentas parecidas:
+<details>
+<summary><strong>Files, YouTube, and utilities</strong></summary>
 
-- **`web_search`** (antigo) → texto solto, difícil de parsear
-- **`web_search_structured`** (novo) → JSON, fácil de encadear ✅
-- **`search_google`** (antigo) → só confirma "pesquisei"
-- **`search_google_structured`** (novo) → lista de links ✅
-- **`youtube_transcript`** → transcrição de UM vídeo
-- **`youtube_search`** → achar um vídeo por termo
-- **`youtube_channel_latest`** → últimos vídeos de um canal
+**Files**
+- **list_dir**, **read_file**, **write_file**, **delete_file**
+- **create_dir**, **move_file**, **search_in_files**
 
-**Regra:** sempre preferir as ferramentas `_structured` em tarefas autônomas.
+**YouTube**
+- **youtube_transcript**, **youtube_summarize**, **youtube_ask**
+- **youtube_save**, **youtube_list**, **youtube_read**
 
----
+**Utilities**
+- **get_current_time**, **get_weather**, **save_note**, **read_notes**
+- Confirmation and cancellation tools where registered
+- Vision endpoints such as **/see** and screenshot routes where enabled
 
-## 🧪 TESTES DE VALIDAÇÃO
+</details>
 
-### Verificar se tá tudo rodando
+Tool names and counts are not a guarantee: registrations can differ by branch, tool version, and local configuration.
 
-```powershell
-# Agent
-curl.exe -s http://127.0.0.1:8000/
+## Repository layout
 
-# Open WebUI
-docker ps --filter name=open-webui-custom --format "{{.Names}} {{.Status}}"
+The following is a conceptual overview; individual files may differ by branch.
 
-# Ollama
-curl.exe -s http://127.0.0.1:11434/api/tags | findstr qwen2.5
+~~~text
+myra-agent/
+├── agent.py                  # FastAPI backend
+├── requirements.txt          # Python dependencies, if present
+├── tasks/
+│   ├── simple_task.py        # Task planner and execution loop
+│   ├── structured_tools.py   # Structured search and discovery
+│   ├── browser_bridge.py     # Browser bridge queue/API
+│   └── cancel_state.py       # Shared cancellation state
+├── computer/
+│   ├── controller.py         # Mouse and keyboard
+│   ├── screen.py             # Screenshots
+│   └── windows.py            # Window operations
+├── browser-extension/        # Chrome MV3 extension
+├── tools/
+│   ├── browseragent.py       # Open WebUI integration
+│   ├── codeagent.py          # Coding tools
+│   └── visuals_core.py       # Visualisation tools
+├── llm-eyes/                 # Vision service and model assets
+├── widget-tauri/             # Optional desktop widget, if present
+├── workspace/                # Working files for supported file tools
+├── ROADMAP.md                # Planned work and project status
+└── README.md
+~~~
 
-# Visão
-curl.exe -s http://127.0.0.1:8081/v1/models
-```
+## Roadmap
 
-### Testar o agente autônomo
+The roadmap is maintained in [ROADMAP.md](ROADMAP.md). Documented priorities include:
 
-```powershell
-# Teste simples (1-2 passos)
-$body = @{ objetivo = "que horas sao agora?"; max_passos = 15 } | ConvertTo-Json
-$r = Invoke-RestMethod -Uri "http://127.0.0.1:8000/task_simple" -Method Post -Body $body -ContentType "application/json"
-$r.status
-$r.historico | ForEach-Object { "  $($_.passo): $($_.ferramenta) - ok=$($_.ok)" }
-$r.resultado_final
+- Improving the planner's direct responses and tool selection.
+- Better recovery from tool errors and repeated-action loops.
+- Expanding visual observation and verification of completed actions.
+- Persisting task state and history.
+- Developing a clearer desktop experience and notifications.
+- Voice interaction, additional document formats, and broader integrations.
+- More comprehensive automated tests, logging, and security controls.
 
-# Teste multi-passo (Post Malone)
-$body = @{ objetivo = "pesquise o canal do Post Malone no YouTube, ache o ultimo video dele e me diga o titulo"; max_passos = 15 } | ConvertTo-Json
-$r = Invoke-RestMethod -Uri "http://127.0.0.1:8000/task_simple" -Method Post -Body $body -ContentType "application/json"
-$r.status
-$r.historico | ForEach-Object { "  $($_.passo): $($_.ferramenta)" }
-$r.resultado_final
-```
+Roadmap entries are plans, not promises or claims that a feature is already implemented. Check the roadmap and commit history for the latest state.
 
----
+## Security and privacy
 
-## 📚 REPOSITÓRIO
+MYRA can interact with authenticated browser sessions, files, email, and desktop applications. Treat it as privileged automation software.
 
-- **URL:** https://github.com/BielDominic/myra-agent
-- **Branch principal:** `main`
-- **Último commit:** `feat: FASE 24 - loop de autonomia real + ferramentas estruturadas`
+- **Keep it local by default.** Do not expose the API, bridge, or vision endpoints to public networks without an explicit security review.
+- **Protect tokens and credentials.** Keep secrets in local configuration/environment variables and ensure they are excluded from Git.
+- **Use a dedicated browser profile.** This reduces the chance of interfering with personal browsing sessions, but does not remove all risk.
+- **Review destructive actions.** Deleting files or email, moving messages, and sending communications can have irreversible consequences.
+- **Limit file access.** Keep the workspace boundary enabled and avoid granting access to directories containing sensitive data.
+- **Review generated code.** Code execution should be limited to trusted workspaces and reviewed before running.
+- **Assume external services receive requests when used.** Websites, search, weather services, YouTube, and email providers may process data needed for those operations.
+- **Do not rely solely on model judgement.** Models can misunderstand page content, choose the wrong tool, or report success incorrectly.
 
----
+Safety controls are still evolving. Verify actual behaviour in your checked-out version before relying on a safeguard.
 
-## 🎯 FILOSOFIA
+## Development workflow
 
-**MYRA = cérebro + olhos + mãos + memória + autonomia.**
+Use a feature branch for changes and keep each commit focused. The active development branch documented for this work is **feature/chrome-extension-bridge**; do not assume changes should go directly to **main**.
 
-- **Cérebro:** LLM local (Ollama)
-- **Olhos:** Visão (llama-server + Qwen3.5-0.8B) + screenshots
-- **Mãos:** Navegador + controle do PC + arquivos + email
-- **Memória:** Notas + histórico + (futuro) SQLite
-- **Autonomia:** Loop adaptativo (FASE 24)
+Before changing code:
 
-**Regra de ouro:** escolher a ferramenta **mais específica** pro trabalho.
-API → DOM → filesystem → vision → computer control.
+1. Inspect the current file and repository status.
+2. Back up important files before editing.
+3. Preserve UTF-8 encoding without a BOM where required.
+4. Run relevant syntax checks and tests after editing.
+5. Test runtime behaviour locally before describing it as working.
+6. Commit one coherent change at a time.
 
-**Regra crítica:** **nunca editar arquivos grandes via PowerShell direto.**
+Useful checks:
 
----
+~~~powershell
+# Python syntax
+python -m py_compile .\agent.py
 
-## 🙏 CRÉDITOS
+# JavaScript syntax for the Chrome extension
+node --check .\browser-extension\offscreen.js
 
-- **Playwright** (navegador)
-- **FastAPI** (servidor)
-- **Ollama** (LLM local)
-- **Open WebUI** (interface)
-- **yt-dlp** (YouTube)
-- **pyautogui** + **mss** + **pygetwindow** (automação do PC)
-
----
-
-**MYRA é uma IA pessoal de verdade.** Feita para rodar local, sem depender de APIs pagas, com controle total sobre o computador.
-
-🚀 **Let's go.**
-```
-
----
-
-## 🛠️ Como aplicar
-
-1. **Backup** (opcional):
-   ```powershell
-   Copy-Item C:\computer-agent\README.md C:\computer-agent\README_backup.md -Force
-   ```
-
-2. **Abre**:
-   ```powershell
-   notepad C:\computer-agent\README.md
-   ```
-
-3. **Ctrl+A** → **Delete** → **Ctrl+V** (cola o conteúdo acima)
-
-4. **Salva em UTF-8** (Arquivo → Salvar como → Codificação: UTF-8)
-
-5. **Fecha o Notepad**
-
----
-
-## 📋 Depois disso
-
-**Roda o commit geral (código + README):**
-
-```powershell
-cd C:\computer-agent
+# Git state
 git status
-git add agent.py tasks/ README.md ROADMAP.md
-git commit -m "feat: FASE 24 + atualiza README e ROADMAP
+git branch --show-current
+~~~
 
-Código (FASE 24.1 + 24.2):
-- tasks/simple_task.py: loop adaptativo (LLM decide 1 passo por vez)
-- tasks/structured_tools.py: 6 ferramentas JSON novas
-- agent.py: rotas /get_current_url e /read_page_structured
-- agent.py: TaskSimple.max_passos default 15
+Run checks only for files that exist and were changed. A syntax check does not replace an end-to-end test.
 
-Documentação:
-- README.md: reescrito com estado atual, arquitetura, aprendizados
-- ROADMAP.md: já estava atualizado
+## Troubleshooting
 
-Testado end-to-end:
-- 'ache o ultimo video do Post Malone' -> funcionou em 1 passo"
+| Symptom | Checks |
+|---|---|
+| Chat cannot reach MYRA | Confirm the backend is running, the configured URL/port is correct, and the local proxy/container is healthy. |
+| Model does not call tools | Confirm the correct model is selected, tool integration is enabled, and the model supports the expected tool-calling format. |
+| Browser bridge does not respond | Verify the extension is enabled, API URL and token match, backend is reachable, and service-worker/offscreen console logs show no errors. |
+| Vision requests fail | Confirm the vision server is running and the configured model files and endpoint are correct. |
+| YouTube transcript fails | Try a valid video URL and check network availability, caption availability, and transcript-service errors. |
+| Email operations fail | Verify provider settings, authentication, network access, and account security restrictions. |
+| GPU memory errors | Close competing model processes, reduce model/context size, or use a model that fits available VRAM. |
 
-git push
-```
+When reporting a bug, include the relevant error, the step that triggered it, the current branch, and versions/configuration involved. Remove tokens, email contents, personal information, and other secrets from logs first.
+
+## Contributing and project status
+
+MYRA is currently a private project in active development. The repository may not accept external contributions yet. For local development, prefer small, reviewable changes with a clear test plan.
+
+Feature requests and bug reports should describe:
+- Expected behaviour.
+- Actual behaviour.
+- Reproduction steps.
+- Relevant logs with secrets removed.
+- Environment details where relevant.
+
+## License
+
+**No public open-source license has been declared.** The repository is private and licensing terms are to be defined by the project owner. Unless and until a license is added, do not assume permission to redistribute or reuse the code.
+
+## Acknowledgements
+
+MYRA builds on open-source and community tools, including:
+
+- [FastAPI](https://fastapi.tiangolo.com/)
+- [Ollama](https://ollama.com/)
+- [Open WebUI](https://github.com/open-webui/open-webui)
+- [Playwright](https://playwright.dev/)
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+- [PyAutoGUI](https://pyautogui.readthedocs.io/)
+- [MSS](https://github.com/BoboTiG/python-mss)
+- [Tauri](https://tauri.app/), where used
+
+---
+
+**MYRA — local models, computer-use tools, and an evolving path toward a more capable personal agent.**
