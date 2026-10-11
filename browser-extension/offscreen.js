@@ -96,13 +96,17 @@ function startPolling() {
   if (pollTimer) return;
   console.log("[MYRA Bridge Offscreen] iniciando polling");
   pollTimer = setInterval(() => {
+    console.log("[Offscreen] poll tick");
     pollOnce().catch(e => console.warn("[MYRA Bridge Offscreen] poll err:", e?.message || e));
   }, POLL_INTERVAL_MS);
   if (!watchdogTimer) {
     watchdogTimer = setInterval(() => {
       const desde = Date.now() - ultimoPollComSucesso;
-      if (desde > 60000) {
-        console.warn("[Offscreen] watchdog: sem resposta de fetch há", Math.round(desde / 1000), "s; disparando novo poll");
+      if (desde > 30000) {
+        console.warn("[Offscreen] watchdog: sem resposta de fetch há", Math.round(desde / 1000), "s; resetando contador e disparando novo poll");
+        // activePolls é apenas telemetria, nunca um bloqueio. Um poll antigo
+        // pode continuar pendente, mas não impede novos ciclos de polling.
+        activePolls = 0;
         pollOnce().catch(e => console.warn("[Offscreen] watchdog poll err:", e?.message || e));
       }
     }, 10000);
