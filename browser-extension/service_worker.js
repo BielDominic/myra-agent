@@ -58,7 +58,14 @@ async function getTargetTab(urlContains = "") {
 }
 
 async function getSettings() {
-  return await chrome.storage.local.get(["myraApi", "myraEnabled", "myraToken"]);
+  const data = await chrome.storage.local.get(["myraApi", "myraEnabled", "myraToken"]);
+  // Persistencia: se o token existe mas enabled nunca foi setado,
+  // assume true e grava no storage (nao perde mais ao recarregar)
+  if (data.myraToken && data.myraEnabled !== true) {
+    data.myraEnabled = true;
+    try { await chrome.storage.local.set({ myraEnabled: true }); } catch (e) {}
+  }
+  return data;
 }
 
 async function bridgeFetch(path, settings, options = {}) {
