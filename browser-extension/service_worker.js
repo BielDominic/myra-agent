@@ -446,84 +446,65 @@ async function executeBridgeCommand(command) {
   throw new Error("Acao desconhecida: " + String(command.action));
 }
 
-// ---------- Polling ----------
+// ---------- Offscreen polling ----------
 
-async function pollOnce() {
-  const settings = await getSettings();
-  if (!settings.myraEnabled || !settings.myraToken) return;
+// O polling vive no offscreen document; o service worker só acorda para
+// executar comandos da extensão ou para garantir que o offscreen exista.
+let ensureOffscreenPromise = null;
 
-  for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
-    console.log("[MYRA Bridge] poll tentativa", attempt + 1);
-    try {
-      const res = await bridgeFetch("/browser_bridge/next?wait=" + POLL_WAIT, settings);
-      console.log("[MYRA Bridge] next HTTP", res.status);
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const payload = await res.json();
-      const cmd = payload.command;
-      if (!cmd) continue;
-      console.log("[MYRA Bridge] comando:", cmd.action);
-      let result;
-      try { result = await executeBridgeCommand(cmd); }
-      catch (e) { result = { ok: false, error: e?.message || String(e) }; }
-      await bridgeFetch("/browser_bridge/complete", settings, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command_id: cmd.command_id, result })
+async function ensureOffscreenDocument() {
+  if (!chrome.offscreen) {
+    throw new Error("chrome.offscreen indisponível. Atualize o Chrome para uma versão compatível.");
+  }
+  if (ensureOffscreenPromise) return ensureOffscreenPromise;
+  ensureOffscreenPromise = (async () => {
+    const exists = await chrome.offscreen.hasDocument();
+    if (!exists) {
+      await chrome.offscreen.createDocument({
+        url: "offscreen.html",
+        reasons: ["WORKERS"],
+        justification: "Manter o polling do Browser Bridge ativo enquanto o service worker MV3 estiver suspenso."
       });
-      console.log("[MYRA Bridge] completado");
-      return;
-    } catch (e) {
-      console.warn("[MYRA Bridge] erro:", e?.name, e?.message || e);
-      return;
+      console.log("[MYRA Bridge] offscreen document criado");
     }
+  })();
+  try {
+    await ensureOffscreenPromise;
+  } finally {
+    ensureOffscreenPromise = null;
   }
 }
 
 function startInterval() {
-  if (pollIntervalHandle) return;
-  console.log("[MYRA Bridge] iniciando setInterval");
-  pollIntervalHandle = setInterval(() => {
-    pollOnce().catch(e => console.warn("[MYRA Bridge] interval err:", e?.message || e));
-  }, 5000);
-  // Roda uma vez imediatamente
-  pollOnce().catch(e => console.warn("[MYRA Bridge] initial err:", e?.message || e));
+  ensureOffscreenDocument()
+    .then(() => console.log("[MYRA Bridge] polling delegado ao offscreen document"))
+    .catch(e => console.warn("[MYRA Bridge] falha ao iniciar offscreen:", e?.message || e));
 }
 
 function stopInterval() {
-  if (pollIntervalHandle) {
-    clearInterval(pollIntervalHandle);
-    pollIntervalHandle = null;
-    console.log("[MYRA Bridge] parado setInterval");
-  }
+  // A mudança de myraEnabled no chrome.storage.local é observada pelo offscreen.
+  // Nenhum timer do service worker precisa ser limpo.
+  console.log("[MYRA Bridge] polling será pausado pelo offscreen conforme as configurações");
 }
 
-// ---------- Registro do alarme (backup) ----------
-
+// Recria o offscreen quando a extensão instala/atualiza ou o Chrome inicia.
+chrome.runtime.onInstalled.addListener(() => startInterval());
+chrome.runtime.onStartup.addListener(() => startInterval());
 chrome.alarms.get("myra-bridge-poll", (alarm) => {
-  if (!alarm) {
-    chrome.alarms.create("myra-bridge-poll", { periodInMinutes: 0.5 });
-    console.log("[MYRA Bridge] alarme criado");
-  }
+  if (!alarm) chrome.alarms.create("myra-bridge-poll", { periodInMinutes: 0.5 });
 });
-
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.get("myra-bridge-poll", (alarm) => {
     if (!alarm) chrome.alarms.create("myra-bridge-poll", { periodInMinutes: 0.5 });
   });
 });
-
 chrome.runtime.onStartup.addListener(() => {
   chrome.alarms.get("myra-bridge-poll", (alarm) => {
     if (!alarm) chrome.alarms.create("myra-bridge-poll", { periodInMinutes: 0.5 });
   });
-  startInterval();
 });
-
-chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name !== "myra-bridge-poll") return;
-  console.log("[MYRA Bridge] alarme disparou");
-  // Garante que o interval ta vivo (Chrome pode ter suspenso)
-  startInterval();
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "myra-bridge-poll") startInterval();
 });
 
 // ---------- Mensagens do popup ----------
@@ -532,6 +513,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || typeof message.type !== "string") return;
   (async () => {
     try {
+      if (message.type === "MYRA_EXECUTE_COMMAND") {
+        try {
+          const result = await executeBridgeCommand(message.command || {});
+          sendResponse({ ok: true, result });
+        } catch (e) {
+          sendResponse({ ok: false, error: e?.message || String(e) });
+        }
+        return;
+      }
       if (message.type === "MYRA_STATUS") {
         const d = await getSettings();
         sendResponse({ ok: true, api: d.myraApi || DEFAULT_API, enabled: Boolean(d.myraEnabled), hasToken: Boolean(d.myraToken) });
@@ -569,6 +559,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // ---------- Arranque ----------
-// Roda toda vez que o worker acorda
+// Roda toda vez que o worker acorda e garante o documento de polling.
 startInterval();
 console.log("[MYRA Bridge] service worker pronto");

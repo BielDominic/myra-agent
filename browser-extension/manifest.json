@@ -1,4 +1,4 @@
-﻿{
+{
     "manifest_version":  3,
     "name":  "MYRA Browser Bridge",
     "version":  "0.1.0",
@@ -8,7 +8,8 @@
                         "storage",
                         "tabs",
                         "scripting",
-                        "alarms"
+                        "alarms",
+                        "offscreen"
                     ],
     "host_permissions":  [
                              "http://127.0.0.1:8000/*",
