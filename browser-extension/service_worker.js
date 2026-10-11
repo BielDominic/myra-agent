@@ -293,6 +293,29 @@ async function executeBridgeCommand(command) {
       }
     };
   }
+  if (command.action === "scroll") {
+    const direction = String(command.args?.direction || "down").toLowerCase();
+    const rawAmount = command.args?.amount;
+    const amount = rawAmount === undefined || rawAmount === null ? 500 : Number(rawAmount);
+    if (!["up", "down", "top", "bottom"].includes(direction)) {
+      throw new Error('direcao deve ser "up", "down", "top" ou "bottom".');
+    }
+    if (!Number.isFinite(amount) || amount < 0 || amount > 100000) {
+      throw new Error("quantidade deve ser um número entre 0 e 100000 pixels.");
+    }
+    const tab = await getTargetTab();
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (direction, amount) => {
+        if (direction === "top") window.scrollTo({ top: 0, behavior: "instant" });
+        else if (direction === "bottom") window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
+        else window.scrollBy({ top: direction === "up" ? -amount : amount, behavior: "instant" });
+        return { scrolled: true, scrollY: Math.round(window.scrollY), direction };
+      },
+      args: [direction, amount]
+    });
+    return { ok: true, result };
+  }
   if (command.action === "close_tab") {
     const rawTabId = command.args?.tab_id;
     let tab;

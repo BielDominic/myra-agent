@@ -176,7 +176,7 @@ def _delete_command(command_id: str) -> None:
 
 
 def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> dict:
-    if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text", "get_tabs", "type_text", "new_tab", "close_tab"}:
+    if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text", "get_tabs", "type_text", "new_tab", "close_tab", "scroll"}:
         return {"status": "erro", "result": "Acao do navegador nao permitida."}
     if action == "read_page_url":
         raw_url = str(args.get("url", "")).strip()
@@ -198,6 +198,19 @@ def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> 
             args["url_contains"] = url_contains
         else:
             args.pop("url_contains", None)
+    if action == "scroll":
+        direction = str(args.get("direction", "down")).strip().lower()
+        amount = args.get("amount", 500)
+        if direction not in {"up", "down", "top", "bottom"}:
+            return {"status": "erro", "result": 'direcao deve ser "up", "down", "top" ou "bottom".'}
+        try:
+            amount = float(amount)
+        except (TypeError, ValueError):
+            return {"status": "erro", "result": "quantidade deve ser numérica."}
+        if isinstance(args.get("amount", 500), bool) or amount < 0 or amount > 100000:
+            return {"status": "erro", "result": "quantidade deve estar entre 0 e 100000 pixels."}
+        args["direction"] = direction
+        args["amount"] = amount
     if action == "close_tab":
         tab_id = args.get("tab_id")
         if tab_id is not None and tab_id != "":
@@ -304,6 +317,11 @@ def browser_navigate_active_tab(url: str) -> dict:
 def browser_new_tab(url: str) -> dict:
     """Abre uma URL HTTP/HTTPS completa em uma nova aba ativa do Chrome."""
     return _run_command("new_tab", url=url)
+
+
+def browser_scroll(direcao: str = "down", quantidade: int = 500) -> dict:
+    """Rola a aba web alvo: up/down em pixels ou top/bottom."""
+    return _run_command("scroll", direction=direcao, amount=quantidade)
 
 
 def browser_close_tab(tab_id: int | None = None) -> dict:
