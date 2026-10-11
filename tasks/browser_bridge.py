@@ -176,7 +176,7 @@ def _delete_command(command_id: str) -> None:
 
 
 def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> dict:
-    if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text", "get_tabs", "type_text", "new_tab"}:
+    if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text", "get_tabs", "type_text", "new_tab", "close_tab"}:
         return {"status": "erro", "result": "Acao do navegador nao permitida."}
     if action == "read_page_url":
         raw_url = str(args.get("url", "")).strip()
@@ -198,6 +198,18 @@ def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> 
             args["url_contains"] = url_contains
         else:
             args.pop("url_contains", None)
+    if action == "close_tab":
+        tab_id = args.get("tab_id")
+        if tab_id is not None and tab_id != "":
+            try:
+                parsed_tab_id = int(tab_id)
+            except (TypeError, ValueError):
+                return {"status": "erro", "result": "tab_id deve ser um ID numerico retornado por browser_get_tabs."}
+            if isinstance(tab_id, bool) or parsed_tab_id <= 0 or str(parsed_tab_id) != str(tab_id).strip():
+                return {"status": "erro", "result": "tab_id deve ser um inteiro positivo retornado por browser_get_tabs."}
+            args["tab_id"] = parsed_tab_id
+        else:
+            args.pop("tab_id", None)
     if action == "type_text":
         campo = str(args.get("campo", "")).strip()
         texto = str(args.get("texto", ""))
@@ -294,6 +306,11 @@ def browser_new_tab(url: str) -> dict:
     return _run_command("new_tab", url=url)
 
 
+def browser_close_tab(tab_id: int | None = None) -> dict:
+    """Fecha uma aba HTTP/HTTPS do Chrome, selecionada pelo ID ou pela aba web alvo."""
+    return _run_command("close_tab", **({"tab_id": tab_id} if tab_id is not None else {}))
+
+
 def browser_type_text(campo: str, texto: str) -> dict:
     """Substitui o conteúdo de um campo de formulário identificado por seletor CSS ou label exato."""
     return _run_command("type_text", campo=campo, texto=texto)
@@ -329,6 +346,11 @@ def registrar_ferramentas(registrar_ferramenta) -> None:
         "browser_new_tab",
         browser_new_tab,
         "Abre uma URL HTTP/HTTPS completa em uma nova aba ativa do Chrome sem substituir a aba atual. Obrigatório: url='https://example.com'. Retorna tabId, URL, título e estado de carregamento."
+    )
+    registrar_ferramenta(
+        "browser_close_tab",
+        browser_close_tab,
+        "Fecha uma aba HTTP/HTTPS do Chrome. Opcional: tab_id, usando o ID retornado por browser_get_tabs; sem ID, fecha a aba web alvo. Não fecha páginas internas do Chrome nem a interface do MYRA."
     )
     registrar_ferramenta(
         "browser_type_text",

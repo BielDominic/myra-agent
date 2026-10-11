@@ -293,6 +293,28 @@ async function executeBridgeCommand(command) {
       }
     };
   }
+  if (command.action === "close_tab") {
+    const rawTabId = command.args?.tab_id;
+    let tab;
+    if (rawTabId === undefined || rawTabId === null || rawTabId === "") {
+      tab = await getTargetTab();
+    } else {
+      const tabId = Number(rawTabId);
+      if (!Number.isSafeInteger(tabId) || tabId <= 0) {
+        throw new Error("tab_id inválido: informe o ID numérico retornado por browser_get_tabs.");
+      }
+      tab = await chrome.tabs.get(tabId);
+    }
+    if (!Number.isInteger(tab.id)) throw new Error("Aba inválida.");
+    let url;
+    try { url = new URL(tab.url || ""); } catch { throw new Error("Aba sem URL HTTP/HTTPS válida; não será fechada."); }
+    if (!["http:", "https:"].includes(url.protocol) || isMyraUiTab(tab)) {
+      throw new Error("Por segurança, só é permitido fechar abas HTTP/HTTPS de sites, não páginas internas do navegador ou do MYRA.");
+    }
+    const closed = { tabId: tab.id, url: tab.url || "", title: tab.title || "" };
+    await chrome.tabs.remove(tab.id);
+    return { ok: true, result: { ...closed, closed: true } };
+  }
   if (command.action === "navigate_active_tab") {
     const tab = await getTargetTab();
     const url = new URL(String(command.args?.url || ""));
