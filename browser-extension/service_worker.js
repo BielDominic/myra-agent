@@ -293,6 +293,215 @@ async function executeBridgeCommand(command) {
       }
     };
   }
+  if (command.action === "search_google_visivel") {
+    const term = String(command.args?.term || "").trim();
+    const delayTypingMs = Number(command.args?.delay_typing_ms ?? 150);
+    const scrollSuave = command.args?.scroll_suave !== false;
+    if (!term || term.length > 200) {
+      throw new Error("termo deve conter de 1 a 200 caracteres.");
+    }
+    if (!Number.isFinite(delayTypingMs) || delayTypingMs < 0 || delayTypingMs > 1000) {
+      throw new Error("delay_typing_ms deve estar entre 0 e 1000.");
+    }
+
+    const tab = await chrome.tabs.create({ url: "https://www.google.com", active: true });
+    const tabId = tab.id;
+    try {
+      await waitForTabComplete(tabId, 20000);
+    } catch (e) {
+      const current = await chrome.tabs.get(tabId).catch(() => null);
+      throw new Error(
+        "Google não carregou em 20 segundos. URL atual: " +
+        (current?.url || tab.url || "desconhecida") + ". " + (e?.message || String(e))
+      );
+    }
+
+    const initialTab = await chrome.tabs.get(tabId);
+    const initialUrl = initialTab.url || "https://www.google.com";
+    const typing = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: async (searchTerm, delayMs) => {
+        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+        const el = document.querySelector('input[name="q"], textarea[name="q"]');
+        if (!el) {
+          return { ok: false, error: "Caixa de busca do Google não encontrada (input[name=q] ou textarea[name=q])." };
+        }
+        if (el.disabled || el.readOnly) {
+          return { ok: false, error: "A caixa de busca do Google está desabilitada ou somente leitura." };
+        }
+
+        el.focus();
+        const setter = el instanceof HTMLTextAreaElement
+          ? Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set
+          : Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+        if (setter) setter.call(el, "");
+        else el.value = "";
+        el.dispatchEvent(new InputEvent("input", {
+          bubbles: true, inputType: "deleteContentBackward", data: null
+        }));
+
+        for (const char of searchTerm) {
+          const key = char.length === 1 ? char : "Unidentified";
+          const code = char.length === 1 && /^[a-z]$/i.test(char)
+            ? "Key" + char.toUpperCase()
+            : char === " " ? "Space" : "Unidentified";
+          const keyCode = char.length === 1 ? char.toUpperCase().charCodeAt(0) : 0;
+          el.dispatchEvent(new KeyboardEvent("keydown", {
+            key, code, keyCode, which: keyCode, bubbles: true, cancelable: true
+          }));
+          el.dispatchEvent(new InputEvent("beforeinput", {
+            inputType: "insertText", data: char, bubbles: true, cancelable: true
+          }));
+          const current = String(el.value || "");
+          if (setter) setter.call(el, current + char);
+          else el.value = current + char;
+          el.dispatchEvent(new InputEvent("input", {
+            inputType: "insertText", data: char, bubbles: true
+          }));
+          el.dispatchEvent(new KeyboardEvent("keyup", {
+            key, code, keyCode, which: keyCode, bubbles: true
+          }));
+          if (delayMs > 0) await sleep(delayMs);
+        }
+
+        await sleep(300);
+        for (const type of ["keydown", "keypress", "keyup"]) {
+          el.dispatchEvent(new KeyboardEvent(type, {
+            key: "Enter", code: "Enter", keyCode: 13, which: 13,
+            bubbles: true, cancelable: true
+          }));
+        }
+        const form = el.form || el.closest("form");
+        if (!form) return { ok: false, error: "A caixa de busca foi encontrada, mas não pertence a um formulário." };
+        if (typeof form.requestSubmit === "function") form.requestSubmit();
+        else form.submit();
+        return { ok: true, typed: searchTerm, submitted: true };
+      },
+      args: [term, delayTypingMs]
+    });
+
+    const typingResult = typing?.[0]?.result;
+    if (!typingResult?.ok) {
+      throw new Error(typingResult?.error || "Não foi possível digitar e enviar a pesquisa no Google.");
+    }
+
+    try {
+      await new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          chrome.tabs.onUpdated.removeListener(onUpdated);
+          chrome.tabs.onRemoved.removeListener(onRemoved);
+          error ? reject(error) : resolve();
+        };
+        const onUpdated = async (updatedId, changeInfo) => {
+          if (updatedId !== tabId || changeInfo.status !== "complete") return;
+          try {
+            const current = await chrome.tabs.get(tabId);
+            if (current.url && current.url !== initialUrl) finish();
+          } catch (e) {
+            finish(new Error("Não foi possível verificar a página de resultados."));
+          }
+        };
+        const onRemoved = removedId => {
+          if (removedId === tabId) finish(new Error("A aba do Google foi fechada antes de carregar os resultados."));
+        };
+        const timer = setTimeout(async () => {
+          const current = await chrome.tabs.get(tabId).catch(() => null);
+          finish(new Error(
+            "TIMEOUT: os resultados do Google não carregaram em 20 segundos. URL atual: " +
+            (current?.url || "desconhecida")
+          ));
+        }, 20000);
+        chrome.tabs.onUpdated.addListener(onUpdated);
+        chrome.tabs.onRemoved.addListener(onRemoved);
+      });
+    } catch (e) {
+      const current = await chrome.tabs.get(tabId).catch(() => null);
+      throw new Error((e?.message || String(e)) + " URL atual: " + (current?.url || "desconhecida"));
+    }
+
+    if (scrollSuave) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        func: async () => {
+          const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+          let previousHeight = 0;
+          let stableHeightSteps = 0;
+          for (let step = 0; step < 500; step++) {
+            const height = Math.max(
+              document.documentElement?.scrollHeight || 0,
+              document.body?.scrollHeight || 0
+            );
+            if (height === previousHeight) stableHeightSteps++;
+            else stableHeightSteps = 0;
+            previousHeight = height;
+            const y = Math.min(window.scrollY + 200, height);
+            window.scrollTo({ top: y, behavior: "smooth" });
+            await sleep(50);
+            if (y >= height && stableHeightSteps >= 2) break;
+          }
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          await sleep(250);
+          return { scrollHeight: previousHeight, returnedToTop: window.scrollY < 100 };
+        }
+      });
+    }
+
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const visible = el => {
+          const style = getComputedStyle(el);
+          return style.display !== "none" && style.visibility !== "hidden";
+        };
+        const links = [...document.querySelectorAll("a")]
+          .filter(el => visible(el) && (el.innerText || "").trim() && el.href)
+          .slice(0, 30)
+          .map(el => ({ text: el.innerText.trim().slice(0, 160), href: el.href }));
+        const tables = [...document.querySelectorAll("table")]
+          .slice(0, 5)
+          .map(table => {
+            const rows = [...table.querySelectorAll("tr")]
+              .slice(0, 50)
+              .map(tr => [...tr.querySelectorAll("th,td")]
+                .slice(0, 10)
+                .map(cell => (cell.innerText || cell.textContent || "")
+                  .replace(/\s+/g, " ").trim().slice(0, 300)))
+              .filter(row => row.length >= 2 && row.filter(cell => cell).length >= 2);
+            return {
+              caption: (table.caption?.innerText || table.getAttribute("aria-label") || "").trim().slice(0, 300),
+              rows
+            };
+          })
+          .filter(table => table.rows.length >= 2);
+        return {
+          title: document.title,
+          url: location.href,
+          text: (document.body?.innerText || "").slice(0, 12000),
+          links,
+          buttons: [...document.querySelectorAll("button,[role=button],input[type=button],input[type=submit]")]
+            .filter(el => visible(el))
+            .map(el => (el.innerText || el.getAttribute("aria-label") || el.value || "").trim())
+            .filter(Boolean).slice(0, 20),
+          inputs: [...document.querySelectorAll("input,textarea")]
+            .filter(el => visible(el)).slice(0, 15)
+            .map(el => ({
+              placeholder: el.getAttribute("placeholder") || "",
+              name: el.getAttribute("name") || "",
+              type: el.getAttribute("type") || "text"
+            }))
+            .filter(el => el.placeholder || el.name),
+          tables
+        };
+      }
+    });
+    return { ok: true, result: { ...result, tabId, visible: true } };
+  }
+
   if (command.action === "search_google") {
     const term = String(command.args?.term || "").trim();
     if (!term || term.length > 200) {
