@@ -293,6 +293,16 @@ async function executeBridgeCommand(command) {
       }
     };
   }
+  if (command.action === "search_google") {
+    const term = String(command.args?.term || "").trim();
+    if (!term || term.length > 200) {
+      throw new Error("termo deve conter de 1 a 200 caracteres.");
+    }
+    const searchUrl = "https://www.google.com/search?" + new URLSearchParams({ q: term }).toString();
+    // Reutiliza o mesmo fluxo seguro de leitura: aguarda o carregamento,
+    // extrai title/url/text/links/tables e fecha a aba temporária em finally.
+    return await executeBridgeCommand({ action: "read_page_url", args: { url: searchUrl } });
+  }
   if (command.action === "scroll") {
     const direction = String(command.args?.direction || "down").toLowerCase();
     const rawAmount = command.args?.amount;

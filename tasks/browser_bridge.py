@@ -176,7 +176,7 @@ def _delete_command(command_id: str) -> None:
 
 
 def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> dict:
-    if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text", "get_tabs", "type_text", "new_tab", "close_tab", "scroll"}:
+    if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text", "get_tabs", "type_text", "new_tab", "close_tab", "scroll", "search_google"}:
         return {"status": "erro", "result": "Acao do navegador nao permitida."}
     if action == "read_page_url":
         raw_url = str(args.get("url", "")).strip()
@@ -198,6 +198,11 @@ def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> 
             args["url_contains"] = url_contains
         else:
             args.pop("url_contains", None)
+    if action == "search_google":
+        term = str(args.get("term", "")).strip()
+        if not term or len(term) > 200:
+            return {"status": "erro", "result": "termo deve conter de 1 a 200 caracteres."}
+        args["term"] = term
     if action == "scroll":
         direction = str(args.get("direction", "down")).strip().lower()
         amount = args.get("amount", 500)
@@ -317,6 +322,11 @@ def browser_navigate_active_tab(url: str) -> dict:
 def browser_new_tab(url: str) -> dict:
     """Abre uma URL HTTP/HTTPS completa em uma nova aba ativa do Chrome."""
     return _run_command("new_tab", url=url)
+
+
+def browser_search_google(termo: str) -> dict:
+    """Pesquisa um termo no Google em aba temporária e retorna conteúdo estruturado."""
+    return _run_command("search_google", term=termo)
 
 
 def browser_scroll(direcao: str = "down", quantidade: int = 500) -> dict:
