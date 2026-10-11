@@ -5,7 +5,9 @@ const POLL_ATTEMPTS = 3;
 const POLL_INTERVAL_MS = 5000;
 
 let pollTimer = null;
-let pollInFlight = false;
+let activePolls = 0;
+let ultimoPollComSucesso = Date.now();
+let watchdogTimer = null;
 
 async function fetchSettingsFromSW() {
   const response = await chrome.runtime.sendMessage({ type: "MYRA_GET_SETTINGS" });
@@ -21,13 +23,17 @@ async function bridgeFetch(path, settings, options = {}) {
   if (!token) throw new Error("Token nao configurado.");
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
+  console.log("[Offscreen] fetch iniciando", path);
   try {
-    return await fetch(api + path, {
+    const response = await fetch(api + path, {
       ...options,
       headers: { ...(options.headers || {}), "X-MYRA-BRIDGE-TOKEN": token },
       cache: "no-store",
       signal: controller.signal
     });
+    ultimoPollComSucesso = Date.now();
+    console.log("[Offscreen] fetch retornou", response.status, path);
+    return response;
   } finally {
     clearTimeout(timeout);
   }
@@ -44,8 +50,7 @@ async function executeInServiceWorker(command) {
 }
 
 async function pollOnce() {
-  if (pollInFlight) return;
-  pollInFlight = true;
+  activePolls++;
   try {
     const settings = await fetchSettingsFromSW();
     if (!settings.myraEnabled || !settings.myraToken) return;
@@ -80,8 +85,10 @@ async function pollOnce() {
         return;
       }
     }
+  } catch (e) {
+    console.warn("[MYRA Bridge Offscreen] poll falhou:", e?.name, e?.message || e);
   } finally {
-    pollInFlight = false;
+    activePolls = Math.max(0, activePolls - 1);
   }
 }
 
@@ -91,12 +98,23 @@ function startPolling() {
   pollTimer = setInterval(() => {
     pollOnce().catch(e => console.warn("[MYRA Bridge Offscreen] poll err:", e?.message || e));
   }, POLL_INTERVAL_MS);
+  if (!watchdogTimer) {
+    watchdogTimer = setInterval(() => {
+      const desde = Date.now() - ultimoPollComSucesso;
+      if (desde > 60000) {
+        console.warn("[Offscreen] watchdog: sem resposta de fetch há", Math.round(desde / 1000), "s; disparando novo poll");
+        pollOnce().catch(e => console.warn("[Offscreen] watchdog poll err:", e?.message || e));
+      }
+    }, 10000);
+  }
   pollOnce().catch(e => console.warn("[MYRA Bridge Offscreen] initial err:", e?.message || e));
 }
 
 function stopPolling() {
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = null;
+  if (watchdogTimer) clearInterval(watchdogTimer);
+  watchdogTimer = null;
   console.log("[MYRA Bridge Offscreen] polling parado");
 }
 
@@ -119,7 +137,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   if (message?.type === "MYRA_OFFSCREEN_STATUS") {
-    sendResponse({ ok: true, polling: Boolean(pollTimer), inFlight: pollInFlight });
+    sendResponse({ ok: true, polling: Boolean(pollTimer), inFlight: activePolls > 0, activePolls });
   }
 });
 
