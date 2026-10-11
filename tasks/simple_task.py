@@ -36,10 +36,39 @@ def _widget_notify(**kwargs):
         print(f"[WIDGET-NOTIFY] erro: {e}")
 
 
+# Ferramentas legadas que deixam de ser expostas ao planner quando
+# a ferramenta equivalente do Browser Bridge estiver registrada.
+# Isso altera somente o registro usado pelo planner; as rotas HTTP do agent.py
+# permanecem intactas para clientes legados, incluindo o Open WebUI.
+_FERRAMENTAS_LEGADAS_COM_BRIDGE = {
+    "open_url": {"browser_new_tab", "browser_navigate_active_tab"},
+    "read_page": {"browser_read_page", "browser_read_active_tab"},
+    "click_element": {"browser_click_text"},
+    "type_text": {"browser_type_text"},
+    "search_google": {"browser_search_google"},
+    "wait": {"browser_wait"},
+}
+
+
 def registrar_ferramenta(nome: str, fn, descricao: str = ""):
+    # Se o Bridge já foi registrado antes de uma ferramenta legada, não a
+    # reinsira no registro do planner.
+    equivalentes = _FERRAMENTAS_LEGADAS_COM_BRIDGE.get(nome)
+    if equivalentes and any(eq in FERRAMENTAS_DISPONIVEIS for eq in equivalentes):
+        FERRAMENTAS_DISPONIVEIS.pop(nome, None)
+        FERRAMENTAS_DESCRICOES.pop(nome, None)
+        return
+
     FERRAMENTAS_DISPONIVEIS[nome] = fn
     if descricao:
         FERRAMENTAS_DESCRICOES[nome] = descricao
+
+    # Quando uma ferramenta Bridge é registrada, retire apenas seu alias
+    # legado do planner. Rotas HTTP não dependem deste dicionário.
+    for legado, nomes_bridge in _FERRAMENTAS_LEGADAS_COM_BRIDGE.items():
+        if nome in nomes_bridge:
+            FERRAMENTAS_DISPONIVEIS.pop(legado, None)
+            FERRAMENTAS_DESCRICOES.pop(legado, None)
 
 
 def _llm(prompt: str, system: str = "", timeout: int = 120) -> str:
