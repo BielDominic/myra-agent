@@ -686,7 +686,14 @@ async function ensureOffscreenDocument() {
 
 function startInterval() {
   ensureOffscreenDocument()
-    .then(() => console.log("[MYRA Bridge] polling delegado ao offscreen document"))
+    .then(async () => {
+      console.log("[MYRA Bridge] polling delegado ao offscreen document");
+      try {
+        await chrome.runtime.sendMessage({ type: "MYRA_SYNC_SETTINGS" });
+      } catch (e) {
+        console.warn("[MYRA Bridge] falha ao sincronizar configurações com offscreen:", e?.message || e);
+      }
+    })
     .catch(e => console.warn("[MYRA Bridge] falha ao iniciar offscreen:", e?.message || e));
 }
 
@@ -731,6 +738,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         return;
       }
+      if (message.type === "MYRA_GET_SETTINGS") {
+        const d = await getSettings();
+        sendResponse({
+          ok: true,
+          settings: {
+            myraApi: d.myraApi || DEFAULT_API,
+            myraEnabled: Boolean(d.myraEnabled),
+            myraToken: d.myraToken || ""
+          }
+        });
+        return;
+      }
       if (message.type === "MYRA_STATUS") {
         const d = await getSettings();
         sendResponse({ ok: true, api: d.myraApi || DEFAULT_API, enabled: Boolean(d.myraEnabled), hasToken: Boolean(d.myraToken) });
@@ -745,6 +764,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (message.enabled && token.length < 24) throw new Error("Token curto (min 24).");
         await chrome.storage.local.set({ myraApi: api.origin, myraToken: token, myraEnabled: Boolean(message.enabled) });
         if (message.enabled) startInterval(); else stopInterval();
+        try { await chrome.runtime.sendMessage({ type: "MYRA_SYNC_SETTINGS" }); } catch (e) {}
         sendResponse({ ok: true });
         return;
       }
