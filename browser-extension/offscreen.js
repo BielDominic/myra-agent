@@ -141,7 +141,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   if (message?.type === "MYRA_OFFSCREEN_STATUS") {
-    sendResponse({ ok: true, polling: Boolean(pollTimer), inFlight: activePolls > 0, activePolls });
+    sendResponse({ ok: true, polling: Boolean(pollTimer), inFlight: false, activePolls });
   }
 });
 
