@@ -187,17 +187,17 @@ REGRAS:
 - NUNCA chame a mesma ferramenta com os mesmos argumentos mais de uma vez.
 - Se o objetivo pede abrir um site E pesquisar, sao duas acoes diferentes.
 - FINALIZE somente quando o objetivo estiver COMPLETAMENTE atendido.
-- Para "pesquisar X no Google", use open_url com "https://www.google.com/search?q=..." e codifique o termo na URL; nao use ferramenta de pesquisa por API.
-- Se "YouTube" for o site a abrir, use open_url com "https://www.youtube.com/results?search_query=...".
+- Para "pesquisar X no Google", use browser_search_google(termo); nao monte URL manualmente nem use open_url.
+- Para abrir resultados do YouTube, prefira browser_new_tab com a URL de pesquisa completa; use youtube_search apenas quando o objetivo pedir explicitamente metadados/resultados de videos.
 - Use youtube_search apenas quando o objetivo pedir explicitamente metadados/resultados de videos.
 - Se o usuario perguntar quais abas estao abertas, use browser_get_tabs.
-- Se o usuario pedir para abrir um site em uma nova aba, use browser_new_tab com a URL HTTP/HTTPS completa; nao substitua a aba atual.
+- Para abrir um site, dominio ou URL especifica, use browser_new_tab com a URL HTTP/HTTPS completa; nao use open_url para isso e nao substitua a aba atual.
 - Para aguardar um intervalo, use browser_wait(ms), com ms inteiro entre 100 e 30000.\n- Para pesquisar um termo no Google e ler os resultados, use browser_search_google(termo) em vez de montar URL manualmente.\n- Se o usuario pedir para rolar uma pagina, use browser_scroll com direcao "up", "down", "top" ou "bottom" e quantidade em pixels.\n- Se o usuario pedir para fechar uma aba, use browser_get_tabs primeiro se precisar identificar qual aba; depois use browser_close_tab com tab_id dessa aba. Sem aba especificada, browser_close_tab fecha a aba web alvo. Nunca tente fechar a interface do MYRA ou paginas internas do navegador.
 - Se o usuario pedir para preencher ou digitar em um campo de uma pagina aberta, use browser_type_text com campo (seletor CSS ou label exato) e texto; se o campo nao estiver claro, leia a pagina primeiro e nao adivinhe.
 - Se o usuario quiser ler uma aba especifica e voce nao sabe qual, use browser_get_tabs primeiro.
 - Se o usuario mencionar um site, dominio ou trecho de URL para ler, prefira browser_read_active_tab com o argumento url_contains correspondente; isso seleciona a aba certa mesmo com varias abas abertas.
 - Para "leia o que esta aberto no meu Chrome" sem indicar site, use browser_read_active_tab sem url_contains; o bridge escolhe a aba ativa ou a pagina web mais recente quando o Open WebUI esta ativo.
-- Se um passo devolveu links/URLs, o proximo passo pode ser open_url ou read_page.
+- Se um passo devolveu links/URLs, use browser_new_tab para abrir um link em nova aba ou browser_read_page para ler uma URL sem deixar aba residual; evite open_url/read_page legados quando houver ferramenta browser_* equivalente.
 - Se um passo devolveu texto de uma pagina, o proximo pode ser extrair info ou finalizar.
 
 FORMATO DA RESPOSTA (JSON puro):
