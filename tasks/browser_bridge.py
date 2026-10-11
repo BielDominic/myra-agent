@@ -176,7 +176,7 @@ def _delete_command(command_id: str) -> None:
 
 
 def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> dict:
-    if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text", "get_tabs"}:
+    if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text", "get_tabs", "type_text"}:
         return {"status": "erro", "result": "Acao do navegador nao permitida."}
     if action == "read_page_url":
         raw_url = str(args.get("url", "")).strip()
@@ -198,6 +198,15 @@ def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> 
             args["url_contains"] = url_contains
         else:
             args.pop("url_contains", None)
+    if action == "type_text":
+        campo = str(args.get("campo", "")).strip()
+        texto = str(args.get("texto", ""))
+        if not campo or len(campo) > 500:
+            return {"status": "erro", "result": "Informe campo (seletor CSS ou label), com até 500 caracteres."}
+        if len(texto) > 5000:
+            return {"status": "erro", "result": "texto deve ter no máximo 5000 caracteres."}
+        args["campo"] = campo
+        args["texto"] = texto
     if action == "click_text":
         text = str(args.get("text", "")).strip()
         if not text or len(text) > MAX_TEXT_LENGTH:
@@ -280,6 +289,11 @@ def browser_navigate_active_tab(url: str) -> dict:
     return _run_command("navigate_active_tab", url=url)
 
 
+def browser_type_text(campo: str, texto: str) -> dict:
+    """Substitui o conteúdo de um campo de formulário identificado por seletor CSS ou label exato."""
+    return _run_command("type_text", campo=campo, texto=texto)
+
+
 def browser_click_text(text: str) -> dict:
     """Clica em um botão/link visível cujo texto corresponda exatamente ao informado."""
     return _run_command("click_text", text=text)
@@ -305,6 +319,11 @@ def registrar_ferramentas(registrar_ferramenta) -> None:
         "browser_navigate_active_tab",
         browser_navigate_active_tab,
         "Abre uma URL http/https na aba ativa do Chrome do usuário, usando a extensão MYRA. Obrigatório: url='https://...'."
+    )
+    registrar_ferramenta(
+        "browser_type_text",
+        browser_type_text,
+        "Digita texto em um campo identificado por seletor CSS (ex.: #search, input[name=q], [placeholder=Pesquisar]) ou pelo texto exato de um label acessível. Obrigatórios: campo e texto. Falha se não encontrar ou se houver mais de uma correspondência; limpa o valor anterior e dispara eventos input/change."
     )
     registrar_ferramenta(
         "browser_click_text",

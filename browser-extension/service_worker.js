@@ -257,6 +257,72 @@ async function executeBridgeCommand(command) {
     await chrome.tabs.update(tab.id, { url: url.href });
     return { ok: true, result: { tabId: tab.id, url: url.href } };
   }
+  if (command.action === "type_text") {
+    const tab = await getTargetTab();
+    const campo = String(command.args?.campo || "").trim();
+    const texto = String(command.args?.texto ?? "");
+    if (!campo) throw new Error("Informe campo como seletor CSS ou label acessível.");
+    if (campo.length > 500) throw new Error("campo deve ter no máximo 500 caracteres.");
+    if (texto.length > 5000) throw new Error("texto deve ter no máximo 5000 caracteres.");
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (campo, texto) => {
+        const norm = s => String(s || "").replace(/\s+/g, " ").trim().toLocaleLowerCase();
+        const pareceSeletor = campo.startsWith("#") || campo.startsWith(".") ||
+          campo.startsWith("[") || campo.includes("=");
+        let matches = [];
+        if (pareceSeletor) {
+          try {
+            matches = [...document.querySelectorAll(campo)];
+          } catch (e) {
+            return { ok: false, error: "Seletor CSS inválido: " + (e?.message || String(e)) };
+          }
+        } else {
+          const labels = [...document.querySelectorAll("label")]
+            .filter(label => norm(label.innerText || label.textContent) === norm(campo));
+          if (labels.length > 1) {
+            return { ok: false, error: "Label ambíguo: mais de um label corresponde a '" + campo + "'." };
+          }
+          if (labels.length === 1) {
+            const label = labels[0];
+            const id = label.getAttribute("for");
+            const control = id ? document.getElementById(id) : label.control;
+            if (control) matches = [control];
+          }
+        }
+        if (matches.length === 0) {
+          return { ok: false, error: "Campo não encontrado para: '" + campo + "'." };
+        }
+        if (matches.length > 1) {
+          return { ok: false, error: "Campo ambíguo: o seletor '" + campo + "' corresponde a " + matches.length + " elementos." };
+        }
+        const el = matches[0];
+        if (!("value" in el)) {
+          return { ok: false, error: "O elemento encontrado não aceita texto (não possui propriedade value)." };
+        }
+        if (el.disabled || el.readOnly) {
+          return { ok: false, error: "O campo está desabilitado ou somente leitura." };
+        }
+        el.focus();
+        const proto = el instanceof HTMLTextAreaElement
+          ? HTMLTextAreaElement.prototype
+          : el instanceof HTMLInputElement
+            ? HTMLInputElement.prototype
+            : null;
+        const setter = proto && Object.getOwnPropertyDescriptor(proto, "value")?.set;
+        if (setter) setter.call(el, "");
+        else el.value = "";
+        if (setter) setter.call(el, texto);
+        else el.value = texto;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+        return { ok: true, result: { field: campo, typed: texto } };
+      },
+      args: [campo, texto]
+    });
+    if (result?.ok === false) throw new Error(result.error || "Não foi possível digitar no campo.");
+    return result || { ok: false, error: "Sem resultado ao digitar no campo." };
+  }
   if (command.action === "click_text") {
     const tab = await getTargetTab();
     const [{ result }] = await chrome.scripting.executeScript({
