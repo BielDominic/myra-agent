@@ -176,7 +176,7 @@ def _delete_command(command_id: str) -> None:
 
 
 def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> dict:
-    if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text", "get_tabs", "type_text", "new_tab", "close_tab", "scroll", "search_google"}:
+    if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text", "get_tabs", "type_text", "new_tab", "close_tab", "scroll", "search_google", "search_google_visivel"}:
         return {"status": "erro", "result": "Acao do navegador nao permitida."}
     if action == "read_page_url":
         raw_url = str(args.get("url", "")).strip()
@@ -203,6 +203,17 @@ def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> 
         if not term or len(term) > 200:
             return {"status": "erro", "result": "termo deve conter de 1 a 200 caracteres."}
         args["term"] = term
+    if action == "search_google_visivel":
+        term = str(args.get("term", "")).strip()
+        if not term or len(term) > 200:
+            return {"status": "erro", "result": "termo deve conter de 1 a 200 caracteres."}
+        args["term"] = term
+        delay = args.get("delay_typing_ms", 150)
+        if isinstance(delay, bool) or not isinstance(delay, int) or delay < 0 or delay > 1000:
+            return {"status": "erro", "result": "delay_typing_ms deve ser inteiro entre 0 e 1000."}
+        args["delay_typing_ms"] = delay
+        if "scroll_suave" in args:
+            args["scroll_suave"] = bool(args["scroll_suave"])
     if action == "scroll":
         direction = str(args.get("direction", "down")).strip().lower()
         amount = args.get("amount", 500)
@@ -337,6 +348,16 @@ def browser_search_google(termo: str) -> dict:
     return _run_command("search_google", term=termo)
 
 
+def browser_search_google_visivel(termo: str, delay_typing_ms: int = 150, scroll_suave: bool = False) -> dict:
+    """Pesquisa um termo no Google abrindo a aba visivelmente, digitando com delay e mantendo a aba aberta."""
+    return _run_command(
+        "search_google_visivel",
+        term=termo,
+        delay_typing_ms=delay_typing_ms,
+        scroll_suave=scroll_suave,
+    )
+
+
 def browser_scroll(direcao: str = "down", quantidade: int = 500) -> dict:
     """Rola a aba web alvo: up/down em pixels ou top/bottom."""
     return _run_command("scroll", direction=direcao, amount=quantidade)
@@ -402,6 +423,11 @@ def registrar_ferramentas(registrar_ferramenta) -> None:
         "browser_scroll",
         browser_scroll,
         "Rola a aba web alvo. Argumentos opcionais: direcao='up'|'down'|'top'|'bottom' e quantidade em pixels."
+    )
+    registrar_ferramenta(
+        "browser_search_google_visivel",
+        browser_search_google_visivel,
+        "Pesquisa um termo no Google abrindo a aba visivelmente: digita com delay (delay_typing_ms, 0-1000, padrao 150), faz scroll suave (scroll_suave, padrao false) e mantem a aba de resultados aberta. Preferir sobre browser_search_google quando o usuario quiser ver a pesquisa acontecendo. Obrigatorio: termo."
     )
     registrar_ferramenta(
         "browser_search_google",

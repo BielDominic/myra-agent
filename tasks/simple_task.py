@@ -45,7 +45,7 @@ _FERRAMENTAS_LEGADAS_COM_BRIDGE = {
     "read_page": {"browser_read_page", "browser_read_active_tab"},
     "click_element": {"browser_click_text"},
     "type_text": {"browser_type_text"},
-    "search_google": {"browser_search_google"},
+    "search_google": {"browser_search_google", "browser_search_google_visivel"},
     "wait": {"browser_wait"},
 }
 
