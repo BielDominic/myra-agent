@@ -176,7 +176,7 @@ def _delete_command(command_id: str) -> None:
 
 
 def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> dict:
-    if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text"}:
+    if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text", "get_tabs"}:
         return {"status": "erro", "result": "Acao do navegador nao permitida."}
     if action == "read_page_url":
         raw_url = str(args.get("url", "")).strip()
@@ -255,6 +255,11 @@ def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> 
     }
 
 
+def browser_get_tabs() -> dict:
+    """Lista abas HTTP/HTTPS abertas no Chrome, excluindo interfaces locais do MYRA."""
+    return _run_command("get_tabs")
+
+
 def browser_read_active_tab(url_contains: str = "") -> dict:
     """Lê título, URL e texto visível de uma aba do Chrome; opcionalmente seleciona por trecho da URL."""
     return _run_command("read_active_tab", url_contains=url_contains)
@@ -281,6 +286,11 @@ def browser_click_text(text: str) -> dict:
 
 
 def registrar_ferramentas(registrar_ferramenta) -> None:
+    registrar_ferramenta(
+        "browser_get_tabs",
+        browser_get_tabs,
+        "Lista até 50 abas HTTP/HTTPS abertas no Chrome, da mais recentemente acessada para a mais antiga. Exclui páginas internas, extensões e interfaces locais do Open WebUI. Retorna id, título, URL, estado ativo e janela."
+    )
     registrar_ferramenta(
         "browser_read_active_tab",
         browser_read_active_tab,

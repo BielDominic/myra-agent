@@ -109,6 +109,33 @@ function waitForTabComplete(tabId, timeoutMs = 20000) {
 }
 
 async function executeBridgeCommand(command) {
+  if (command.action === "get_tabs") {
+    const tabs = await chrome.tabs.query({});
+    const visibleTabs = tabs
+      .filter(tab => Number.isInteger(tab.id))
+      .filter(tab => {
+        try {
+          const url = new URL(tab.url || "");
+          if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+          const host = url.hostname.toLowerCase();
+          if (host === "::1" || host === "[::1]") return false;
+          if (["localhost", "127.0.0.1"].includes(host) && ["8080", "3000"].includes(url.port)) return false;
+          return true;
+        } catch {
+          return false;
+        }
+      })
+      .sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))
+      .slice(0, 50)
+      .map(tab => ({
+        id: tab.id,
+        title: tab.title || "",
+        url: tab.url || "",
+        active: Boolean(tab.active),
+        windowId: tab.windowId
+      }));
+    return { ok: true, result: { tabs: visibleTabs } };
+  }
   if (command.action === "read_active_tab") {
     const tab = await getTargetTab(command.args?.url_contains);
     const [{ result }] = await chrome.scripting.executeScript({

@@ -190,6 +190,8 @@ REGRAS:
 - Para "pesquisar X no Google", use open_url com "https://www.google.com/search?q=..." e codifique o termo na URL; nao use ferramenta de pesquisa por API.
 - Se "YouTube" for o site a abrir, use open_url com "https://www.youtube.com/results?search_query=...".
 - Use youtube_search apenas quando o objetivo pedir explicitamente metadados/resultados de videos.
+- Se o usuario perguntar quais abas estao abertas, use browser_get_tabs.
+- Se o usuario quiser ler uma aba especifica e voce nao sabe qual, use browser_get_tabs primeiro.
 - Se o usuario mencionar um site, dominio ou trecho de URL para ler, prefira browser_read_active_tab com o argumento url_contains correspondente; isso seleciona a aba certa mesmo com varias abas abertas.
 - Para "leia o que esta aberto no meu Chrome" sem indicar site, use browser_read_active_tab sem url_contains; o bridge escolhe a aba ativa ou a pagina web mais recente quando o Open WebUI esta ativo.
 - Se um passo devolveu links/URLs, o proximo passo pode ser open_url ou read_page.
