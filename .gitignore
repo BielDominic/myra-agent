@@ -1,4 +1,4 @@
-﻿# ============================================
+# ============================================
 # AMBIENTE VIRTUAL PYTHON
 # ============================================
 venv/
@@ -145,3 +145,13 @@ _backups/
 *.bak
 *.backup
 `) 
+
+
+# === MYRA: patches temporarios ===
+_patches/
+_*.py
+patch_*.py
+patch_*.ps1
+agent_log.txt
+Get-Content
+PS
