@@ -1,7 +1,7 @@
 import asyncio
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from playwright.sync_api import sync_playwright
 import os
 import imaplib
@@ -1101,6 +1101,52 @@ async def task_events(request: Request):
             "Connection": "keep-alive",
         },
     )
+
+
+
+
+# ============================================================
+# VISION LOCATE - acha elementos na tela por descricao textual
+# ============================================================
+
+class VisionLocateRequest(BaseModel):
+    descricao: str = Field(..., min_length=1, max_length=200)
+    screenshot_path: str | None = None
+
+class VisionTypeRequest(BaseModel):
+    descricao: str = Field(..., min_length=1, max_length=200)
+    texto: str = Field(..., max_length=5000)
+    limpar: bool = True
+
+@app.post("/vision_locate")
+def vision_locate_route(data: VisionLocateRequest):
+    """Acha um elemento na tela por descricao textual. Retorna coordenadas."""
+    print(f"[VISION_LOCATE] descricao={data.descricao!r}")
+    try:
+        from computer.vision_locate import vision_locate
+        return vision_locate(data.descricao, data.screenshot_path)
+    except Exception as e:
+        return {"status": "erro", "result": f"Erro: {type(e).__name__}: {e}"}
+
+@app.post("/vision_click")
+def vision_click_route(data: VisionLocateRequest):
+    """Localiza um elemento e clica no centro dele."""
+    print(f"[VISION_CLICK] descricao={data.descricao!r}")
+    try:
+        from computer.vision_locate import vision_click
+        return vision_click(data.descricao)
+    except Exception as e:
+        return {"status": "erro", "result": f"Erro: {type(e).__name__}: {e}"}
+
+@app.post("/vision_type")
+def vision_type_route(data: VisionTypeRequest):
+    """Localiza um campo, clica e digita texto."""
+    print(f"[VISION_TYPE] descricao={data.descricao!r}")
+    try:
+        from computer.vision_locate import vision_type
+        return vision_type(data.descricao, data.texto, data.limpar)
+    except Exception as e:
+        return {"status": "erro", "result": f"Erro: {type(e).__name__}: {e}"}
 
 
 # ============================================================
@@ -3057,6 +3103,31 @@ registrar_ferramenta(
 # FASE 24.2 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Ferramentas estruturadas (devolvem JSON)
 st.registrar_todas(registrar_ferramenta)
 browser_bridge.registrar_ferramentas(registrar_ferramenta)
+
+# ============================================================
+# VISION LOCATE - ferramentas do planner
+# ============================================================
+from computer.vision_locate import vision_locate as _vision_locate_fn
+from computer.vision_locate import vision_click as _vision_click_fn
+from computer.vision_locate import vision_type as _vision_type_fn
+
+registrar_ferramenta(
+    "vision_locate", _vision_locate_fn,
+    "Acha um elemento na tela pela descricao textual. Retorna coordenadas x, y. Use quando precisar saber onde clicar em algo que voce ve na tela mas nao sabe a posicao. Obrigatorio: descricao (ex: 'botao de login', 'New Chat')."
+)
+registrar_ferramenta(
+    "vision_click", _vision_click_fn,
+    "Acha um elemento pela descricao e clica no centro dele. Use quando quiser clicar em algo visivel sem saber as coordenadas. Obrigatorio: descricao."
+)
+registrar_ferramenta(
+    "vision_type", _vision_type_fn,
+    "Acha um campo pela descricao, clica e digita texto. Use para preencher formularios visualmente. Obrigatorio: descricao e texto."
+)
+
+# ============================================================
+# VISION LOCATE - ferramentas do planner
+# ============================================================
+
 
 
 # FASE 24.4 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Injeta _widget_set no simple_task (evita import circular)
