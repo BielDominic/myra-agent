@@ -155,3 +155,5 @@ patch_*.ps1
 agent_log.txt
 Get-Content
 PS
+*.pt
+*.onnx
