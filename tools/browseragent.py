@@ -92,6 +92,36 @@ class Tools:
     # VISAO
     # ============================================================
 
+
+    # ============================================================
+    # VISION LOCATE - acha elementos na tela por descricao
+    # ============================================================
+
+    def vision_locate(
+        self,
+        descricao: str = Field(..., description="Descricao do elemento (ex: 'botao de login', 'New Chat')"),
+    ) -> str:
+        """Acha um elemento na tela pela descricao textual. Retorna as coordenadas (x, y) do centro do elemento. Use quando precisar saber ONDE clicar em algo que voce ve na tela mas nao sabe a posicao. Exemplos: 'botao de login', 'campo de busca', 'New Chat', 'icone de configuracoes'."""
+        r = self._post("/vision_locate", {"descricao": descricao})
+        return r.get("result", "sem resultado")
+
+    def vision_click(
+        self,
+        descricao: str = Field(..., description="Descricao do elemento a clicar"),
+    ) -> str:
+        """Acha um elemento pela descricao visual e clica no centro dele. Use quando quiser clicar em algo visivel sem saber as coordenadas exatas. Exemplos: 'botao login', 'aba de config', 'icone de pesquisa'."""
+        r = self._post("/vision_click", {"descricao": descricao})
+        return r.get("result", "sem resultado")
+
+    def vision_type(
+        self,
+        descricao: str = Field(..., description="Descricao do campo (ex: 'campo de email')"),
+        texto: str = Field(..., description="Texto a digitar"),
+    ) -> str:
+        """Acha um campo pela descricao visual, clica nele e digita o texto. Use para preencher formularios visualmente sem saber o seletor CSS. Exemplos: 'campo de email', 'campo de senha', 'barra de pesquisa'."""
+        r = self._post("/vision_type", {"descricao": descricao, "texto": texto})
+        return r.get("result", "sem resultado")
+
     def take_screenshot(self) -> str:
         """Tira um print da pagina atual."""
         r = self._post("/screenshot", {})

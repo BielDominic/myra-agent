@@ -232,6 +232,10 @@ REGRAS:
 - Para "leia o que esta aberto no meu Chrome" sem indicar site, use browser_read_active_tab sem url_contains; o bridge escolhe a aba ativa ou a pagina web mais recente quando o Open WebUI esta ativo.
 - Se um passo devolveu links/URLs, use browser_new_tab para abrir um link em nova aba ou browser_read_page para ler uma URL sem deixar aba residual; evite open_url/read_page legados quando houver ferramenta browser_* equivalente.
 - Se um passo devolveu texto de uma pagina, o proximo pode ser extrair info ou finalizar.
+- Se o usuario pedir para CLICAR em algo visivel na tela (botao, icone, aba) sem saber as coordenadas, use vision_click(descricao). Ex: vision_click(descricao="botao de login"). NAO use read_page_structured pra isso.
+- Se o usuario pedir para ENCONTRAR onde esta um elemento visual (retornar x, y), use vision_locate(descricao). Ex: vision_locate(descricao="icone de configuracoes").
+- Se o usuario pedir para PREENCHER um campo visualmente, use vision_type(descricao, texto). Ex: vision_type(descricao="campo de email", texto="user@example.com").
+- DIFERENCA CRITICA: read_page_structured le o DOM/HTML (pra SABER o que tem). vision_locate/vision_click/vision_type olham os PIXELS da tela (pra ACHAR visualmente e agir). Se o objetivo pede pra CLICAR em algo visivel sem coordenadas, prefira vision_click.
 
 FORMATO DA RESPOSTA (JSON puro):
 
