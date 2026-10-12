@@ -48,6 +48,7 @@ This document inventories public tools and bridge actions found in `tools/browse
 | `email_list` | Lista e-mails recentes da caixa de entrada. | `quantidade: int = 5` | `email_list(quantidade=10)` |
 | `email_read` | Lê um e-mail pelo índice, 0 = mais recente. | `indice: int = 0` | `email_read(indice=0)` |
 | `email_search` | Pesquisa por termo no assunto/corpo. | `termo: str, quantidade: int = 10` | `email_search(termo="interview", quantidade=5)` |
+| `email_delete` (API) | Exclui mensagem identificada pelo índice, sujeito à implementação/configuração atual. | `indice` no payload da rota | `POST /email_delete` |
 | `email_send` | Envia e-mail. | `para: str, assunto: str, corpo: str` | `email_send(para="a@example.com", assunto="Hello", corpo="Hi")` |
 | `email_reply` | Responde ao e-mail identificado por índice. | `indice: int = 0, corpo: str` | `email_reply(indice=0, corpo="Obrigado pela mensagem.")` |
 | `email_mark_read` | Marca como lido. | `indice: int = 0` | `email_mark_read(indice=0)` |
@@ -124,6 +125,12 @@ This document inventories public tools and bridge actions found in `tools/browse
 
 | Tool | Descrição | Parâmetros | Exemplo |
 |---|---|---|---|
+| `youtube_transcript` (API) | Rota do backend para obter transcrição de vídeo. | `url` (payload conforme schema da rota) | `POST /youtube_transcript` com URL do vídeo |
+| `youtube_summarize` (API) | Rota do backend para resumir transcrição/vídeo. | Payload conforme schema da rota | `POST /youtube_summarize` |
+| `youtube_ask` (API) | Rota do backend para perguntas sobre vídeo/transcrição. | Payload conforme schema da rota | `POST /youtube_ask` |
+| `youtube_save` (API) | Guarda uma transcrição. | Payload conforme schema da rota | `POST /youtube_save` |
+| `youtube_list` (API) | Lista transcrições guardadas. | Payload conforme schema da rota, se exigido | `POST /youtube_list` |
+| `youtube_read` (API) | Lê uma transcrição guardada. | Payload conforme schema da rota | `POST /youtube_read` |
 | `youtube_search` | Pesquisa vídeos com yt-dlp. | `query: str, max_resultados: int = 5` | `youtube_search(query="AI agents", max_resultados=3)` |
 | `youtube_channel_latest` | Obtém vídeos recentes de canal/handle/URL. | `channel: str, max_resultados: int = 3` | `youtube_channel_latest(channel="@OpenAI", max_resultados=3)` |
 | `get_youtube_transcript` | Obtém transcrição, priorizando idiomas indicados. | `url: str, idiomas: list = ["en", "pt"]` | `get_youtube_transcript(url="https://youtube.com/watch?v=VIDEO_ID", idiomas=["pt", "en"])` |
