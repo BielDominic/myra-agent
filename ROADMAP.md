@@ -1,447 +1,953 @@
-# 🎯 ROADMAP — MYRA (Agente de Computador Local)
+# MYRA - Roadmap
 
-Última atualização: 04/10/2026
+[![Progress](https://img.shields.io/badge/Progress-67%25-orange?style=flat-square)]()
+[![Active Phase](https://img.shields.io/badge/Active_Phase-25-blue?style=flat-square)]()
+[![Phases](https://img.shields.io/badge/Phases-31-purple?style=flat-square)]()
+[![Updated](https://img.shields.io/badge/Updated-2026-10-12-lightgrey?style=flat-square)]()
+[![Language](https://img.shields.io/badge/Language-PT--BR_%7C_EN-green?style=flat-square)]()
 
-Este arquivo lista TUDO que falta fazer no projeto. Marca `[x]` conforme avança.
-Revê a cada 2 semanas — o que era prioridade muda.
+**Documentacao disponivel em:** [Portugues](#portugues) | [English](#english)
 
 ---
 
-## ✅ CONCLUÍDAS
+<a id="portugues"></a>
 
-### Base (FASE 0-10, 15, 16, 17, 18, 19)
+## Portugues (PT-BR)
+
+### Legenda
+
+| Badge | Significado |
+|-------|-------------|
+| ![Concluida](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square) | Fase 100% pronta |
+| ![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square) | Sendo trabalhada |
+| ![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square) | Planejada, nao iniciada |
+| ![Bloqueada](https://img.shields.io/badge/-BLOQUEADA-red?style=flat-square) | Depende de outra fase |
+| ![Cancelada](https://img.shields.io/badge/-CANCELADA-red?style=flat-square) | Descartada |
+
+### Indice
+
+- [Fases concluidas](#pt-fases-concluidas)
+- [Proximas fases](#pt-proximas-fases)
+- [Medio prazo](#pt-medio-prazo)
+- [Longo prazo](#pt-longo-prazo)
+- [Canceladas](#pt-canceladas)
+- [Resumo por area](#pt-resumo)
+
+---
+
+<a id="pt-fases-concluidas"></a>
+
+### Fases concluidas
+
+#### Base (FASES 0-10, 15-19)
+![Concluida](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)
+
 - [x] Servidor FastAPI (`agent.py`) com ~90 rotas
-- [x] Navegador (Playwright): `open_url`, `search_google`, `search_in_page`, `click_element`, `click_by_description`, `type_text`, `press_key`, `go_back`, `wait`, `read_page`
-- [x] Visão (`see_image` via llama-server Qwen3.5-0.8B)
+- [x] Navegador (Playwright): 10 rotas
+- [x] Visao (`see_image` via llama-server)
 - [x] Email (IMAP/SMTP Gmail): 10 rotas
-- [x] Utilitárias: `get_current_time`, `save_note`, `read_notes`, `get_weather`, `run_python`
+- [x] Utilitarias: hora, notas, clima, run_python
 - [x] Arquivos (workspace): 7 rotas
-- [x] Web search (DuckDuckGo scraping)
-- [x] Automação PC (FASE 16): 12 rotas (mouse, teclado, janelas)
-- [x] Chats (FASE 10): `pc_get_chats`, `pc_remove_chat`, `pc_remove_chats_by_search`, `pc_remove_all_chats`, `pc_rename_chat`
+- [x] Web search (DuckDuckGo)
+- [x] Automacao PC (FASE 16): 12 rotas
+- [x] Chats (FASE 10): 5 rotas
 - [x] CodeAgent (FASE 17): 21 tools
-- [x] Sistema de confirmação de ações destrutivas
+- [x] Sistema de confirmacao de acoes destrutivas
 
-### YouTube (FASE 20)
-- [x] `youtube_transcript`, `youtube_summarize`, `youtube_ask`, `youtube_save`, `youtube_list`, `youtube_read`
-- [x] FASE 20.1 — Detecção automática de idioma (`_yt_probe_langs`, `_yt_escolher_idioma`)
-- [x] Fix de encoding de VTT duplamente codificado
+#### YouTube (FASE 20)
+![Concluida](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)
 
-### Agente (FASE 22-light)
-- [x] `tasks/simple_task.py` — planner + loop + retry
+- [x] 6 rotas: transcript, summarize, ask, save, list, read
+- [x] FASE 20.1 - Deteccao automatica de idioma
+- [x] Fix de encoding de VTT
+
+#### Agente autonomo (FASE 22-light)
+![Concluida](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)
+
+- [x] `tasks/simple_task.py` - planner + loop + retry
 - [x] Rota `/task_simple`
-- [x] Ferramentas registradas com descrições
-- [x] Integração com Open WebUI (`task_run` na Tool BrowserAgent)
-- [x] Contexto acumulado entre passos
-- [x] Fix do bug multilíngue (força português)
+- [x] Integracao com Open WebUI (`task_run`)
+- [x] Fix do bug multilingue
 
-### Autonomia (FASE 24)
-- [x] **24.1** — Loop adaptativo (LLM decide 1 passo por vez, olhando histórico)
-- [x] **24.2** — Ferramentas estruturadas:
-  - [x] `search_google_structured` — retorna lista de links
-  - [x] `web_search_structured` — retorna lista de links parseados
-  - [x] `youtube_search` — busca vídeos no YouTube
-  - [x] `youtube_channel_latest` — último vídeo de um canal
-  - [x] `get_current_url` — URL atual do navegador
-  - [x] `read_page_structured` — devolve links + botões + campos em JSON
-- [x] Fix: `urllib` → `requests` (bug `getaddrinfo` no FastAPI)
-- [x] Fix: `youtube_channel_latest` normaliza handle + `/videos` + fallback por nome
-- [x] Testado end-to-end no chat: "ache o último vídeo do Post Malone" funcionou
+#### Autonomia real (FASE 24.1-24.3)
+![Concluida](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)
 
-### Infraestrutura
+- [x] **24.1** - Loop adaptativo (LLM decide 1 passo por vez)
+- [x] **24.2** - Ferramentas estruturadas (6)
+- [x] **24.3** - Cancelamento real via flag compartilhada
+
+#### Bridge + Widget (FASE 24.4)
+![Concluida](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)
+
+- [x] Extensao Chrome MV3 com 12 ferramentas
+- [x] Polling serializado (setTimeout recursivo)
+- [x] Widget Tauri com modo pilula/quadrado
+- [x] Balao de fala, boca animada, olhos seguindo mouse
+- [x] Travar posicao + sempre no topo (separados)
+- [x] Configuracoes: tema, compacto, som, DND
+
+#### Infraestrutura
+![Concluida](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)
+
 - [x] Ollama com CUDA v12
-- [x] Open WebUI 0.11.4 em Docker
-- [x] nginx proxy com `sub_filter` (troca "Open WebUI" por "MYRA")
-- [x] Scripts `iniciar_myra.ps1` e `iniciar_visao.ps1`
+- [x] Open WebUI em Docker
+- [x] nginx proxy com sub_filter
+- [x] Scripts `abrir_tudo.ps1`
 - [x] Chrome com perfil dedicado
-- [x] `OPENWEBUI_API_KEY` salva permanentemente
+- [x] `OPENWEBUI_API_KEY` em env var
 
-### Documentação
-- [x] README.md reescrito (estado atual, arquitetura, aprendizados)
-- [x] ROADMAP.md criado (~230 itens)
-- [x] .gitignore robusto (API keys, temporários, backups)
+#### Documentacao
+![Concluida](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)
+
+- [x] README.md profissional com badges
+- [x] HANDOFF.md
+- [x] ROADMAP.md (este arquivo)
+- [x] .gitignore robusto
 
 ---
 
-## 🚧 PRÓXIMAS (ordem sugerida)
+<a id="pt-proximas-fases"></a>
 
-### FASE 22.5+ — Polimento do agente
-- [ ] **22.5** — Melhorar o `responder` (respostas diretas, menos "o objetivo parece ser")
-- [ ] **22.6** — Mais ferramentas no `task_run` (email, arquivos, PC)
-- [ ] **22.7** — Logs estruturados das tasks
-- [ ] **22.8** — Modo "vou perguntar antes de agir"
+### Proximas fases
 
-### FASE 24.4 — Widget visual da MYRA (prioridade alta!)
-**Uma UI bonita (estilo Coucou) que mostra a MYRA trabalhando em tempo real.**
-- [ ] **24.4.1** — Endpoints `/task_status`, `/task_cancel`, `/task_events` (SSE) no `agent.py`
-- [ ] **24.4.2** — Estrutura do widget (pywebview: Python + HTML/CSS/JS)
-- [ ] **24.4.3** — Design bonito (glassmorphism, mascote animado, transições)
-- [ ] **24.4.4** — Mascote animado (SVG + CSS animations)
-- [ ] **24.4.5** — Estados visuais (idle, running, done, error)
-- [ ] **24.4.6** — Aprovação visual (botões Sim/Não pra ações destrutivas)
-- [ ] **24.4.7** — Notificações Windows quando termina
-- [ ] **24.4.8** — Auto-start com o agent
-- [ ] **24.4.9** — Esconder/mostrar com atalho de teclado
+#### FASE 25 - Visao com Coordenadas
+![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
 
-**Stack escolhida:** pywebview (Python + WebView2 do Windows)
-**Inspiração:** feder-cr/coucou (visual, não código)
-**Tempo estimado:** 3-5 dias pro MVP bonito
+**Meta:** vision_locate(descricao) retorna coordenadas X/Y
 
-### FASE 24.3 — Recuperação de erros
-- [ ] **24.3** — Quando ferramenta falha, LLM tenta alternativa de forma inteligente
-- [ ] Detecção de loop (ações repetidas)
-- [ ] Fallback entre ferramentas similares
-- [ ] Retry com estratégia diferente
+- [ ] `/vision_locate(descricao)` - retorna dict com x, y, confidence
+- [ ] `/vision_click(descricao)` - localiza + clica
+- [ ] `/vision_type(campo_desc, texto)` - localiza + digita
+- [ ] Normalizacao de coordenadas (DPI, resolucao)
+- [ ] Fallback: OCR via Tesseract
+- [ ] Integracao no planner
 
-### FASE 24.5 — Persistência SQLite
-- [ ] **24.5** — Tasks sobrevivem a restart do agent
-- [ ] Histórico de tasks consultável
+**Ferramentas free:** llm-eyes (ja tem), Tesseract, OmniParser, UI-TARS
+
+#### FASE 26 - Ciclo Autonomo Completo
+![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
+
+**Meta:** LLM age, observa, verifica, corrige
+
+- [ ] _observar() - screenshot + analise apos cada acao
+- [ ] _verificar(objetivo) - check se atingiu
+- [ ] _recuperar(erro) - nova estrategia
+- [ ] Task persistence (retomar apos crash)
+- [ ] Pausa/continua sem perder contexto
+
+#### FASE 27 - Overlay Visual TARS
+![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
+
+**Meta:** ver o cursor animado, highlight, borda ativa
+
+- [ ] Janela Tauri transparente click-through
+- [ ] Canal de eventos (SSE /task_events ja existe)
+- [ ] Cursor animado
+- [ ] Highlight do alvo antes de clicar
+- [ ] Estados visuais (observando/pensando/executando)
+- [ ] Trajetoria do mouse visivel
+- [ ] Cancelamento visual
+
+#### FASE 28 - Controle Mobile
+![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
+
+##### 28.1 - Infra de acesso remoto (Tailscale)
+- [ ] Tailscale no PC Windows
+- [ ] Tailscale no iPhone
+- [ ] IP estavel (100.x.y.z)
+
+##### 28.2 - Telegram Bot
+- [ ] Bot no @BotFather
+- [ ] Webhook em agent.py
+- [ ] Comandos: /task, /status, /cancel, /screenshot, /see
+- [ ] Notificacao automatica ao concluir
+- [ ] Autenticacao por chat_id
+
+##### 28.3 - App iOS Nativo
+- [ ] App shell (Swift/SwiftUI)
+- [ ] Tela de chat
+- [ ] Widget lock screen
+- [ ] Widget home screen
+- [ ] Siri Shortcuts
+- [ ] Notificacoes APNs
+
+#### FASE 29 - Integracao CarPlay
+![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
+
+**Caminho:** Audio App (aparece como player no CarPlay)
+
+- [ ] Base iOS shell + Tailscale
+- [ ] TTS (Piper) + STT (Whisper)
+- [ ] CarPlay Audio App framework
+- [ ] MPNowPlayingInfoCenter
+- [ ] Botoes do volante mapeados
+- [ ] Publicacao (opcional: TestFlight)
+
+#### FASE 30 - Distribuicao
+![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
+
+- [ ] cargo tauri build + .exe
+- [ ] Instalador NSIS
+- [ ] Auto-start no boot
+- [ ] Bandeja do sistema
+- [ ] Notificacao nativa Windows
+- [ ] Indicador de conexao no widget
+
+#### FASE 31 - Interface Propria
+![Bloqueada](https://img.shields.io/badge/-BLOQUEADA-red?style=flat-square)
+
+**Bloqueada por:** FASE 27 (overlay) + FASE 30 (distribuicao)
+
+- [ ] Design (Figma)
+- [ ] Frontend Svelte/SolidJS
+- [ ] WebSocket com agent.py
+- [ ] Chat com markdown
+- [ ] Painel de tasks em execucao
+- [ ] Migracao do Open WebUI
+
+---
+
+<a id="pt-medio-prazo"></a>
+
+### Medio prazo
+
+#### FASE 22.5+ - Polimento do agente
+- [ ] Melhorar responder (respostas diretas)
+- [ ] Mais ferramentas no task_run
+- [ ] Logs estruturados
+- [ ] Modo "vou perguntar antes de agir"
+
+#### FASE 24.5 - Persistencia SQLite
+- [ ] Tasks sobrevivem a restart
+- [ ] Historico consultavel
 - [ ] Schema SQLite
 
-### FASE 34 — Telegram (controle remoto)
-- [ ] **34.1** — Bot básico (criar bot, `telegram_bot.py`, whitelist)
-- [ ] **34.2** — Comandos especiais (`/status`, `/screenshot`, `/task`, `/yt`, `/email`, `/stop`, `/panic`)
-- [ ] **34.3** — Segurança (rate limit, confirmação dupla, log)
-- [ ] **34.4** — Auto-start (script `iniciar_tudo.ps1` ou serviço Windows)
-- [ ] **34.5** — Wake-on-LAN + túnel (PC sleep, DDNS, Cloudflare Tunnel)
-- [ ] **34.6** — Multi-canal (Discord, WhatsApp, SMS, web app)
+#### FASE 14 - Voz e Audio
+- [ ] TTS + Whisper
+- [ ] Wake word ("MYRA, ...")
+- [ ] Conversa por voz continua
+- [ ] Escolha de voz
 
-#### FASE 8.5 — Stealth Browser (contingência, só se necessário)
+#### FASE 20.5-20.11 - YouTube avancado
+- [ ] Whisper pra videos sem legenda
+- [ ] Vimeo, outros sites
+- [ ] Extrair MP3
+- [ ] Baixar video
+- [ ] Playlists
+- [ ] Cache de transcricoes
+- [ ] Vision sobre frames
 
-**Status:** mapeado, **não iniciado**. Só executar se sites começarem a bloquear.
+#### FASE 12 - Geracao de midia
+- [ ] Geracao de imagem (API free)
+- [ ] Edicao (crop, resize, filtro)
+- [ ] Remocao de fundo
+- [ ] Upscale
+- [ ] OCR
 
-**Gatilhos pra executar:**
-- Google/DuckDuckGo retornando CAPTCHA com frequência
-- Sites específicos bloqueando a MYRA
-- Login travando em sites que exigem sessão
+#### FASE 15 - Arquivos avancados
+- [ ] Ler PDFs
+- [ ] Ler Excel/CSV
+- [ ] Ler Word/DOCX
+- [ ] Ler PowerPoint
+- [ ] Converter formatos
+- [ ] Acesso fora do workspace
+- [ ] Compactar/descompactar
+- [ ] Hash, diff
+- [ ] Monitorar pastas
 
-**Etapas (2-3 dias):**
-- [ ] **8.5.1** — Básico: args extras no `launch_persistent_context`
-- [ ] **8.5.2** — Fingerprint automático: `playwright-stealth`
-- [ ] **8.5.3** — Fingerprint consistente por seed: `MYRA_SEED=42`
-- [ ] **8.5.4** — Helpers humanos: `human_move_mouse`, `human_type`, `human_scroll`
-- [ ] **8.5.5** — Atualizar `click_element`, `type_text` pra usar helpers
-- [ ] **8.5.6** — Testar em `bot.sannysoft.com`, `creepjs`, `nowsecure.nl`
+#### Web avancado
+- [ ] Baixar arquivos via navegador
+- [ ] Formularios multi-step
+- [ ] Login automatico
+- [ ] Screenshot de elemento
+- [ ] Extrair tabelas
+- [ ] Detectar CAPTCHA
+- [ ] iFrames e shadow DOM
+- [ ] Cookies e localStorage
+- [ ] Bloquear ads/trackers
 
-**Se 8.5 não for suficiente:** considerar alternativas externas (dots, camoufox, etc.)
-como **último recurso**. Nenhuma integrada por padrão.
-### FASE 27 — Stealth Browser externo (dots / invisible_playwright_mcp)
-**Solução mapeada:** [feder-cr/dots](https://github.com/feder-cr/dots)
-- Firefox patchado em C++ (stealth no motor, não em JS)
-- Fingerprint consistente por seed
-- Mouse/teclado humanos
-- Suporte nativo a proxy
-- MCP server: `invisible_playwright_mcp`
+#### Computer Use avancado
+- [ ] Drag and drop
+- [ ] Clipboard
+- [ ] Maximizar/minimizar janelas
+- [ ] Abrir/fechar apps
+- [ ] Processos
+- [ ] Popups inesperados
+- [ ] Multiplos monitores
 
-**Como integraria:** rodar como serviço paralelo, adicionar tool `web_task_dots(url, objetivo)`.
+#### Vision avancado
+- [ ] Modelo maior (Qwen2.5-VL-7B)
+- [ ] Identificar botoes
+- [ ] Coordenadas de elemento (coberto pela FASE 25)
+- [ ] Comparar antes/depois
+- [ ] Detectar erro visual
+- [ ] OCR embutido
+- [ ] Deteccao de CAPTCHA
 
-**Bloqueios:** depende de OpenRouter (não é local); projeto muito novo (2 dias de vida).
+#### Coding Agent avancado
+- [ ] Corrigir bugs automaticamente
+- [ ] Rodar projeto inteiro
+- [ ] Git via tool
+- [ ] Criar projeto completo
+- [ ] Analisar projeto
+- [ ] Instalar dependencias
+- [ ] Rodar testes + interpretar
+- [ ] Loop: rodar -> ver erro -> corrigir -> rodar
 
-**Gatilhos:** quando FASE 8.5 não for suficiente.
-**Tempo estimado:** 1-2 dias.
+#### Email avancado
+- [ ] Baixar anexos
+- [ ] Analisar anexos
+- [ ] Encaminhar
+- [ ] Criar rascunho
+- [ ] Arquivar
+- [ ] Detectar prazos
+- [ ] Resumir thread
 
----
+#### Info do mundo
+- [ ] Noticias (RSS)
+- [ ] Precos (acoes, cripto)
+- [ ] Mapas / rotas
+- [ ] Traducao
+- [ ] Cotacao de moedas
+- [ ] Google Calendar
+- [ ] Google Contacts
+- [ ] RAG em PDFs locais
 
-## 📅 MÉDIO PRAZO
+#### Windows / Sistema
+- [ ] Instalar software (winget)
+- [ ] Atualizar software
+- [ ] Configurar apps
+- [ ] Diagnostico
+- [ ] Monitorar recursos
+- [ ] Backup automatico
 
-### Voz e áudio
-- [ ] **FASE 14** — TTS + Whisper (MYRA fala e ouve)
-- [ ] **14.1** — Wake word ("MYRA, ...")
-- [ ] **14.2** — Conversa por voz contínua
-- [ ] **14.3** — Escolha de voz (masculina/feminina, sotaque)
-- [ ] **14.4** — Ditado por voz em qualquer campo
-- [ ] **FASE 20.5** — Whisper pra vídeos sem legenda
-- [ ] **20.6** — Suporte a outros sites de vídeo (Vimeo, etc.)
-- [ ] **20.7** — Extrair áudio/MP3 de vídeos
-- [ ] **20.8** — Baixar vídeo completo
-- [ ] **20.9** — Playlists (transcrever/resumir playlist inteira)
-- [ ] **20.10** — Cache de transcrições
-- [ ] **20.11** — Vision sobre frames do vídeo
+#### Terminal
+- [ ] Interpretar output
+- [ ] PowerShell estruturado
+- [ ] CMD estruturado
+- [ ] npm/yarn/pnpm
+- [ ] pip/poetry/uv
+- [ ] Docker
+- [ ] Ollama
+- [ ] Git
+- [ ] Timeout adaptativo
+- [ ] Background + polling
 
-### Geração de mídia
-- [ ] **FASE 12** — Geração de imagem (API externa grátis)
-- [ ] **12.1** — Edição de imagem (crop, resize, filtro)
-- [ ] **12.2** — Geração de vídeo
-- [ ] **12.3** — Remoção de fundo
-- [ ] **12.4** — Upscale de imagem
-- [ ] **12.5** — OCR de imagens
+#### Agendamento / Notificacoes
+- [ ] Scheduler (tarefas em horarios)
+- [ ] Tarefas recorrentes
+- [ ] Tarefas com delay
+- [ ] Notificacoes Windows (toast)
+- [ ] Notificacoes por voz
+- [ ] Notificacoes email
+- [ ] Notificacoes Telegram/Discord
 
-### Arquivos
-- [ ] **15.6** — Ler PDFs
-- [ ] **15.7** — Ler Excel/CSV
-- [ ] **15.8** — Ler Word/DOCX
-- [ ] **15.9** — Ler PowerPoint/PPTX
-- [ ] **15.10** — Converter formatos
-- [ ] **15.11** — Acesso a arquivos FORA do workspace
-- [ ] **15.12** — Compactar/descompactar (zip, 7z, tar)
-- [ ] **15.13** — Hash de arquivos
-- [ ] **15.14** — Comparar arquivos (diff)
-- [ ] **15.15** — Monitorar mudanças em pasta
-- [ ] **15.16** — Organizar Downloads automaticamente
-- [ ] **15.17** — Classificar documentos por tipo
+#### Memoria
+- [ ] Preferencias
+- [ ] Contexto de projetos
+- [ ] Historico de tarefas
+- [ ] Memoria episodica
+- [ ] Busca semantica
+- [ ] Esquecer/apagar
 
-### Navegador / Web
-- [ ] **Web 1** — Baixar arquivos via navegador
-- [ ] **Web 2** — Preencher formulários multi-step
-- [ ] **Web 3** — Login automático em sites
-- [ ] **Web 4** — Abrir/fechar/mudar entre abas
-- [ ] **Web 5** — Screenshot de elemento específico
-- [ ] **Web 6** — Extrair tabela de página HTML
-- [ ] **Web 7** — Detectar CAPTCHA e resolver visualmente
-- [ ] **Web 8** — Aguardar elemento aparecer
-- [ ] **Web 9** — iFrames e shadow DOM
-- [ ] **Web 10** — Cookies e localStorage
-- [ ] **Web 11** — Bloquear anúncios/trackers
-- [ ] **Web 12** — Modo headless opcional
-- [ ] **Web 13** — Proxy/rotação de IP
-- [ ] **Web 14** — Scraping estruturado
+#### Memoria de ferramentas
+- [ ] Router inteligente
+- [ ] Nao repetir erro
+- [ ] Preferir solucao que funcionou
+- [ ] Historico de sessoes
+- [ ] Sumarizacao periodica
 
-### Computer Use avançado
-- [ ] **CU 1** — Arrastar (drag and drop)
-- [ ] **CU 2** — Copiar/colar via clipboard
-- [ ] **CU 3** — Maximizar/minimizar janelas
-- [ ] **CU 4** — Abrir aplicativo pelo nome
-- [ ] **CU 5** — Fechar aplicativo
-- [ ] **CU 6** — Processos (listar, matar)
-- [ ] **CU 7** — Detectar janela por título parcial
-- [ ] **CU 8** — Lidar com popups inesperados
-- [ ] **CU 9** — Resolução adaptativa
-- [ ] **CU 10** — Múltiplos monitores
-- [ ] **CU 11** — Overlay em tempo real
-- [ ] **CU 12** — Estados visuais (👁 OBSERVING, 🧠 THINKING, etc.)
-- [ ] **CU 13** — Trajetória do mouse visível
-- [ ] **CU 14** — Alvo destacado antes de clicar
-- [ ] **CU 15** — Cancelamento visual
+#### Seguranca
+- [ ] Cofre de senhas
+- [ ] 2FA para acoes criticas
+- [ ] Log de tudo
+- [ ] Reverter acao destrutiva
+- [ ] Sandbox para codigo
+- [ ] Limites de gasto
 
-### Vision avançado
-- [ ] **Vision 1** — Trocar Qwen3.5-0.8B por modelo maior
-- [ ] **Vision 2** — Identificar botões e elementos
-- [ ] **Vision 3** — Retornar coordenadas de elemento
-- [ ] **Vision 4** — Comparar tela antes/depois
-- [ ] **Vision 5** — Detectar mudança de página
-- [ ] **Vision 6** — Confirmar visualmente que ação funcionou
-- [ ] **Vision 7** — Detectar erro visual
-- [ ] **Vision 8** — Ler tabelas de imagens
-- [ ] **Vision 9** — Ler menus e dropdowns
-- [ ] **Vision 10** — OCR embutido
-- [ ] **Vision 11** — Detecção de CAPTCHA visual
-- [ ] **Vision 12** — Achar ícones por descrição textual
-
-### Coding Agent
-- [ ] **Code 1** — Corrigir bugs automaticamente
-- [ ] **Code 2** — Rodar projeto inteiro
-- [ ] **Code 3** — Git (commit, branch, push via tool)
-- [ ] **Code 4** — Criar projeto completo do zero
-- [ ] **Code 5** — Analisar projeto inteiro
-- [ ] **Code 6** — Instalar dependências automaticamente
-- [ ] **Code 7** — Rodar testes e interpretar resultado
-- [ ] **Code 8** — Loop: rodar → ver erro → corrigir → rodar
-- [ ] **Code 9** — LSP integration
-- [ ] **Code 10** — Refatorar múltiplos arquivos
-
-### Email / Comunicação
-- [ ] **Email 1** — Baixar anexos
-- [ ] **Email 2** — Salvar anexos no workspace
-- [ ] **Email 3** — Analisar anexos
-- [ ] **Email 4** — Encaminhar email
-- [ ] **Email 5** — Criar rascunho
-- [ ] **Email 6** — Arquivar email
-- [ ] **Email 7** — Identificar emails que exigem resposta
-- [ ] **Email 8** — Detectar prazos e compromissos
-- [ ] **Email 9** — Resumir thread inteira
-- [ ] **Email 10** — Aplicar labels/tags
-- [ ] **Email 11** — Busca avançada
-- [ ] **Email 12** — Suporte a múltiplas contas
-
-### Info do mundo
-- [ ] **Info 1** — Notícias (RSS ou API)
-- [ ] **Info 2** — Preços (ações, cripto, produtos)
-- [ ] **Info 3** — Mapas / rotas / localização
-- [ ] **Info 4** — Tradução automática
-- [ ] **Info 5** — Cotação de moedas
-- [ ] **Info 6** — Calendário (Google Calendar)
-- [ ] **Info 7** — Contatos (Google Contacts)
-- [ ] **Info 8** — Busca em PDFs/documentos locais (RAG)
-
-### Análise de dados
-- [ ] **Data 1** — Abrir CSV direto
-- [ ] **Data 2** — Abrir Excel direto
-- [ ] **Data 3** — Análise automática de gastos
-- [ ] **Data 4** — Dashboard interativo
-- [ ] **Data 5** — Alertas baseados em dados
-- [ ] **Data 6** — Exportar gráficos
-
-### Windows / Sistema
-- [ ] **Win 1** — Instalar software (winget/choco)
-- [ ] **Win 2** — Atualizar software
-- [ ] **Win 3** — Configurar aplicações
-- [ ] **Win 4** — Diagnóstico de problemas
-- [ ] **Win 5** — Monitorar recursos (CPU, RAM, disco, GPU)
-- [ ] **Win 6** — Alertas de sistema
-- [ ] **Win 7** — Backup automático
-- [ ] **Win 8** — Restaurar backup
-
-### Terminal / Execução
-- [ ] **Term 1** — Interpretar output e decidir próximo comando
-- [ ] **Term 2** — Comandos PowerShell estruturados
-- [ ] **Term 3** — Comandos CMD estruturados
-- [ ] **Term 4** — npm/yarn/pnpm
-- [ ] **Term 5** — pip/poetry/uv
-- [ ] **Term 6** — Docker (list, run, stop, logs)
-- [ ] **Term 7** — Ollama (list, pull, run)
-- [ ] **Term 8** — Git (status, diff, commit, push, pull, branch)
-- [ ] **Term 9** — Timeout adaptativo
-- [ ] **Term 10** — Comando em background + polling
-
-### Agendamento / Notificações
-- [ ] **FASE 31** — Scheduler (tarefas em horários)
-- [ ] **31.1** — Tarefas recorrentes
-- [ ] **31.2** — Tarefas com delay
-- [ ] **FASE 32** — Notificações Windows (toast)
-- [ ] **32.1** — Notificações por voz
-- [ ] **32.2** — Notificações por email
-- [ ] **32.3** — Notificações Telegram/Discord
-
-### Memória
-- [ ] **FASE 33** — Memória de preferências
-- [ ] **33.1** — Memória de contexto de projetos
-- [ ] **33.2** — Memória de tarefas (histórico)
-- [ ] **33.3** — Memória episódica
-- [ ] **33.4** — Schema de memória
-- [ ] **33.5** — Busca semântica na memória
-- [ ] **33.6** — Esquecer/apagar memória específica
-
-### Memória de ferramentas
-- [ ] **Mem 1** — Router inteligente (saber qual ferramenta usar)
-- [ ] **Mem 2** — Não repetir erro conhecido
-- [ ] **Mem 3** — Preferir solução que funcionou antes
-- [ ] **Mem 4** — Histórico de sessões
-- [ ] **Mem 5** — Sumarização periódica
-
-### Segurança
-- [ ] **Sec 1** — Cofre de senhas (criptografado)
-- [ ] **Sec 2** — 2FA para ações críticas
-- [ ] **Sec 3** — Log de tudo que a MYRA faz
-- [ ] **Sec 4** — Reverter ação destrutiva (undo)
-- [ ] **Sec 5** — Sandbox para execução de código
-- [ ] **Sec 6** — Limites de gasto (se usar API paga)
-
-### Dispositivos
-- [ ] **Dev 1** — Acesso pelo celular (web app)
-- [ ] **Dev 2** — App desktop nativo (Electron/Tauri)
-- [ ] **Dev 3** — Sincronização entre máquinas
-- [ ] **Dev 4** — Acesso remoto (fora de casa)
-
-### Testes / Qualidade
-- [ ] **Test 1** — Testes automatizados do `agent.py`
-- [ ] **Test 2** — Testes das Tools
-- [ ] **Test 3** — CI/CD no GitHub
-- [ ] **Test 4** — Health check endpoint
-- [ ] **Test 5** — Métricas de uso (latência, erros)
-- [ ] **Test 6** — Teste de carga
-
-### Documentação
-- [ ] **Doc 1** — Atualizar README.md (feito, mas revisar)
-- [ ] **Doc 2** — Documentar cada tool
-- [ ] **Doc 3** — Documentar arquitetura
-- [ ] **Doc 4** — Guia de troubleshooting
-- [ ] **Doc 5** — Vídeo demo
-- [ ] **Doc 6** — Diagrama de fluxo
+#### Testes / Qualidade
+- [ ] Testes automatizados
+- [ ] CI/CD
+- [ ] Health check
+- [ ] Metricas de uso
+- [ ] Teste de carga
 
 ---
 
-## 🔮 LONGO PRAZO
+<a id="pt-longo-prazo"></a>
 
-### Meta / Estratégico
-- [ ] **Meta 1** — MYRA rodando 24/7 em background
-- [ ] **Meta 2** — MYRA acorda sozinha e faz tarefas agendadas
-- [ ] **Meta 3** — MYRA aprende preferências do usuário
-- [ ] **Meta 4** — MYRA proativa
-- [ ] **Meta 5** — MYRA multi-usuário (perfis)
-- [ ] **Meta 6** — Auto-diagnóstico
-- [ ] **Meta 7** — Auto-recovery
-- [ ] **Meta 8** — Multi-agent (Researcher, Coder, etc.)
+### Longo prazo
 
-### FASE 40 — UI própria da MYRA
-Só quando o Open WebUI virar gargalo real.
+#### FASE 40 - UI propria (bloqueada)
+![Bloqueada](https://img.shields.io/badge/-BLOQUEADA-red?style=flat-square)
 
-- [ ] **40.1** — Design da UI (Figma ou similar)
-- [ ] **40.2** — Frontend React/Svelte do zero
-- [ ] **40.3** — WebSocket entre frontend e `agent.py`
-- [ ] **40.4** — Chat com markdown rendering
-- [ ] **40.5** — Sidebar de conversas
-- [ ] **40.6** — Painel de tasks em execução
-- [ ] **40.7** — Overlay visual de computer use
-- [ ] **40.8** — Botões de ação rápida
-- [ ] **40.9** — Migração do Open WebUI
-- [ ] **40.10** — Deploy e testes
+**Bloqueada por:** FASE 27 + FASE 30 + FASE 31
 
-**Gatilhos pra começar a FASE 40:**
-- FASE 24+ completa (agent maduro)
-- Open WebUI limita features que a MYRA precisa (overlay, task manager visual)
-- Tempo dedicado (2-4 semanas)
+- [ ] Design (Figma)
+- [ ] Frontend do zero
+- [ ] WebSocket
+- [ ] Sidebar de conversas
+- [ ] Painel de tasks
+- [ ] Overlay visual integrado
+- [ ] Botoes de acao rapida
+- [ ] Migracao do Open WebUI
+
+#### Meta / Estrategico
+- [ ] MYRA rodando 24/7 em background
+- [ ] MYRA acorda sozinha e faz tarefas agendadas
+- [ ] MYRA aprende preferencias
+- [ ] MYRA proativa
+- [ ] Multi-usuario (perfis)
+- [ ] Auto-diagnostico
+- [ ] Auto-recovery
+- [ ] Multi-agent (Researcher, Coder, etc.)
 
 ---
 
-## ❌ REMOVIDAS / CANCELADAS
+<a id="pt-canceladas"></a>
 
-### FASE 9 — Customização profunda do Open WebUI
-**Decisão (04/10/2026):** manter Open WebUI oficial + customizações mínimas. Já temos o suficiente (nginx proxy, Tools, modo Local Agent).
-- ~~9.5 — Remover "(Open WebUI)" do título~~
-- ~~9.6 — Trocar textos internos~~
-- ~~9.7 — Logo e favicon custom~~
-- ~~9.8 — CSS custom~~
-- ~~9.9 — JS custom~~
-- ~~9.10 — System prompt global~~
-- ~~9.11 — Splash screen custom~~
-- ~~9.12 — Modelo "MYRA" como padrão~~
-- ~~9.13 — Fork do Open WebUI~~ (cancelado)
-- ~~9.14 — UI própria do zero~~ (movida pra FASE 40, futuro distante)
+### Canceladas
 
----
+#### FASE 9 - Customizacao profunda do Open WebUI
+![Cancelada](https://img.shields.io/badge/-CANCELADA-red?style=flat-square)
 
-## 📊 RESUMO POR ÁREA
+**Decisao (04/10/2026):** manter Open WebUI oficial + customizacoes minimas.
 
-| Área | Itens |
-|---|---|
-| Autonomia (FASE 24 + 22.x) | 18 |
-| Interface / Canais (FASE 34) | 17 |
-| Widget visual (FASE 24.4) | 9 |
-| Stealth (FASE 8.5 — contingência) | 6 |
-| Voz / Áudio | 5 |
-| YouTube / Mídia | 12 |
-| Geração de mídia | 6 |
-| Arquivos | 12 |
-| Navegador / Web | 14 |
-| Computer Use | 15 |
-| Vision | 12 |
-| Coding Agent | 10 |
-| Email / Comunicação | 12 |
-| Info do mundo | 8 |
-| Análise de dados | 6 |
-| Windows / Sistema | 8 |
-| Terminal | 10 |
-| Agendamento / Notificações | 7 |
-| Memória | 7 |
-| Memória de ferramentas | 5 |
-| Segurança | 6 |
-| Dispositivos | 4 |
-| Testes | 6 |
-| Documentação | 6 |
-| Meta / Estratégico | 8 |
-| FASE 40 (UI própria) | 10 |
-
-**Total: ~244 itens.**
+- ~~9.5 - Remover "(Open WebUI)" do titulo~~
+- ~~9.6 - Trocar textos internos~~
+- ~~9.7 - Logo e favicon custom~~
+- ~~9.8 - CSS custom~~
+- ~~9.9 - JS custom~~
+- ~~9.10 - System prompt global~~
+- ~~9.11 - Splash screen custom~~
+- ~~9.12 - Modelo "MYRA" como padrao~~
+- ~~9.13 - Fork do Open WebUI~~
 
 ---
 
-## 🎯 PRÓXIMA AÇÃO
+<a id="pt-resumo"></a>
 
-**Antes de começar qualquer fase nova:**
+### Resumo por area
 
-1. Commit geral (Tool atualizada + ROADMAP):
-   ```powershell
-   cd C:\computer-agent
-   git add -A
-   git commit -m "feat: FASE 24 concluida + ROADMAP atualizado (24.4, 8.5, 27)"
-   git push
+| Area | Itens | Status |
+|------|-------|--------|
+| Autonomia (FASE 22.x + 24.x) | 18 | ![80%](https://img.shields.io/badge/-80%25-brightgreen?style=flat-square) |
+| Visao com coordenadas (FASE 25) | 6 | ![0%](https://img.shields.io/badge/-0%25-yellow?style=flat-square) |
+| Ciclo autonomo (FASE 26) | 5 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Overlay TARS (FASE 27) | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Mobile (FASE 28) | 17 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| CarPlay (FASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Distribuicao (FASE 30) | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
+| Interface propria (FASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |
+| Voz / Audio (FASE 14) | 5 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| YouTube (FASE 20) | 12 | ![70%](https://img.shields.io/badge/-70%25-green?style=flat-square) |
+| Geracao de midia (FASE 12) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Arquivos (FASE 15) | 12 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
+| Web | 14 | ![50%](https://img.shields.io/badge/-50%25-yellow?style=flat-square) |
+| Computer Use | 15 | ![70%](https://img.shields.io/badge/-70%25-yellow?style=flat-square) |
+| Vision | 12 | ![40%](https://img.shields.io/badge/-40%25-yellow?style=flat-square) |
+| Coding Agent | 10 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
+| Email | 12 | ![50%](https://img.shields.io/badge/-50%25-yellow?style=flat-square) |
+| Info do mundo | 8 | ![20%](https://img.shields.io/badge/-20%25-lightgrey?style=flat-square) |
+| Analise de dados | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Windows / Sistema | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Terminal | 10 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Agendamento | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Memoria | 12 | ![15%](https://img.shields.io/badge/-15%25-lightgrey?style=flat-square) |
+| Seguranca | 6 | ![45%](https://img.shields.io/badge/-45%25-yellow?style=flat-square) |
+| Dispositivos | 4 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Testes | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
+| Documentacao | 6 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
+| Meta / Estrategico | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+
+**Total: ~244 itens**
+**Progresso geral: ~67%**
+
+---
+
+## Proxima acao
+
+**FASE 25 - Visao com Coordenadas** (`vision_locate`)
+
+1. Investigar como `/see` fala com llm-eyes
+2. Provar conceito com prompt de coordenadas
+3. Implementar `/vision_locate(descricao)`
+4. Normalizar coordenadas (DPI, resolucao)
+5. Integrar no planner
+6. Testar end-to-end
+
+**Meta:** MYRA consegue "ver" um botao pela descricao e clicar nele.
+
+---
+
+<a id="english"></a>
+
+## English (EN)
+
+### Legend
+
+| Badge | Meaning |
+|-------|---------|
+| ![Done](https://img.shields.io/badge/-DONE-brightgreen?style=flat-square) | Phase 100% complete |
+| ![In Progress](https://img.shields.io/badge/-IN_PROGRESS-yellow?style=flat-square) | Currently being worked on |
+| ![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square) | Planned, not started |
+| ![Blocked](https://img.shields.io/badge/-BLOCKED-red?style=flat-square) | Depends on another phase |
+| ![Cancelled](https://img.shields.io/badge/-CANCELLED-red?style=flat-square) | Discarded |
+
+### Contents
+
+- [Completed phases](#en-completed)
+- [Next phases](#en-next)
+- [Mid-term](#en-mid)
+- [Long-term](#en-long)
+- [Cancelled](#en-cancelled)
+- [Summary by area](#en-summary)
+
+---
+
+<a id="en-completed"></a>
+
+### Completed phases
+
+#### Base (PHASES 0-10, 15-19)
+![Done](https://img.shields.io/badge/-DONE-brightgreen?style=flat-square)
+
+- [x] FastAPI server (agent.py) with ~90 routes
+- [x] Browser (Playwright): 10 routes
+- [x] Vision (see_image via llama-server)
+- [x] Email (IMAP/SMTP Gmail): 10 routes
+- [x] Utilities: time, notes, weather, run_python
+- [x] Files (workspace): 7 routes
+- [x] Web search (DuckDuckGo)
+- [x] PC automation (PHASE 16): 12 routes
+- [x] Chats (PHASE 10): 5 routes
+- [x] CodeAgent (PHASE 17): 21 tools
+- [x] Destructive-action confirmation system
+
+#### YouTube (PHASE 20)
+![Done](https://img.shields.io/badge/-DONE-brightgreen?style=flat-square)
+
+- [x] 6 routes: transcript, summarize, ask, save, list, read
+- [x] PHASE 20.1 - Automatic language detection
+- [x] VTT encoding fix
+
+#### Autonomous agent (PHASE 22-light)
+![Done](https://img.shields.io/badge/-DONE-brightgreen?style=flat-square)
+
+- [x] tasks/simple_task.py - planner + loop + retry
+- [x] Route /task_simple
+- [x] Open WebUI integration (task_run)
+- [x] Multilingual bug fix
+
+#### Real autonomy (PHASE 24.1-24.3)
+![Done](https://img.shields.io/badge/-DONE-brightgreen?style=flat-square)
+
+- [x] **24.1** - Adaptive loop (LLM decides one step at a time)
+- [x] **24.2** - Structured tools (6)
+- [x] **24.3** - Real cancellation via shared flag
+
+#### Bridge + Widget (PHASE 24.4)
+![Done](https://img.shields.io/badge/-DONE-brightgreen?style=flat-square)
+
+- [x] Chrome MV3 extension with 12 tools
+- [x] Serialized polling (recursive setTimeout)
+- [x] Tauri widget with pill/square mode
+- [x] Speech bubble, animated mouth, eyes following mouse
+- [x] Lock position + always on top (separate)
+- [x] Settings: theme, compact, sound, DND
+
+#### Infrastructure
+![Done](https://img.shields.io/badge/-DONE-brightgreen?style=flat-square)
+
+- [x] Ollama with CUDA v12
+- [x] Open WebUI in Docker
+- [x] nginx proxy with sub_filter
+- [x] Scripts abrir_tudo.ps1
+- [x] Chrome with dedicated profile
+- [x] OPENWEBUI_API_KEY in env var
+
+#### Documentation
+![Done](https://img.shields.io/badge/-DONE-brightgreen?style=flat-square)
+
+- [x] Professional README.md with badges
+- [x] HANDOFF.md
+- [x] ROADMAP.md (this file)
+- [x] Robust .gitignore
+
+---
+
+<a id="en-next"></a>
+
+### Next phases
+
+#### PHASE 25 - Vision with Coordinates
+![In Progress](https://img.shields.io/badge/-IN_PROGRESS-yellow?style=flat-square)
+
+**Goal:** vision_locate(description) returns X/Y coordinates
+
+- [ ] /vision_locate(description) - returns dict with x, y, confidence
+- [ ] /vision_click(description) - locates + clicks
+- [ ] /vision_type(field_desc, text) - locates + types
+- [ ] Coordinate normalization (DPI, resolution)
+- [ ] Fallback: OCR via Tesseract
+- [ ] Planner integration
+
+**Free tools:** llm-eyes (already running), Tesseract, OmniParser, UI-TARS
+
+#### PHASE 26 - Complete Autonomous Loop
+![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square)
+
+**Goal:** LLM acts, observes, verifies, recovers
+
+- [ ] _observe() - screenshot + analysis after each action
+- [ ] _verify(goal) - check if achieved
+- [ ] _recover(error) - new strategy
+- [ ] Task persistence (resume after crash)
+- [ ] Pause/resume without losing context
+
+#### PHASE 27 - TARS Visual Overlay
+![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square)
+
+**Goal:** see animated cursor, highlight, active border
+
+- [ ] Transparent click-through Tauri window
+- [ ] Event channel (SSE /task_events already exists)
+- [ ] Animated cursor
+- [ ] Target highlight before click
+- [ ] Visual states (observing/thinking/executing)
+- [ ] Visible mouse trajectory
+- [ ] Visual cancellation
+
+#### PHASE 28 - Mobile Control
+![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square)
+
+##### 28.1 - Remote access infrastructure (Tailscale)
+- [ ] Tailscale on Windows PC
+- [ ] Tailscale on iPhone
+- [ ] Stable IP (100.x.y.z)
+
+##### 28.2 - Telegram Bot
+- [ ] Bot in @BotFather
+- [ ] Webhook in agent.py
+- [ ] Commands: /task, /status, /cancel, /screenshot, /see
+- [ ] Auto-notification on completion
+- [ ] chat_id authentication
+
+##### 28.3 - Native iOS App
+- [ ] App shell (Swift/SwiftUI)
+- [ ] Chat screen
+- [ ] Lock screen widget
+- [ ] Home screen widget
+- [ ] Siri Shortcuts
+- [ ] APNs notifications
+
+#### PHASE 29 - CarPlay Integration
+![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square)
+
+**Path:** Audio App (appears as player in CarPlay)
+
+- [ ] iOS shell base + Tailscale
+- [ ] TTS (Piper) + STT (Whisper)
+- [ ] CarPlay Audio App framework
+- [ ] MPNowPlayingInfoCenter
+- [ ] Steering wheel buttons mapped
+- [ ] Publishing (optional: TestFlight)
+
+#### PHASE 30 - Distribution
+![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square)
+
+- [ ] cargo tauri build + .exe
+- [ ] NSIS installer
+- [ ] Auto-start on boot
+- [ ] System tray
+- [ ] Native Windows notification
+- [ ] Connection indicator in widget
+
+#### PHASE 31 - Custom Interface
+![Blocked](https://img.shields.io/badge/-BLOCKED-red?style=flat-square)
+
+**Blocked by:** PHASE 27 (overlay) + PHASE 30 (distribution)
+
+- [ ] Design (Figma)
+- [ ] Svelte/SolidJS frontend
+- [ ] WebSocket with agent.py
+- [ ] Chat with markdown
+- [ ] Running tasks panel
+- [ ] Open WebUI migration
+
+---
+
+<a id="en-mid"></a>
+
+### Mid-term
+
+#### PHASE 22.5+ - Agent polish
+- [ ] Improve respond (direct answers)
+- [ ] More tools in task_run
+- [ ] Structured logs
+- [ ] "I'll ask before acting" mode
+
+#### PHASE 24.5 - SQLite persistence
+- [ ] Tasks survive restart
+- [ ] Queryable history
+- [ ] SQLite schema
+
+#### PHASE 14 - Voice and Audio
+- [ ] TTS + Whisper
+- [ ] Wake word ("MYRA, ...")
+- [ ] Continuous voice conversation
+- [ ] Voice selection
+
+#### PHASE 20.5-20.11 - Advanced YouTube
+- [ ] Whisper for videos without captions
+- [ ] Vimeo, other sites
+- [ ] Extract MP3
+- [ ] Download video
+- [ ] Playlists
+- [ ] Transcript cache
+- [ ] Vision on frames
+
+#### PHASE 12 - Media generation
+- [ ] Image generation (free API)
+- [ ] Editing (crop, resize, filter)
+- [ ] Background removal
+- [ ] Upscale
+- [ ] OCR
+
+#### PHASE 15 - Advanced files
+- [ ] Read PDFs
+- [ ] Read Excel/CSV
+- [ ] Read Word/DOCX
+- [ ] Read PowerPoint
+- [ ] Convert formats
+- [ ] Access outside workspace
+- [ ] Compress/decompress
+- [ ] Hash, diff
+- [ ] Watch folders
+
+#### Advanced web
+- [ ] Download files via browser
+- [ ] Multi-step forms
+- [ ] Auto-login
+- [ ] Element screenshot
+- [ ] Extract tables
+- [ ] Detect CAPTCHA
+- [ ] iFrames and shadow DOM
+- [ ] Cookies and localStorage
+- [ ] Block ads/trackers
+
+#### Advanced Computer Use
+- [ ] Drag and drop
+- [ ] Clipboard
+- [ ] Maximize/minimize windows
+- [ ] Open/close apps
+- [ ] Processes
+- [ ] Unexpected popups
+- [ ] Multiple monitors
+
+#### Advanced Vision
+- [ ] Larger model (Qwen2.5-VL-7B)
+- [ ] Identify buttons
+- [ ] Element coordinates (covered by PHASE 25)
+- [ ] Compare before/after
+- [ ] Detect visual errors
+- [ ] Embedded OCR
+- [ ] CAPTCHA detection
+
+#### Advanced Coding Agent
+- [ ] Auto-fix bugs
+- [ ] Run entire project
+- [ ] Git via tool
+- [ ] Create complete project
+- [ ] Analyze project
+- [ ] Install dependencies
+- [ ] Run tests + interpret
+- [ ] Loop: run -> see error -> fix -> run
+
+#### Advanced Email
+- [ ] Download attachments
+- [ ] Analyze attachments
+- [ ] Forward
+- [ ] Create draft
+- [ ] Archive
+- [ ] Detect deadlines
+- [ ] Summarize thread
+
+#### World info
+- [ ] News (RSS)
+- [ ] Prices (stocks, crypto)
+- [ ] Maps / routes
+- [ ] Translation
+- [ ] Currency rates
+- [ ] Google Calendar
+- [ ] Google Contacts
+- [ ] RAG on local PDFs
+
+#### Windows / System
+- [ ] Install software (winget)
+- [ ] Update software
+- [ ] Configure apps
+- [ ] Diagnosis
+- [ ] Monitor resources
+- [ ] Auto backup
+
+#### Terminal
+- [ ] Interpret output
+- [ ] Structured PowerShell
+- [ ] Structured CMD
+- [ ] npm/yarn/pnpm
+- [ ] pip/poetry/uv
+- [ ] Docker
+- [ ] Ollama
+- [ ] Git
+- [ ] Adaptive timeout
+- [ ] Background + polling
+
+#### Scheduling / Notifications
+- [ ] Scheduler (tasks at times)
+- [ ] Recurring tasks
+- [ ] Delayed tasks
+- [ ] Windows notifications (toast)
+- [ ] Voice notifications
+- [ ] Email notifications
+- [ ] Telegram/Discord notifications
+
+#### Memory
+- [ ] Preferences
+- [ ] Project context
+- [ ] Task history
+- [ ] Episodic memory
+- [ ] Semantic search
+- [ ] Forget/delete
+
+#### Tool memory
+- [ ] Smart router
+- [ ] Don't repeat errors
+- [ ] Prefer solutions that worked
+- [ ] Session history
+- [ ] Periodic summarization
+
+#### Security
+- [ ] Password vault
+- [ ] 2FA for critical actions
+- [ ] Full audit log
+- [ ] Revert destructive action
+- [ ] Sandbox for code execution
+- [ ] Spending limits
+
+#### Testing / Quality
+- [ ] Automated tests
+- [ ] CI/CD
+- [ ] Health check
+- [ ] Usage metrics
+- [ ] Load testing
+
+---
+
+<a id="en-long"></a>
+
+### Long-term
+
+#### PHASE 40 - Custom UI (blocked)
+![Blocked](https://img.shields.io/badge/-BLOCKED-red?style=flat-square)
+
+**Blocked by:** PHASE 27 + PHASE 30 + PHASE 31
+
+- [ ] Design (Figma)
+- [ ] Frontend from scratch
+- [ ] WebSocket
+- [ ] Conversation sidebar
+- [ ] Tasks panel
+- [ ] Integrated visual overlay
+- [ ] Quick action buttons
+- [ ] Open WebUI migration
+
+#### Strategic / Meta
+- [ ] MYRA running 24/7 in background
+- [ ] MYRA wakes up alone and does scheduled tasks
+- [ ] MYRA learns preferences
+- [ ] Proactive MYRA
+- [ ] Multi-user (profiles)
+- [ ] Self-diagnosis
+- [ ] Self-recovery
+- [ ] Multi-agent (Researcher, Coder, etc.)
+
+---
+
+<a id="en-cancelled"></a>
+
+### Cancelled
+
+#### PHASE 9 - Deep Open WebUI customization
+![Cancelled](https://img.shields.io/badge/-CANCELLED-red?style=flat-square)
+
+**Decision (2026-10-04):** keep official Open WebUI + minimal customizations.
+
+- ~~9.5 - Remove "(Open WebUI)" from title~~
+- ~~9.6 - Change internal texts~~
+- ~~9.7 - Custom logo and favicon~~
+- ~~9.8 - Custom CSS~~
+- ~~9.9 - Custom JS~~
+- ~~9.10 - Global system prompt~~
+- ~~9.11 - Custom splash screen~~
+- ~~9.12 - "MYRA" as default model~~
+- ~~9.13 - Open WebUI fork~~
+
+---
+
+<a id="en-summary"></a>
+
+### Summary by area
+
+| Area | Items | Status |
+|------|-------|--------|
+| Autonomy (PHASE 22.x + 24.x) | 18 | ![80%](https://img.shields.io/badge/-80%25-brightgreen?style=flat-square) |
+| Vision with coordinates (PHASE 25) | 6 | ![0%](https://img.shields.io/badge/-0%25-yellow?style=flat-square) |
+| Autonomous loop (PHASE 26) | 5 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| TARS overlay (PHASE 27) | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Mobile (PHASE 28) | 17 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| CarPlay (PHASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Distribution (PHASE 30) | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
+| Custom interface (PHASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |
+| Voice / Audio (PHASE 14) | 5 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| YouTube (PHASE 20) | 12 | ![70%](https://img.shields.io/badge/-70%25-green?style=flat-square) |
+| Media generation (PHASE 12) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Files (PHASE 15) | 12 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
+| Web | 14 | ![50%](https://img.shields.io/badge/-50%25-yellow?style=flat-square) |
+| Computer Use | 15 | ![70%](https://img.shields.io/badge/-70%25-yellow?style=flat-square) |
+| Vision | 12 | ![40%](https://img.shields.io/badge/-40%25-yellow?style=flat-square) |
+| Coding Agent | 10 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
+| Email | 12 | ![50%](https://img.shields.io/badge/-50%25-yellow?style=flat-square) |
+| World info | 8 | ![20%](https://img.shields.io/badge/-20%25-lightgrey?style=flat-square) |
+| Data analysis | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Windows / System | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Terminal | 10 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Scheduling | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Memory | 12 | ![15%](https://img.shields.io/badge/-15%25-lightgrey?style=flat-square) |
+| Security | 6 | ![45%](https://img.shields.io/badge/-45%25-yellow?style=flat-square) |
+| Devices | 4 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Testing | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
+| Documentation | 6 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
+| Strategic / Meta | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+
+**Total: ~244 items**
+**Overall progress: ~67%**
+
+---
+
+## Next action
+
+**PHASE 25 - Vision with Coordinates** (vision_locate)
+
+1. Investigate how /see talks to llm-eyes
+2. Prove concept with coordinate prompt
+3. Implement /vision_locate(description)
+4. Normalize coordinates (DPI, resolution)
+5. Integrate into planner
+6. Test end-to-end
+
+**Goal:** MYRA can "see" a button by description and click it.
+
+---
+
+**Last updated:** 2026-10-12
