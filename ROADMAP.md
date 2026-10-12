@@ -432,7 +432,7 @@
 | Area | Itens | Status |
 |------|-------|--------|
 | Autonomia (FASE 22.x + 24.x) | 18 | ![80%](https://img.shields.io/badge/-80%25-brightgreen?style=flat-square) |
-| Visao com coordenadas (FASE 25) | 6 | ![0%](https://img.shields.io/badge/-0%25-yellow?style=flat-square) |
+| Visao com coordenadas (FASE 25) | 6 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
 | Ciclo autonomo (FASE 26) | 5 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Overlay TARS (FASE 27) | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Mobile (FASE 28) | 17 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
@@ -902,7 +902,7 @@
 | Area | Items | Status |
 |------|-------|--------|
 | Autonomy (PHASE 22.x + 24.x) | 18 | ![80%](https://img.shields.io/badge/-80%25-brightgreen?style=flat-square) |
-| Vision with coordinates (PHASE 25) | 6 | ![0%](https://img.shields.io/badge/-0%25-yellow?style=flat-square) |
+| Vision with coordinates (PHASE 25) | 6 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
 | Autonomous loop (PHASE 26) | 5 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | TARS overlay (PHASE 27) | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Mobile (PHASE 28) | 17 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
