@@ -1,7 +1,7 @@
 # MYRA - Roadmap
 
-[![Progress](https://img.shields.io/badge/Progress-67%25-orange?style=flat-square)]()
-[![Active Phase](https://img.shields.io/badge/Active_Phase-25-blue?style=flat-square)]()
+[![Progress](https://img.shields.io/badge/Progress-70%25-orange?style=flat-square)]()
+[![Active Phase](https://img.shields.io/badge/Active_Phase-26-blue?style=flat-square)]()
 [![Phases](https://img.shields.io/badge/Phases-31-purple?style=flat-square)]()
 [![Updated](https://img.shields.io/badge/Updated-2026-10-12-lightgrey?style=flat-square)]()
 [![Language](https://img.shields.io/badge/Language-PT--BR_%7C_EN-green?style=flat-square)]()
@@ -38,6 +38,20 @@
 <a id="pt-fases-concluidas"></a>
 
 ### Fases concluidas
+
+#### FASE 25 - Visao com Coordenadas
+![Concluida](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)
+
+**Meta:** vision_locate(descricao) retorna coordenadas X/Y
+
+- [x] `/vision_locate(descricao)` - retorna dict com x, y, confidence
+- [x] `/vision_click(descricao)` - localiza + clica
+- [x] `/vision_type(campo_desc, texto)` - localiza + digita
+- [x] Normalizacao de coordenadas (DPI, resolucao)
+- [x] Fallback: OCR via Tesseract
+- [x] Integracao no planner
+
+**Ferramentas free:** llm-eyes (ja tem), Tesseract, OmniParser, UI-TARS
 
 #### Base (FASES 0-10, 15-19)
 ![Concluida](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)
@@ -109,20 +123,6 @@
 <a id="pt-proximas-fases"></a>
 
 ### Proximas fases
-
-#### FASE 25 - Visao com Coordenadas
-![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
-
-**Meta:** vision_locate(descricao) retorna coordenadas X/Y
-
-- [ ] `/vision_locate(descricao)` - retorna dict com x, y, confidence
-- [ ] `/vision_click(descricao)` - localiza + clica
-- [ ] `/vision_type(campo_desc, texto)` - localiza + digita
-- [ ] Normalizacao de coordenadas (DPI, resolucao)
-- [ ] Fallback: OCR via Tesseract
-- [ ] Integracao no planner
-
-**Ferramentas free:** llm-eyes (ja tem), Tesseract, OmniParser, UI-TARS
 
 #### FASE 26 - Ciclo Autonomo Completo
 ![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
@@ -509,6 +509,20 @@
 
 ### Completed phases
 
+#### PHASE 25 - Vision with Coordinates
+![Done](https://img.shields.io/badge/-DONE-brightgreen?style=flat-square)
+
+**Goal:** vision_locate(description) returns X/Y coordinates
+
+- [x] /vision_locate(description) - returns dict with x, y, confidence
+- [x] /vision_click(description) - locates + clicks
+- [x] /vision_type(field_desc, text) - locates + types
+- [x] Coordinate normalization (DPI, resolution)
+- [x] Fallback: OCR via Tesseract
+- [x] Planner integration
+
+**Free tools:** llm-eyes (already running), Tesseract, OmniParser, UI-TARS
+
 #### Base (PHASES 0-10, 15-19)
 ![Done](https://img.shields.io/badge/-DONE-brightgreen?style=flat-square)
 
@@ -579,20 +593,6 @@
 <a id="en-next"></a>
 
 ### Next phases
-
-#### PHASE 25 - Vision with Coordinates
-![In Progress](https://img.shields.io/badge/-IN_PROGRESS-yellow?style=flat-square)
-
-**Goal:** vision_locate(description) returns X/Y coordinates
-
-- [ ] /vision_locate(description) - returns dict with x, y, confidence
-- [ ] /vision_click(description) - locates + clicks
-- [ ] /vision_type(field_desc, text) - locates + types
-- [ ] Coordinate normalization (DPI, resolution)
-- [ ] Fallback: OCR via Tesseract
-- [ ] Planner integration
-
-**Free tools:** llm-eyes (already running), Tesseract, OmniParser, UI-TARS
 
 #### PHASE 26 - Complete Autonomous Loop
 ![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square)
