@@ -148,7 +148,24 @@
 - [ ] Trajetoria do mouse visivel
 - [ ] Cancelamento visual
 
-#### FASE 28 - Controle Mobile
+#### FASE 27.5 - Integracao REA
+
+![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
+
+**Repo:** https://github.com/morluto/rea
+**Descricao:** MCP server pra engenharia reversa.
+**Licenca:** MIT | **Requer:** Node.js 22+
+
+**Caso de uso:** recriar features/programas a partir do original.
+
+**Implementacao (2-3 sessoes):**
+1. npm install --global rea-agents
+2. Criar tasks/rea_tools.py
+3. Regras no prompt do planner
+
+**Aviso legal:** so software autorizado.
+
+### FASE 28 - Controle Mobile
 ![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
 
 ##### 28.1 - Infra de acesso remoto (Tailscale)
