@@ -143,6 +143,24 @@ def _formatar_resultado(res: dict) -> str:
     return "\n".join(partes)
 
 
+
+
+def _adicionar_observacao_ao_historico_str(historico: list) -> str:
+    """Versao melhorada de _formatar_historico que inclui observacao."""
+    base = _formatar_historico(historico)
+    extras = []
+    for h in historico:
+        obs = h.get("observacao")
+        if obs and obs.get("status") == "ok":
+            extras.append(
+                f"  - Passo {h.get('passo')}: obs -> sucesso={obs.get('sucesso')} "
+                f"objetivo_atingido={obs.get('objetivo_atingido')} "
+                f"motivo={str(obs.get('motivo', ''))[:150]}"
+            )
+    if extras:
+        base += "\n\nOBSERVACOES:\n" + "\n".join(extras)
+    return base
+
 def _formatar_historico(historico: list) -> str:
     if not historico:
         return "(nenhum passo executado ainda)"
@@ -192,7 +210,7 @@ def _decidir_proximo_passo(objetivo: str, historico: list) -> dict:
     else:
         ferramentas_str = ", ".join(nomes_prompt)
 
-    historico_str = _formatar_historico(historico)
+    historico_str = _adicionar_observacao_ao_historico_str(historico)
 
     system = (
         "Voce e um agente autonomo que decide UM passo por vez. "
@@ -236,6 +254,14 @@ REGRAS:
 - Se o usuario pedir para ENCONTRAR onde esta um elemento visual (retornar x, y), use vision_locate(descricao). Ex: vision_locate(descricao="icone de configuracoes").
 - Se o usuario pedir para PREENCHER um campo visualmente, use vision_type(descricao, texto). Ex: vision_type(descricao="campo de email", texto="user@example.com").
 - DIFERENCA CRITICA: read_page_structured le o DOM/HTML (pra SABER o que tem). vision_locate/vision_click/vision_type olham os PIXELS da tela (pra ACHAR visualmente e agir). Se o objetivo pede pra CLICAR em algo visivel sem coordenadas, prefira vision_click.
+- REGRA DE ARQUIVO: se o objetivo pede para CRIAR/ESCREVER/SALVAR um arquivo, use write_file(caminho, conteudo). NAO use browser_new_tab ou navegador pra isso.
+- REGRA DE ARQUIVO: se o objetivo pede para LER um arquivo, use read_file(caminho).
+- REGRA DE ARQUIVO: se o objetivo pede para DELETAR um arquivo, use delete_file(caminho).
+- REGRA DE ARQUIVO: se o objetivo pede para LISTAR arquivos, use list_dir(caminho).
+- REGRA DE ARQUIVO: se o objetivo pede para CRIAR uma pasta, use create_dir(caminho).
+- REGRA DE ARQUIVO: se o objetivo pede para MOVER/RENOMEAR um arquivo, use move_file(origem, destino).
+- REGRA DE CODIGO: se o objetivo pede para EXECUTAR codigo Python, use code_run(codigo) ou run_python(codigo).
+- REGRA DE NAVEGADOR: use browser_new_tab/browser_navigate_active_tab SOMENTE quando o objetivo menciona explicitamente navegar, abrir site, acessar URL, pesquisa web, etc. NAO use navegador para tarefas de arquivo local.
 
 FORMATO DA RESPOSTA (JSON puro):
 
@@ -262,6 +288,53 @@ Para finalizar:
         return {"acao": "finalizar", "motivo": "erro ao decidir proximo passo"}
 
     return data
+
+
+# ============================================================
+# OBSERVER - avalia se a acao anterior atingiu o objetivo
+# ============================================================
+
+FERRAMENTAS_OBSERVAVEIS = {
+    # Visao / desktop
+    "vision_click", "vision_type", "vision_locate",
+    "pc_click", "pc_double_click", "pc_right_click",
+    "pc_type_text", "pc_hotkey", "pc_press_key",
+    # Browser
+    "browser_click_text", "browser_type_text",
+    "browser_navigate_active_tab", "browser_new_tab",
+    "browser_search_google", "browser_search_google_visivel",
+    # Email
+    "email_send", "email_reply", "email_delete_by_search",
+    "email_mark_read", "email_mark_unread", "email_move",
+    # Arquivos
+    "write_file", "delete_file", "move_file", "create_dir",
+    # Codigo
+    "code_run", "run_python",
+}
+
+
+def _deve_observar(ferramenta: str) -> bool:
+    """Retorna True se a ferramenta muda estado (vale observar)."""
+    return ferramenta in FERRAMENTAS_OBSERVAVEIS
+
+
+def _observar(objetivo: str, ferramenta: str, args: dict, resultado, erro) -> dict | None:
+    """Chama o observer. Retorna None se der erro ou nao precisar observar."""
+    if not _deve_observar(ferramenta):
+        return None
+    try:
+        from computer.observer import observar
+        obs = observar(objetivo, {
+            "ferramenta": ferramenta,
+            "args": args,
+            "resultado": resultado,
+            "erro": erro,
+        })
+        if obs.get("status") == "ok":
+            return obs
+    except Exception as e:
+        print(f"[OBSERVER] erro: {e}")
+    return None
 
 
 def _executar_passo(ferramenta: str, args: dict, tentativas: int = 2) -> dict:
@@ -452,6 +525,13 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
 
             r = _executar_passo(ferramenta, args)
 
+            # NOVO: observar o resultado (se a ferramenta muda estado)
+            observacao = _observar(objetivo, ferramenta, args, r["resultado"], r["erro"])
+            if observacao:
+                print(f"[OBSERVER] sucesso={observacao.get('sucesso')} "
+                      f"objetivo_atingido={observacao.get('objetivo_atingido')} "
+                      f"motivo={str(observacao.get('motivo', ''))[:80]}")
+
             historico.append({
                 "passo": passo_num,
                 "ferramenta": ferramenta,
@@ -460,6 +540,7 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
                 "ok": r["ok"],
                 "resultado": r["resultado"],
                 "erro": r["erro"],
+                "observacao": observacao,
             })
 
             # Notifica o widget: historico atualizado

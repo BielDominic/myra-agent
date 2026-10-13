@@ -3104,6 +3104,10 @@ registrar_ferramenta(
 st.registrar_todas(registrar_ferramenta)
 browser_bridge.registrar_ferramentas(registrar_ferramenta)
 
+# Ferramentas de sistema (arquivos, codigo, email, PC, utilitarias)
+import tasks.system_tools as _system_tools
+_system_tools.registrar_todas(registrar_ferramenta)
+
 # ============================================================
 # VISION LOCATE - ferramentas do planner
 # ============================================================
