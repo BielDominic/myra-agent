@@ -11,6 +11,12 @@ Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.
 ### Added
 - `tests/helpers.py` — infraestrutura dos testes severos: `AmbienteIsolado`, `workspace_temporario`, `sem_rede`, `HTTPFalso`, `cliente_agent`.
 - `tests/test_seguranca_paths.py` — 20 testes severos de contenção de caminhos (travessia, prefixo irmão, caminho absoluto, unicode/emoji, entradas degeneradas).
+- `tests/test_integracao_optin.py` — camada 3 de testes reais, desligada por omissão (`MYRA_TEST_INTEGRATION=1`); valida Ollama, backend, serviço de visão, bridge (token) e ferramentas de leitura, sem efeitos destrutivos.
+- `requirements.txt` passa a declarar todas as dependências realmente usadas (youtube, visão/OCR, controlo de PC, widget), agrupadas por área.
+
+### Known issues (encontrados pelos testes severos, a corrigir)
+- `computer/vision_locate.py` imprime texto do OCR: um caracter fora de cp1252 (ex.: `①`, U+2463) levanta `UnicodeEncodeError` quando o módulo é usado fora do `agent.py` (que já reconfigura o stdout). Correção planeada: reconfiguração partilhada do stdout (módulo comum) importada pelos módulos que imprimem texto não controlado.
+- `vision_locate`/`vision_click` devolvem `{"status": "ok", "encontrado": False}` quando não acham o alvo, e o executor do planner trata isso como sucesso — o ciclo pode declarar objetivo cumprido sem nenhuma ação efetiva.
 
 ## [2026-10-15]
 
