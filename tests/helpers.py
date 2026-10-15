@@ -106,19 +106,62 @@ def workspace_temporario(agent_module):
 # Bloqueio de rede real
 # ============================================================
 
+# Portas dos servicos reais que NUNCA podem ser contactados nos testes.
+# O loopback noutras portas e permitido porque o asyncio do Windows cria o
+# self-pipe com socket.socketpair() (que faz connect a 127.0.0.1:<porta alta>):
+# bloquear todo o loopback partia o TestClient.
+PORTAS_BLOQUEADAS = frozenset({
+    80, 443,                       # HTTP/HTTPS publicos
+    25, 143, 465, 587, 993,        # email (SMTP/IMAP)
+    3000, 8080, 8082,              # Open WebUI / proxy local
+    8000,                          # backend MYRA (agent.py)
+    8081,                          # servico de visao (llm-eyes)
+    11434,                         # Ollama
+    19387,                         # interface DSH
+})
+
+
 @contextmanager
-def sem_rede():
-    """Impede qualquer ligacao TCP real durante o bloco.
+def sem_rede(permitir_loopback: bool = True):
+    """Impede ligacoes de rede reais durante o bloco.
 
-    Garante que nenhum teste fala com o Ollama, com o backend em :8000, com o
-    servico de visao em :8081, com Gmail/SMTP ou com a Internet.
+    Bloqueia:
+      * qualquer destino que nao seja loopback (Internet, LAN, Gmail...);
+      * loopback nas portas de servicos reais (Ollama 11434, backend 8000,
+        visao 8081, Open WebUI 8080/8082/3000, email) — ver PORTAS_BLOQUEADAS.
+
+    Permite loopback em portas efemeras, necessario para o self-pipe do asyncio
+    no Windows (socket.socketpair), usado pelo TestClient.
     """
+    import socket as _socket
 
-    def _bloqueado(*args, **kwargs):
-        raise OSError("rede bloqueada nos testes do MYRA (use mocks)")
+    real_connect = _socket.socket.connect
+    real_create_connection = _socket.create_connection
 
-    with mock.patch.object(socket.socket, "connect", _bloqueado), \
-         mock.patch.object(socket, "create_connection", _bloqueado):
+    def _loopback_permitido(host, porta) -> bool:
+        if not permitir_loopback:
+            return False
+        if str(host) not in ("127.0.0.1", "::1", "localhost", "0.0.0.0"):
+            return False
+        try:
+            return int(porta) not in PORTAS_BLOQUEADAS
+        except (TypeError, ValueError):
+            return False
+
+    def _connect_bloqueado(self, endereco, *args, **kwargs):
+        host, porta = (endereco[0], endereco[1]) if isinstance(endereco, tuple) and len(endereco) >= 2 else (None, None)
+        if _loopback_permitido(host, porta):
+            return real_connect(self, endereco, *args, **kwargs)
+        raise OSError(f"rede bloqueada nos testes do MYRA ({host}:{porta}); use mocks")
+
+    def _create_connection_bloqueado(endereco, *args, **kwargs):
+        host, porta = (endereco[0], endereco[1]) if isinstance(endereco, tuple) and len(endereco) >= 2 else (None, None)
+        if _loopback_permitido(host, porta):
+            return real_create_connection(endereco, *args, **kwargs)
+        raise OSError(f"rede bloqueada nos testes do MYRA ({host}:{porta}); use mocks")
+
+    with mock.patch.object(_socket.socket, "connect", _connect_bloqueado), \
+         mock.patch.object(_socket, "create_connection", _create_connection_bloqueado):
         yield
 
 
