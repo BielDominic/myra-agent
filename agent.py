@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from playwright.sync_api import sync_playwright
 import os
+from pathlib import Path
 import imaplib
 import smtplib
 import subprocess
@@ -45,6 +46,16 @@ PERFIL_DIR = r"C:\computer-agent\chrome_profile"
 NOTES_FILE = r"C:\computer-agent\notes.txt"
 WORKSPACE_DIR = r"C:\computer-agent\workspace"
 SCREENSHOTS_DIR = r"C:\computer-agent\screenshots"
+
+
+def _path_within_workspace(path: str, workspace: str) -> bool:
+    """Check containment using resolved paths, not vulnerable string prefixes."""
+    try:
+        candidate = Path(path).resolve(strict=False)
+        root = Path(workspace).resolve(strict=False)
+        return candidate == root or root in candidate.parents
+    except (OSError, RuntimeError, ValueError):
+        return False
 LLM_EYES_URL = "http://127.0.0.1:8081/v1/chat/completions"
 
 OPENWEBUI_URL = "http://127.0.0.1:8080"
@@ -1738,7 +1749,7 @@ def list_dir(data: ListDir):
         os.makedirs(WORKSPACE_DIR, exist_ok=True)
         caminho_completo = os.path.join(WORKSPACE_DIR, data.caminho)
 
-        if not os.path.abspath(caminho_completo).startswith(os.path.abspath(WORKSPACE_DIR)):
+        if not _path_within_workspace(caminho_completo, WORKSPACE_DIR):
             return {"status": "erro", "result": "Acesso negado: fora do workspace"}
 
         if not os.path.exists(caminho_completo):
@@ -1762,7 +1773,7 @@ def read_file(data: ReadFile):
     print(f"[READ_FILE] caminho={data.caminho}")
     try:
         caminho_completo = os.path.join(WORKSPACE_DIR, data.caminho)
-        if not os.path.abspath(caminho_completo).startswith(os.path.abspath(WORKSPACE_DIR)):
+        if not _path_within_workspace(caminho_completo, WORKSPACE_DIR):
             return {"status": "erro", "result": "Acesso negado: fora do workspace"}
 
         if not os.path.exists(caminho_completo):
@@ -1786,7 +1797,7 @@ def write_file(data: WriteFile):
     try:
         os.makedirs(WORKSPACE_DIR, exist_ok=True)
         caminho_completo = os.path.join(WORKSPACE_DIR, data.caminho)
-        if not os.path.abspath(caminho_completo).startswith(os.path.abspath(WORKSPACE_DIR)):
+        if not _path_within_workspace(caminho_completo, WORKSPACE_DIR):
             return {"status": "erro", "result": "Acesso negado: fora do workspace"}
 
         os.makedirs(os.path.dirname(caminho_completo), exist_ok=True)
@@ -1944,7 +1955,7 @@ def delete_file(data: DeleteFile):
     print(f"[DELETE_FILE] caminho={data.caminho}")
     try:
         caminho_completo = os.path.join(WORKSPACE_DIR, data.caminho)
-        if not os.path.abspath(caminho_completo).startswith(os.path.abspath(WORKSPACE_DIR)):
+        if not _path_within_workspace(caminho_completo, WORKSPACE_DIR):
             return {"status": "erro", "result": "Acesso negado: fora do workspace"}
 
         if not os.path.exists(caminho_completo):
@@ -1965,7 +1976,7 @@ def create_dir(data: CreateDir):
     print(f"[CREATE_DIR] caminho={data.caminho}")
     try:
         caminho_completo = os.path.join(WORKSPACE_DIR, data.caminho)
-        if not os.path.abspath(caminho_completo).startswith(os.path.abspath(WORKSPACE_DIR)):
+        if not _path_within_workspace(caminho_completo, WORKSPACE_DIR):
             return {"status": "erro", "result": "Acesso negado: fora do workspace"}
 
         os.makedirs(caminho_completo, exist_ok=True)
@@ -1982,9 +1993,9 @@ def move_file(data: MoveFile):
         origem_completa = os.path.join(WORKSPACE_DIR, data.origem)
         destino_completo = os.path.join(WORKSPACE_DIR, data.destino)
 
-        if not os.path.abspath(origem_completa).startswith(os.path.abspath(WORKSPACE_DIR)):
+        if not _path_within_workspace(origem_completa, WORKSPACE_DIR):
             return {"status": "erro", "result": "Acesso negado (origem): fora do workspace"}
-        if not os.path.abspath(destino_completo).startswith(os.path.abspath(WORKSPACE_DIR)):
+        if not _path_within_workspace(destino_completo, WORKSPACE_DIR):
             return {"status": "erro", "result": "Acesso negado (destino): fora do workspace"}
 
         if not os.path.exists(origem_completa):
@@ -2476,7 +2487,7 @@ def code_run_file(data: CodeRunFile):
         os.makedirs(CODE_WORKSPACE, exist_ok=True)
         caminho_completo = os.path.join(CODE_WORKSPACE, data.caminho)
 
-        if not os.path.abspath(caminho_completo).startswith(os.path.abspath(CODE_WORKSPACE)):
+        if not _path_within_workspace(caminho_completo, CODE_WORKSPACE):
             return {"status": "erro", "result": "Acesso negado: fora do workspace de codigo"}
 
         if not os.path.exists(caminho_completo):
