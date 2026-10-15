@@ -4,7 +4,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from playwright.sync_api import sync_playwright
 import os
-from pathlib import Path
 import imaplib
 import smtplib
 import subprocess
@@ -12,6 +11,7 @@ import tempfile
 import datetime
 import time
 from tasks.cancel_state import marcar_cancelada, resetar
+from tasks.path_security import path_within_workspace as _path_within_workspace
 import json
 import urllib.request
 import urllib.parse
@@ -47,15 +47,6 @@ NOTES_FILE = r"C:\computer-agent\notes.txt"
 WORKSPACE_DIR = r"C:\computer-agent\workspace"
 SCREENSHOTS_DIR = r"C:\computer-agent\screenshots"
 
-
-def _path_within_workspace(path: str, workspace: str) -> bool:
-    """Check containment using resolved paths, not vulnerable string prefixes."""
-    try:
-        candidate = Path(path).resolve(strict=False)
-        root = Path(workspace).resolve(strict=False)
-        return candidate == root or root in candidate.parents
-    except (OSError, RuntimeError, ValueError):
-        return False
 LLM_EYES_URL = "http://127.0.0.1:8081/v1/chat/completions"
 
 OPENWEBUI_URL = "http://127.0.0.1:8080"
