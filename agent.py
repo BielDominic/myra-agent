@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from playwright.sync_api import sync_playwright
 import os
+import sys
 import imaplib
 import smtplib
 import subprocess
@@ -23,6 +24,15 @@ from tasks import browser_bridge as browser_bridge
 from email.message import EmailMessage
 from email.header import decode_header
 import email as email_lib
+
+# A consola do Windows costuma usar cp1252: um print com emoji (ex.: um nome de
+# ficheiro vindo do planner/utilizador) levantava UnicodeEncodeError e derrubava
+# a rota com HTTP 500. Forca UTF-8 com substituicao para nunca falhar por print.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 app = FastAPI()
 app.include_router(browser_bridge.router)
@@ -44,6 +54,25 @@ playwright = None
 PERFIL_DIR = r"C:\computer-agent\chrome_profile"
 NOTES_FILE = r"C:\computer-agent\notes.txt"
 WORKSPACE_DIR = r"C:\computer-agent\workspace"
+
+
+def caminho_no_workspace(caminho: str, base: str | None = None) -> str:
+    """Resolve um caminho do utilizador dentro de `base` (workspace por omissao).
+
+    Usa os.path.commonpath em vez de str.startswith: o startswith aceitava
+    prefixos irmaos (ex.: C:\\computer-agent\\workspace_evil) e permitia ler,
+    escrever e apagar fora do workspace com "..". Levanta ValueError quando o
+    caminho resolvido sai da base.
+    """
+    raiz = os.path.abspath(base or WORKSPACE_DIR)
+    destino = os.path.abspath(os.path.join(raiz, caminho or ""))
+    try:
+        dentro = os.path.commonpath([raiz, destino]) == raiz
+    except ValueError:  # unidades diferentes (ex.: C: vs D:)
+        dentro = False
+    if not dentro:
+        raise ValueError(f"caminho fora do workspace: {caminho!r}")
+    return destino
 SCREENSHOTS_DIR = r"C:\computer-agent\screenshots"
 LLM_EYES_URL = "http://127.0.0.1:8081/v1/chat/completions"
 
@@ -1878,10 +1907,10 @@ def list_dir(data: ListDir):
     print(f"[LIST_DIR] caminho={data.caminho}")
     try:
         os.makedirs(WORKSPACE_DIR, exist_ok=True)
-        caminho_completo = os.path.join(WORKSPACE_DIR, data.caminho)
-
-        if not os.path.abspath(caminho_completo).startswith(os.path.abspath(WORKSPACE_DIR)):
-            return {"status": "erro", "result": "Acesso negado: fora do workspace"}
+        try:
+            caminho_completo = caminho_no_workspace(data.caminho)
+        except ValueError as e:
+            return {"status": "erro", "result": f"Acesso negado: {e}"}
 
         if not os.path.exists(caminho_completo):
             return {"status": "erro", "result": f"Caminho nao encontrado: {data.caminho}"}
@@ -1903,9 +1932,10 @@ def list_dir(data: ListDir):
 def read_file(data: ReadFile):
     print(f"[READ_FILE] caminho={data.caminho}")
     try:
-        caminho_completo = os.path.join(WORKSPACE_DIR, data.caminho)
-        if not os.path.abspath(caminho_completo).startswith(os.path.abspath(WORKSPACE_DIR)):
-            return {"status": "erro", "result": "Acesso negado: fora do workspace"}
+        try:
+            caminho_completo = caminho_no_workspace(data.caminho)
+        except ValueError as e:
+            return {"status": "erro", "result": f"Acesso negado: {e}"}
 
         if not os.path.exists(caminho_completo):
             return {"status": "erro", "result": f"Arquivo nao encontrado: {data.caminho}"}
@@ -1927,9 +1957,10 @@ def write_file(data: WriteFile):
     print(f"[WRITE_FILE] caminho={data.caminho}")
     try:
         os.makedirs(WORKSPACE_DIR, exist_ok=True)
-        caminho_completo = os.path.join(WORKSPACE_DIR, data.caminho)
-        if not os.path.abspath(caminho_completo).startswith(os.path.abspath(WORKSPACE_DIR)):
-            return {"status": "erro", "result": "Acesso negado: fora do workspace"}
+        try:
+            caminho_completo = caminho_no_workspace(data.caminho)
+        except ValueError as e:
+            return {"status": "erro", "result": f"Acesso negado: {e}"}
 
         os.makedirs(os.path.dirname(caminho_completo), exist_ok=True)
 
@@ -2085,9 +2116,10 @@ def see(data: SeeImage):
 def delete_file(data: DeleteFile):
     print(f"[DELETE_FILE] caminho={data.caminho}")
     try:
-        caminho_completo = os.path.join(WORKSPACE_DIR, data.caminho)
-        if not os.path.abspath(caminho_completo).startswith(os.path.abspath(WORKSPACE_DIR)):
-            return {"status": "erro", "result": "Acesso negado: fora do workspace"}
+        try:
+            caminho_completo = caminho_no_workspace(data.caminho)
+        except ValueError as e:
+            return {"status": "erro", "result": f"Acesso negado: {e}"}
 
         if not os.path.exists(caminho_completo):
             return {"status": "erro", "result": f"Arquivo nao encontrado: {data.caminho}"}
@@ -2106,9 +2138,10 @@ def delete_file(data: DeleteFile):
 def create_dir(data: CreateDir):
     print(f"[CREATE_DIR] caminho={data.caminho}")
     try:
-        caminho_completo = os.path.join(WORKSPACE_DIR, data.caminho)
-        if not os.path.abspath(caminho_completo).startswith(os.path.abspath(WORKSPACE_DIR)):
-            return {"status": "erro", "result": "Acesso negado: fora do workspace"}
+        try:
+            caminho_completo = caminho_no_workspace(data.caminho)
+        except ValueError as e:
+            return {"status": "erro", "result": f"Acesso negado: {e}"}
 
         os.makedirs(caminho_completo, exist_ok=True)
         return {"status": "ok", "result": f"Pasta criada: {data.caminho}"}
@@ -2121,13 +2154,14 @@ def create_dir(data: CreateDir):
 def move_file(data: MoveFile):
     print(f"[MOVE_FILE] origem={data.origem} destino={data.destino}")
     try:
-        origem_completa = os.path.join(WORKSPACE_DIR, data.origem)
-        destino_completo = os.path.join(WORKSPACE_DIR, data.destino)
-
-        if not os.path.abspath(origem_completa).startswith(os.path.abspath(WORKSPACE_DIR)):
-            return {"status": "erro", "result": "Acesso negado (origem): fora do workspace"}
-        if not os.path.abspath(destino_completo).startswith(os.path.abspath(WORKSPACE_DIR)):
-            return {"status": "erro", "result": "Acesso negado (destino): fora do workspace"}
+        try:
+            origem_completa = caminho_no_workspace(data.origem)
+        except ValueError as e:
+            return {"status": "erro", "result": f"Acesso negado (origem): {e}"}
+        try:
+            destino_completo = caminho_no_workspace(data.destino)
+        except ValueError as e:
+            return {"status": "erro", "result": f"Acesso negado (destino): {e}"}
 
         if not os.path.exists(origem_completa):
             return {"status": "erro", "result": f"Origem nao encontrada: {data.origem}"}
@@ -2616,10 +2650,10 @@ def code_run_file(data: CodeRunFile):
     print(f"[CODE_RUN_FILE] {data.caminho}")
     try:
         os.makedirs(CODE_WORKSPACE, exist_ok=True)
-        caminho_completo = os.path.join(CODE_WORKSPACE, data.caminho)
-
-        if not os.path.abspath(caminho_completo).startswith(os.path.abspath(CODE_WORKSPACE)):
-            return {"status": "erro", "result": "Acesso negado: fora do workspace de codigo"}
+        try:
+            caminho_completo = caminho_no_workspace(data.caminho, CODE_WORKSPACE)
+        except ValueError as e:
+            return {"status": "erro", "result": f"Acesso negado: {e}"}
 
         if not os.path.exists(caminho_completo):
             return {"status": "erro", "result": f"Arquivo nao encontrado: {data.caminho}"}

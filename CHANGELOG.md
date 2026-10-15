@@ -4,8 +4,13 @@ Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
+### Fixed
+- **Segurança — path traversal nas rotas de ficheiros:** o guard usava `os.path.abspath(destino).startswith(os.path.abspath(WORKSPACE_DIR))`, que aceita prefixos irmãos (`..\workspace_evil\x`) e permitia ler, escrever, mover e apagar ficheiros fora do workspace. Substituído por `agent.caminho_no_workspace()`, que usa `os.path.commonpath` (7 pontos de uso: list_dir, read_file, write_file, delete_file, create_dir, move_file, code_run_file).
+- **Robustez — unicode no stdout:** imprimir um emoji (ex.: nome de ficheiro vindo do planner) levantava `UnicodeEncodeError` com a consola cp1252 e derrubava a rota com HTTP 500. `stdout`/`stderr` passam a ser reconfigurados para UTF-8 com `errors="replace"` no arranque do `agent.py`.
+
 ### Added
-- Nada pendente de registo.
+- `tests/helpers.py` — infraestrutura dos testes severos: `AmbienteIsolado`, `workspace_temporario`, `sem_rede`, `HTTPFalso`, `cliente_agent`.
+- `tests/test_seguranca_paths.py` — 20 testes severos de contenção de caminhos (travessia, prefixo irmão, caminho absoluto, unicode/emoji, entradas degeneradas).
 
 ## [2026-10-15]
 
