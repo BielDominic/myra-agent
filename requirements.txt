@@ -4,3 +4,5 @@ pydantic==2.13.5
 playwright==1.63.0
 requests==2.34.2
 pillow==12.3.0
+yt-dlp>=2025.1.15
+
