@@ -239,9 +239,11 @@
 - [ ] Modo "vou perguntar antes de agir"
 
 #### FASE 24.5 - Persistencia SQLite
-- [ ] Tasks sobrevivem a restart
-- [ ] Historico consultavel
-- [ ] Schema SQLite
+![Concluida pela FASE 26](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)
+
+- [x] Tasks sobrevivem a restart - `tasks/task_store.py` + `/task_resume` (tasks de um processo morto ficam `interrompido` no startup)
+- [x] Historico consultavel - `GET /task_detalhe/{task_id}` (historico + eventos) e `GET /task_pendentes`
+- [x] Schema SQLite - tabelas `tasks` e `task_eventos` em `%LOCALAPPDATA%\MYRA\myra_tasks.sqlite3`
 
 #### FASE 14 - Voz e Audio
 - [ ] TTS + Whisper
@@ -482,22 +484,20 @@
 | Meta / Estrategico | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
 **Total: ~244 itens**
-**Progresso geral: ~67%**
+**Progresso geral: ~72%**
 
 ---
 
 ## Proxima acao
 
-**FASE 25 - Visao com Coordenadas** (`vision_locate`)
+**Ordem definida em 2026-10-15:**
 
-1. Investigar como `/see` fala com llm-eyes
-2. Provar conceito com prompt de coordenadas
-3. Implementar `/vision_locate(descricao)`
-4. Normalizar coordenadas (DPI, resolucao)
-5. Integrar no planner
-6. Testar end-to-end
+1. **Testes severos de todas as ferramentas** (frente Testes/Qualidade + base de confianca para o resto): contratos, argumentos invalidos, erros, limites, unicode e path traversal, em 3 camadas (offline puro / mock HTTP + TestClient / integracao opt-in).
+2. **Terminar a FASE 26**: observacao com screenshot no observer e validacao com o navegador real.
+3. **FASE 27 - Overlay Visual TARS** (proxima fase nomeada).
+4. FASE 27.5 (REA), FASE 22.5+ (polimento), FASE 14 (voz), FASE 30 (distribuicao) conforme prioridade.
 
-**Meta:** MYRA consegue "ver" um botao pela descricao e clicar nele.
+**Nota:** a FASE 25 (`vision_locate`) esta concluida e a FASE 24.5 foi concluida pela FASE 26.
 
 ---
 
@@ -713,9 +713,11 @@
 - [ ] "I'll ask before acting" mode
 
 #### PHASE 24.5 - SQLite persistence
-- [ ] Tasks survive restart
-- [ ] Queryable history
-- [ ] SQLite schema
+![Completed by PHASE 26](https://img.shields.io/badge/-COMPLETED-brightgreen?style=flat-square)
+
+- [x] Tasks survive restart - `tasks/task_store.py` + `/task_resume`
+- [x] Queryable history - `GET /task_detalhe/{task_id}` and `GET /task_pendentes`
+- [x] SQLite schema - `tasks` and `task_eventos` tables
 
 #### PHASE 14 - Voice and Audio
 - [ ] TTS + Whisper
@@ -956,23 +958,21 @@
 | Strategic / Meta | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
 **Total: ~244 items**
-**Overall progress: ~67%**
+**Overall progress: ~72%**
 
 ---
 
 ## Next action
 
-**PHASE 25 - Vision with Coordinates** (vision_locate)
+**Order set on 2026-10-15:**
 
-1. Investigate how /see talks to llm-eyes
-2. Prove concept with coordinate prompt
-3. Implement /vision_locate(description)
-4. Normalize coordinates (DPI, resolution)
-5. Integrate into planner
-6. Test end-to-end
+1. **Severe tests for all tools** (Testing/Quality track + confidence base for everything else): contracts, invalid arguments, errors, limits, unicode and path traversal, in 3 layers (pure offline / HTTP mock + TestClient / opt-in integration).
+2. **Finish PHASE 26**: screenshot observation in the observer and real-browser validation.
+3. **PHASE 27 - TARS Visual Overlay** (next named phase).
+4. PHASE 27.5 (REA), PHASE 22.5+ (polish), PHASE 14 (voice), PHASE 30 (distribution) as prioritised.
 
-**Goal:** MYRA can "see" a button by description and click it.
+**Note:** PHASE 25 (`vision_locate`) is complete and PHASE 24.5 was completed by PHASE 26.
 
 ---
 
-**Last updated:** 2026-10-12
+**Last updated:** 2026-10-15
