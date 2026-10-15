@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 import datetime
 import time
-from tasks.cancel_state import marcar_cancelada, resetar
+from tasks.cancel_state import marcar_cancelada, marcar_pausada, resetar, resetar_pausa
 import json
 import urllib.request
 import urllib.parse
@@ -80,6 +80,20 @@ _widget_status = {
 }
 
 _widget_listeners = []
+
+# FASE 26 - executor serializado das tasks (uma task por vez). Usado pelas
+# rotas que rodam em background, como /task_resume.
+_task_pool = None
+
+
+def _get_task_pool():
+    global _task_pool
+    if _task_pool is None:
+        import concurrent.futures
+        _task_pool = concurrent.futures.ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="myra-task"
+        )
+    return _task_pool
 
 
 def _widget_notify():
@@ -1040,6 +1054,7 @@ def task_status():
 def task_cancel():
     from tasks.cancel_state import marcar_cancelada
     marcar_cancelada()
+    resetar_pausa()  # cancelar tambem limpa uma pausa pendente
     print("[CANCEL] flag de cancelamento setada")
 
     """
@@ -1064,6 +1079,133 @@ def task_cancel():
     )
     print("[WIDGET] Task resetada pra idle")
     return {"status": "ok", "result": "Task resetada."}
+
+
+# ============================================================
+# FASE 26 - Pausa / retomada de tasks persistidas
+# ============================================================
+
+class TaskResumeRequest(BaseModel):
+    task_id: str = Field(..., min_length=1, max_length=120)
+    max_passos: int | None = None
+
+
+@app.post("/task_pause")
+def task_pause():
+    """Pausa a task em execucao.
+
+    O loop para no proximo ponto seguro e o estado (objetivo, passo atual,
+    historico, verificacoes e recuperacoes) fica persistido em SQLite, pronto
+    para /task_resume continuar sem perder contexto.
+    """
+    marcar_pausada()
+    print("[PAUSE] flag de pausa setada")
+    task_id = _widget_status.get("task_id")
+    _widget_set(passo_atual="PAUSADO (retome com /task_resume)")
+    return {"status": "ok", "result": "Pausa solicitada.", "task_id": task_id}
+
+
+@app.get("/task_pendentes")
+def task_pendentes(limite: int = 20):
+    """Lista tasks pausadas/interrompidas/em execucao que podem ser retomadas."""
+    return {
+        "status": "ok",
+        "tasks": _simple_task_module.listar_tasks_pendentes(limite=limite),
+    }
+
+
+@app.post("/task_resume")
+def task_resume(data: TaskResumeRequest):
+    """Retoma uma task persistida (pausa, reinicio do MYRA ou crash).
+
+    Roda em background no executor serializado e atualiza o widget durante a
+    execucao. Responda 200 e acompanhe por /task_status ou /task_events.
+    """
+    try:
+        registo = _simple_task_module.task_store.carregar_task(data.task_id)
+    except Exception as e:
+        return {"status": "erro", "result": f"erro ao carregar task: {e}"}
+
+    if not registo:
+        return {"status": "erro", "result": f"task nao encontrada: {data.task_id}"}
+
+    if registo.get("estado") not in _simple_task_module.task_store.ESTADOS_RETOMAVEIS:
+        return {
+            "status": "erro",
+            "result": f"task nao pode ser retomada (estado={registo.get('estado')})",
+        }
+
+    resetar()        # limpa cancelamento anterior
+    resetar_pausa()  # limpa pausa anterior
+
+    historico_anterior = registo.get("historico") or []
+    _widget_set(
+        state="running",
+        task_id=data.task_id,
+        objetivo=registo.get("objetivo"),
+        passo_atual=None,
+        passo_num=len(historico_anterior),
+        passo_total=registo.get("max_passos") or 15,
+        iniciado_em=registo.get("criado_em") or time.time(),
+        terminado_em=None,
+        resultado=None,
+        erro=None,
+        historico=[{"ferramenta": h.get("ferramenta")} for h in historico_anterior],
+    )
+
+    def _rodar():
+        try:
+            resultado = _simple_task_module.retomar_task(
+                data.task_id, max_passos=data.max_passos
+            )
+            historico = [
+                {"ferramenta": h.get("ferramenta")}
+                for h in (resultado.get("historico") or [])
+            ]
+            status = resultado.get("status")
+            if status == "ok":
+                _widget_set(
+                    state="done",
+                    terminado_em=time.time(),
+                    resultado=resultado.get("resultado_final"),
+                    erro=None,
+                    historico=historico,
+                )
+            elif status == "pausado":
+                _widget_set(
+                    passo_atual="PAUSADO (retome com /task_resume)",
+                    historico=historico,
+                )
+            elif status == "cancelado":
+                _widget_set(state="idle", terminado_em=time.time(), historico=historico)
+            else:
+                _widget_set(
+                    state="error",
+                    terminado_em=time.time(),
+                    erro=resultado.get("erro") or "falha ao retomar a task",
+                    historico=historico,
+                )
+        except Exception as e:
+            print(f"[TASK_RESUME] ERRO: {e}")
+            _widget_set(
+                state="error", terminado_em=time.time(), erro=f"{type(e).__name__}: {e}"
+            )
+
+    _get_task_pool().submit(_rodar)
+    return {"status": "ok", "result": "Task retomada.", "task_id": data.task_id}
+
+
+@app.get("/task_detalhe/{task_id}")
+def task_detalhe(task_id: str):
+    """Retorna uma task persistida com historico e eventos (auditoria)."""
+    try:
+        registo = _simple_task_module.task_store.carregar_task(task_id)
+        if not registo:
+            return {"status": "erro", "result": f"task nao encontrada: {task_id}"}
+        registo["eventos"] = _simple_task_module.task_store.listar_eventos(task_id)
+        return {"status": "ok", "task": registo}
+    except Exception as e:
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
 
 
 @app.get("/task_events")
@@ -3138,11 +3280,24 @@ registrar_ferramenta(
 import tasks.simple_task as _simple_task_module
 _simple_task_module._widget_set_injetado = _widget_set
 
+# FASE 26 - no startup, tasks que ficaram "em_execucao" de um processo anterior
+# (crash, fecho forcado, reinicio) viram "interrompido" e podem ser retomadas
+# por /task_resume sem perder o historico.
+try:
+    _interrompidas = _simple_task_module.task_store.marcar_interrompidas()
+    if _interrompidas:
+        print(f"[STORE] {_interrompidas} task(s) marcada(s) como interrompida(s) - use /task_resume")
+except Exception as _e:
+    print(f"[STORE] aviso: nao foi possivel marcar tasks interrompidas: {_e}")
+
 
 @app.post("/task_simple")
 def task_simple(data: TaskSimple):
     """Executa uma task simples: planeja -> executa -> sintetiza."""
     print(f"[TASK_SIMPLE] objetivo={data.objetivo!r} max_passos={data.max_passos}")
+
+    resetar()        # limpa cancelamento anterior
+    resetar_pausa()  # limpa pausa anterior
 
     # Atualiza o widget: task comeÃƒÆ’Ã‚Â§ou
     _widget_set(
@@ -3172,6 +3327,16 @@ def task_simple(data: TaskSimple):
                 historico=[
                     {"ferramenta": p.get("ferramenta"), "args": p.get("args")}
                     for p in resultado.get("plano", [])
+                ],
+            )
+        elif resultado.get("status") == "pausado":
+            # FASE 26 - task pausada: estado persistido, retomavel por /task_resume
+            _widget_set(
+                state="running",
+                passo_atual="PAUSADO (retome com /task_resume)",
+                historico=[
+                    {"ferramenta": h.get("ferramenta"), "args": h.get("args")}
+                    for h in resultado.get("historico", [])
                 ],
             )
         else:
@@ -3294,6 +3459,7 @@ async def openai_chat_completions(request: Request):
     import concurrent.futures
 
     resetar()  # limpa flag ANTES de comecar
+    resetar_pausa()
 
     try:
         # Roda executar_task em thread separada (libera o FastAPI pra servir /task_status)
@@ -3309,6 +3475,15 @@ async def openai_chat_completions(request: Request):
             resposta_texto = "Task cancelada pelo usuario."
             _widget_set(state="idle", terminado_em=time.time(), resultado=None, erro=None)
             print("[TASK] finalizada como cancelada - resposta limpa ao chat")
+        elif resultado.get("status") == "pausado":
+            # FASE 26 - pausa: preserva o contexto e informa como retomar.
+            tid = resultado.get("task_id")
+            resposta_texto = (
+                f"Task pausada no passo {len(resultado.get('historico') or [])}. "
+                f"Retome com POST /task_resume (task_id={tid})."
+            )
+            _widget_set(state="running", passo_atual="PAUSADO (retome com /task_resume)")
+            print(f"[TASK] pausada - task_id={tid}")
         else:
             resposta_texto = f"Erro: {resultado.get('erro') or resultado.get('result') or 'desconhecido'}"
             _widget_set(state="error", terminado_em=time.time(), erro=resposta_texto)
