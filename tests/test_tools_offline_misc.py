@@ -1279,14 +1279,9 @@ class ObserverObservarTestCase(CasoOffline):
                 resultado, _ = self._chamar("{%s}" % trecho)
                 self.assertEqual(resultado[chave], esperado)
 
-    @unittest.expectedFailure
     def test_string_de_negacao_nao_e_interpretada_como_sucesso(self):
-        # BUG: observer.observar faz bool(data.get("sucesso", False)); qualquer
-        # string nao vazia vira True. Um LLM que responda {"sucesso": "nao"} e'
-        # lido como sucesso -> o ciclo autonomo conclui que a acao funcionou.
-        # Evidencia: observar(...) com content '{"sucesso": "nao",
-        # "objetivo_atingido": "nao"}' devolve sucesso=True e
-        # objetivo_atingido=True (bool("nao") is True).
+        # Regressao: strings negativas devem ser coercidas para False,
+        # nunca tratadas como verdadeiras apenas por serem nao vazias.
         resultado, _ = self._chamar('{"sucesso": "nao", "objetivo_atingido": "nao"}')
         self.assertIs(resultado["sucesso"], False)
         self.assertIs(resultado["objetivo_atingido"], False)
