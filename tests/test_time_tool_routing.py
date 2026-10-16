@@ -53,6 +53,36 @@ class TestTimeToolRouting(unittest.TestCase):
         self.assertEqual(decisao["acao"], "chamar")
         self.assertEqual(decisao["ferramenta"], "get_current_time")
 
+    def test_executar_task_realmente_executa_ferramenta_de_hora(self):
+        with (
+            patch.object(
+                simple_task,
+                "_llm",
+                return_value='{"acao":"finalizar","motivo":"concluido"}',
+            ),
+            patch.object(
+                simple_task.autonomy,
+                "verificar",
+                return_value={
+                    "atingido": True,
+                    "confianca": "alta",
+                    "motivo": "a ferramenta retornou a hora atual",
+                },
+            ),
+            patch.object(simple_task, "_sintetizar", return_value="19:15:00"),
+        ):
+            resultado = simple_task.executar_task(
+                "que horas sao",
+                max_passos=3,
+                persistir=False,
+            )
+
+        self.assertEqual(resultado["status"], "ok")
+        self.assertEqual(len(resultado["historico"]), 1)
+        self.assertEqual(resultado["historico"][0]["ferramenta"], "get_current_time")
+        self.assertTrue(resultado["historico"][0]["ok"])
+        self.assertEqual(resultado["resultado_final"], "19:15:00")
+
     def test_nao_interfere_com_pedido_sem_relacao_com_hora(self):
         with patch.object(
             simple_task,
