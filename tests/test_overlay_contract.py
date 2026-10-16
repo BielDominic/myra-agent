@@ -50,7 +50,9 @@ class TarsOverlayContractTests(unittest.TestCase):
         self.assertIn("def _overlay_emit_target", agent)
         self.assertIn('"vision_click", _t_vision_click', agent)
         self.assertIn('"vision_type", _t_vision_type', agent)
-        self.assertIn("time.sleep(0.22)", agent)
+        vision = (ROOT / "computer" / "vision_locate.py").read_text(encoding="utf-8")
+        self.assertIn("time.sleep(0.22)", vision)
+        self.assertIn("_notificar_alvo_overlay(loc)", vision)
 
 
 if __name__ == "__main__":
