@@ -124,7 +124,7 @@ def _llm_escolher(descricao: str, candidatos: list) -> dict:
     )
 
     OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
-    OLLAMA_MODEL = "qwen2.5:7b"
+    OLLAMA_MODEL = "qwen2.5:3b-instruct-q5_K_M"
 
     payload = {
         "model": OLLAMA_MODEL,

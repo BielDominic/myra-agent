@@ -15,7 +15,7 @@ import urllib.request
 
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434/api/chat")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:3b-instruct-q5_K_M")
 LLM_EYES_URL = os.environ.get("LLM_EYES_URL", "http://127.0.0.1:8081/v1/chat/completions")
 LLM_EYES_MODEL = os.environ.get("LLM_EYES_MODEL", "Qwen3.5-0.8B")
 SCREENSHOT_ENABLED = os.environ.get("MYRA_OBSERVER_SCREENSHOT", "1").strip().lower() not in {"0", "false", "no"}
@@ -100,6 +100,7 @@ def _resposta_llm(prompt: str, imagem_b64: str | None = None) -> str:
             "stream": False,
             "temperature": 0.1,
             "max_tokens": 250,
+            "response_format": {"type": "json_object"},
         }
         try:
             req = urllib.request.Request(
@@ -123,6 +124,7 @@ def _resposta_llm(prompt: str, imagem_b64: str | None = None) -> str:
         "model": OLLAMA_MODEL,
         "messages": [{"role": "user", "content": prompt}],
         "stream": False,
+        "format": "json",
         "options": {"temperature": 0.1, "num_predict": 200},
     }
     req = urllib.request.Request(
