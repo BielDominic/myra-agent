@@ -37,5 +37,5 @@ keyboard==0.13.5
 # --- Interface (widget opcional) ---
 pywebview==5.4
 
-# Testes: a suite usa apenas a biblioteca padrao (unittest + unittest.mock);
-# nao e necessaria nenhuma dependencia extra.
+# Testes: TestClient do Starlette atual requer httpx2.
+httpx2
