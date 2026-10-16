@@ -1,0 +1,8 @@
+
+# Backups locais do widget
+widget-tauri/**/*.bak
+widget-tauri/**/*.bak_*
+widget-tauri/**/*.backup
+widget-tauri/**/*.backup_*
+widget-tauri/**/*.old
+widget-tauri/**/*.old_*
