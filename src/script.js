@@ -12,9 +12,18 @@ const views = {
     error: document.querySelector(".view-error"),
 };
 
+function syncOverlayVisibility(state) {
+    const tauri = window.__TAURI__;
+    if (!tauri || !tauri.core || typeof tauri.core.invoke !== "function") return;
+    tauri.core.invoke("set_overlay_visible", { visible: state !== "idle" }).catch((err) => {
+        console.debug("[MYRA overlay] visibilidade indisponivel:", err);
+    });
+}
+
 function switchToState(state, status) {
     if (!views[state]) return;
     currentState = state;
+    syncOverlayVisibility(state);
 
     island.classList.remove("idle", "running", "done", "error");
     island.classList.add(state);
