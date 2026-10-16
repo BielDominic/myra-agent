@@ -1159,7 +1159,9 @@ class ObserverObservarTestCase(CasoOffline):
             "status": "ok", "sucesso": True, "objetivo_atingido": True,
             "motivo": "fez o que pedia", "proximo_passo_sugerido": "",
         })
-        self.assertEqual(len(http.pedidos), 1)
+        # FASE 27: observer pode fazer 1 (textual) ou 2 (visual + fallback
+        # textual) chamadas HTTP dependendo da disponibilidade do llm-eyes.
+        self.assertGreaterEqual(len(http.pedidos), 1)
         self.assertEqual(http.ultimo["url"], observer_mod.OLLAMA_URL)
         self.assertEqual(http.ultimo["metodo"], "POST")
         payload = http.ultimo["payload"]
