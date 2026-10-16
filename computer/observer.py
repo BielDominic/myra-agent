@@ -44,15 +44,22 @@ def _extrair_json(texto: str) -> dict | None:
 
 
 def _bool_estrito(valor):
-    """Retorna bool apenas para booleanos reais ou strings inequívocas."""
+    """Coage valores comuns, mas deixa respostas textuais ambíguas indeterminadas."""
     if isinstance(valor, bool):
         return valor
+    if valor is None:
+        return False
+    if isinstance(valor, (int, float)) and valor in (0, 1):
+        return bool(valor)
     if isinstance(valor, str):
         normalizado = valor.strip().lower()
-        if normalizado == "true":
+        if normalizado in {"true", "1", "sim", "yes", "y"}:
             return True
-        if normalizado == "false":
+        if normalizado in {"false", "0", "nao", "não", "no", "n", ""}:
             return False
+        return None
+    if isinstance(valor, (list, dict, tuple, set)) and not valor:
+        return False
     return None
 
 
@@ -151,7 +158,7 @@ def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
         "Você é um avaliador de ações de um agente autônomo.\n"
         "Analise a ação, o resultado e a tela atual. Não assuma que a ação funcionou apenas porque foi executada.\n\n"
         f"OBJETIVO DA TASK: {objetivo}\n\n"
-        f"AÇÃO EXECUTADA: {ferramenta}({args_str})\n"
+        f"ACAO EXECUTADA: {ferramenta}({args_str})\n"
         f"RESULTADO DA FERRAMENTA: {resultado_str}\n"
         f"ERRO: {erro_str or '(nenhum)'}\n\n"
         "Responda APENAS com JSON puro (nada antes, nada depois, sem markdown):\n"
@@ -178,8 +185,8 @@ def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
             "raw": texto[:500],
         }
 
-    sucesso = _bool_estrito(data.get("sucesso"))
-    atingido = _bool_estrito(data.get("objetivo_atingido"))
+    sucesso = _bool_estrito(data.get("sucesso", False))
+    atingido = _bool_estrito(data.get("objetivo_atingido", False))
     if sucesso is None or atingido is None:
         return {
             "status": "ok",
