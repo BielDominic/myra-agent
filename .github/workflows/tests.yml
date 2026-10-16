@@ -10,6 +10,28 @@ permissions:
   contents: read
 
 jobs:
+  overlay-static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        run: |
+          node --check src/overlay.js
+          node --check src/tauri-widget.js
+          node --check src/script.js
+      - name: Run TARS overlay contract tests
+        run: python -m unittest tests.test_overlay_contract -v
+
   validation:
     # MYRA is a Windows desktop agent; platform-sensitive imports must be tested on Windows.
     runs-on: windows-latest
