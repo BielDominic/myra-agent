@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MYRA Visual Overlay</title>
+  <link rel="stylesheet" href="overlay.css">
+</head>
+<body>
+  <main id="overlay" aria-hidden="true">
+    <div id="state" class="state" data-state="idle">
+      <span class="state-dot"></span><span id="state-label">MYRA pronta</span>
+    </div>
+    <div id="target" class="target" hidden>
+      <span class="target-crosshair"></span>
+      <span id="target-label" class="target-label">Alvo</span>
+    </div>
+    <div id="cursor" class="cursor" hidden><span></span></div>
+    <svg id="trail" class="trail" aria-hidden="true"></svg>
+  </main>
+  <script src="overlay.js"></script>
+</body>
+</html>
