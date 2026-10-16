@@ -11,6 +11,7 @@ from tasks.cancel_state import esta_cancelada, esta_pausada, resetar, resetar_pa
 from tasks import autonomy, task_store
 import re
 import time
+import unicodedata
 import urllib.request
 
 OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
@@ -120,6 +121,27 @@ def _extrair_json(texto: str):
         except Exception:
             pass
     return None
+
+
+def _eh_pedido_hora_atual(objetivo: str) -> bool:
+    """Reconhece pedidos curtos e explicitos pela hora/data atual em portugues."""
+    texto = unicodedata.normalize("NFKD", str(objetivo or "").lower())
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    texto = re.sub(r"[^a-z0-9]+", " ", texto).strip()
+    padroes = (
+        "que horas sao",
+        "que hora e",
+        "qual a hora",
+        "qual e a hora",
+        "hora atual",
+        "horario atual",
+        "horas agora",
+        "hora agora",
+        "que dia e hoje",
+        "data de hoje",
+        "data e hora atual",
+    )
+    return any(padrao in texto for padrao in padroes)
 
 
 def _formatar_resultado(res: dict) -> str:
@@ -321,6 +343,25 @@ Para finalizar:
 
     texto = _llm(prompt, system)
     data = _extrair_json(texto)
+
+    # Guarda de confiabilidade: pedidos diretos pela hora atual nao podem ser
+    # encerrados sem executar a ferramenta que fornece o horario real.
+    # O modelo continua sendo consultado normalmente; isto so corrige uma
+    # decisao prematura/invalida antes do primeiro passo.
+    if (
+        not historico
+        and "get_current_time" in FERRAMENTAS_DISPONIVEIS
+        and _eh_pedido_hora_atual(objetivo)
+        and (not isinstance(data, dict) or data.get("acao") != "chamar"
+             or data.get("ferramenta") != "get_current_time")
+    ):
+        print("[TASK] fallback de intencao: pedido de hora -> get_current_time")
+        return {
+            "acao": "chamar",
+            "ferramenta": "get_current_time",
+            "args": {},
+            "motivo": "pedido explicito pela hora atual; consultar a ferramenta de horario real",
+        }
 
     if not data or "acao" not in data:
         print(f"[TASK] LLM nao retornou JSON valido. Texto cru: {texto[:200]}")
