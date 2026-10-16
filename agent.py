@@ -3335,16 +3335,59 @@ from computer.vision_locate import vision_locate as _vision_locate_fn
 from computer.vision_locate import vision_click as _vision_click_fn
 from computer.vision_locate import vision_type as _vision_type_fn
 
+
+def _t_vision_locate(descricao: str):
+    return _overlay_emit_target(_vision_locate_fn(descricao), descricao)
+
+
+def _t_vision_click(descricao: str):
+    import time
+    import pyautogui
+    loc = _overlay_emit_target(_vision_locate_fn(descricao), descricao)
+    if loc.get("status") != "ok" or not loc.get("encontrado"):
+        return loc
+    time.sleep(0.22)
+    try:
+        pyautogui.click(int(loc["x"]), int(loc["y"]))
+        return {
+            "status": "ok",
+            "result": f"Clicado em '{loc.get('label', descricao)}' ({loc['x']}, {loc['y']})",
+            "x": loc["x"], "y": loc["y"], "label": loc.get("label"),
+            "screenshot": loc.get("screenshot"), "metodo": loc.get("metodo"),
+        }
+    except Exception as e:
+        return {"status": "erro", "result": f"Erro ao clicar: {type(e).__name__}: {e}"}
+
+
+def _t_vision_type(descricao: str, texto: str, limpar: bool = True):
+    import time
+    import pyautogui
+    loc = _overlay_emit_target(_vision_locate_fn(descricao), descricao)
+    if loc.get("status") != "ok" or not loc.get("encontrado"):
+        return loc
+    time.sleep(0.22)
+    try:
+        pyautogui.click(int(loc["x"]), int(loc["y"]))
+        time.sleep(0.2)
+        if limpar:
+            pyautogui.hotkey("ctrl", "a")
+            pyautogui.press("delete")
+        pyautogui.write(texto, interval=0.02)
+        return {"status": "ok", "result": f"Digitado em '{loc.get('label', descricao)}'", "x": loc["x"], "y": loc["y"], "label": loc.get("label")}
+    except Exception as e:
+        return {"status": "erro", "result": f"Erro ao digitar: {type(e).__name__}: {e}"}
+
+
 registrar_ferramenta(
-    "vision_locate", _vision_locate_fn,
+    "vision_locate", _t_vision_locate,
     "Acha um elemento na tela pela descricao textual. Retorna coordenadas x, y. Use quando precisar saber onde clicar em algo que voce ve na tela mas nao sabe a posicao. Obrigatorio: descricao (ex: 'botao de login', 'New Chat')."
 )
 registrar_ferramenta(
-    "vision_click", _vision_click_fn,
+    "vision_click", _t_vision_click,
     "Acha um elemento pela descricao e clica no centro dele. Use quando quiser clicar em algo visivel sem saber as coordenadas. Obrigatorio: descricao."
 )
 registrar_ferramenta(
-    "vision_type", _vision_type_fn,
+    "vision_type", _t_vision_type,
     "Acha um campo pela descricao, clica e digita texto. Use para preencher formularios visualmente. Obrigatorio: descricao e texto."
 )
 
