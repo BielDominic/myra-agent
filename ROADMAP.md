@@ -1,9 +1,9 @@
 # MYRA - Roadmap
 
-[![Progress](https://img.shields.io/badge/Progress-70%25-orange?style=flat-square)]()
+[![Progress](https://img.shields.io/badge/Progress-72%25-orange?style=flat-square)]()
 [![Active Phase](https://img.shields.io/badge/Active_Phase-26-blue?style=flat-square)]()
 [![Phases](https://img.shields.io/badge/Phases-31-purple?style=flat-square)]()
-[![Updated](https://img.shields.io/badge/Updated-2026-10-12-lightgrey?style=flat-square)]()
+[![Updated](https://img.shields.io/badge/Updated-2026-10-15-lightgrey?style=flat-square)]()
 [![Language](https://img.shields.io/badge/Language-PT--BR_%7C_EN-green?style=flat-square)]()
 
 **Documentacao disponivel em:** [Portugues](#portugues) | [English](#english)
@@ -125,15 +125,19 @@
 ### Proximas fases
 
 #### FASE 26 - Ciclo Autonomo Completo
-![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
+![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
 
 **Meta:** LLM age, observa, verifica, corrige
 
-- [ ] _observar() - screenshot + analise apos cada acao
-- [ ] _verificar(objetivo) - check se atingiu
-- [ ] _recuperar(erro) - nova estrategia
-- [ ] Task persistence (retomar apos crash)
-- [ ] Pausa/continua sem perder contexto
+- [x] _observar() - avaliacao apos cada acao com o resultado da ferramenta + LLM (`computer/observer.py`, `tasks/simple_task.py::_observar`). Versao textual: screenshot dedicado ainda nao faz parte do observer.
+- [x] _verificar(objetivo) - `tasks/autonomy.py::verificar`: so declara sucesso com evidencia do observer (acao ok + objetivo atingido); nunca declara sucesso sem evidencia.
+- [x] _recuperar(erro) - `tasks/autonomy.py::recuperar`: nova estrategia sugerida por ferramenta, acoes bloqueadas por assinatura e limites explicitos (`MAX_TENTATIVAS_POR_ACAO`, `LIMITE_RECUPERACOES`).
+- [x] Task persistence (retomar apos crash) - `tasks/task_store.py` (SQLite, `%LOCALAPPDATA%\MYRA\myra_tasks.sqlite3`) grava objetivo, passo, historico, estado e eventos; tasks de um processo morto viram `interrompido` no startup e sao retomadas por `/task_resume`.
+- [x] Pausa/continua sem perder contexto - `POST /task_pause` interrompe no proximo ponto seguro e persiste o estado; `POST /task_resume` continua do passo seguinte com historico, observacoes, verificacoes e recuperacoes preservados.
+- [x] Rotas de apoio: `GET /task_pendentes`, `GET /task_detalhe/{task_id}` (historico + eventos de auditoria).
+- [x] Testes do ciclo: `tests/` com 43 testes (`python -m unittest discover -s tests -t .`) cobrindo verificacao, recuperacao, pausa/retomada, retomada apos crash, erros e rotas HTTP.
+- [x] Validacao end-to-end com Ollama real (`qwen2.5:7b`): criacao de arquivo concluida por evidencia do observer, falha com motivo explicito e pausa/retomada com contexto preservado (executada em 2026-10-15).
+- [ ] Observacao com screenshot dedicado no observer (hoje a observacao e textual: resultado da ferramenta + LLM).
 
 #### FASE 27 - Overlay Visual TARS
 ![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
@@ -235,9 +239,11 @@
 - [ ] Modo "vou perguntar antes de agir"
 
 #### FASE 24.5 - Persistencia SQLite
-- [ ] Tasks sobrevivem a restart
-- [ ] Historico consultavel
-- [ ] Schema SQLite
+![Concluida pela FASE 26](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)
+
+- [x] Tasks sobrevivem a restart - `tasks/task_store.py` + `/task_resume` (tasks de um processo morto ficam `interrompido` no startup)
+- [x] Historico consultavel - `GET /task_detalhe/{task_id}` (historico + eventos) e `GET /task_pendentes`
+- [x] Schema SQLite - tabelas `tasks` e `task_eventos` em `%LOCALAPPDATA%\MYRA\myra_tasks.sqlite3`
 
 #### FASE 14 - Voz e Audio
 - [ ] TTS + Whisper
@@ -450,7 +456,7 @@
 |------|-------|--------|
 | Autonomia (FASE 22.x + 24.x) | 18 | ![80%](https://img.shields.io/badge/-80%25-brightgreen?style=flat-square) |
 | Visao com coordenadas (FASE 25) | 6 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
-| Ciclo autonomo (FASE 26) | 5 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Ciclo autonomo (FASE 26) | 5 | ![80%](https://img.shields.io/badge/-80%25-yellow?style=flat-square) |
 | Overlay TARS (FASE 27) | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Mobile (FASE 28) | 17 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | CarPlay (FASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
@@ -478,22 +484,20 @@
 | Meta / Estrategico | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
 **Total: ~244 itens**
-**Progresso geral: ~67%**
+**Progresso geral: ~72%**
 
 ---
 
 ## Proxima acao
 
-**FASE 25 - Visao com Coordenadas** (`vision_locate`)
+**Ordem definida em 2026-10-15:**
 
-1. Investigar como `/see` fala com llm-eyes
-2. Provar conceito com prompt de coordenadas
-3. Implementar `/vision_locate(descricao)`
-4. Normalizar coordenadas (DPI, resolucao)
-5. Integrar no planner
-6. Testar end-to-end
+1. **Testes severos de todas as ferramentas** (frente Testes/Qualidade + base de confianca para o resto): contratos, argumentos invalidos, erros, limites, unicode e path traversal, em 3 camadas (offline puro / mock HTTP + TestClient / integracao opt-in).
+2. **Terminar a FASE 26**: observacao com screenshot no observer e validacao com o navegador real.
+3. **FASE 27 - Overlay Visual TARS** (proxima fase nomeada).
+4. FASE 27.5 (REA), FASE 22.5+ (polimento), FASE 14 (voz), FASE 30 (distribuicao) conforme prioridade.
 
-**Meta:** MYRA consegue "ver" um botao pela descricao e clicar nele.
+**Nota:** a FASE 25 (`vision_locate`) esta concluida e a FASE 24.5 foi concluida pela FASE 26.
 
 ---
 
@@ -612,15 +616,19 @@
 ### Next phases
 
 #### PHASE 26 - Complete Autonomous Loop
-![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square)
+![In progress](https://img.shields.io/badge/-IN_PROGRESS-yellow?style=flat-square)
 
 **Goal:** LLM acts, observes, verifies, recovers
 
-- [ ] _observe() - screenshot + analysis after each action
-- [ ] _verify(goal) - check if achieved
-- [ ] _recover(error) - new strategy
-- [ ] Task persistence (resume after crash)
-- [ ] Pause/resume without losing context
+- [x] _observe() - evaluates each action from the tool result + LLM (`computer/observer.py`, `tasks/simple_task.py::_observar`). Textual version: a dedicated screenshot is not part of the observer yet.
+- [x] _verify(goal) - `tasks/autonomy.py::verificar`: success is only declared with observer evidence (action ok + goal achieved); never claims success without evidence.
+- [x] _recover(error) - `tasks/autonomy.py::recuperar`: per-tool alternative strategy, blocked action signatures and explicit limits (`MAX_TENTATIVAS_POR_ACAO`, `LIMITE_RECUPERACOES`).
+- [x] Task persistence (resume after crash) - `tasks/task_store.py` (SQLite) stores goal, step, history, state and events; tasks from a dead process become `interrompido` at startup and are resumed by `/task_resume`.
+- [x] Pause/resume without losing context - `POST /task_pause` stops at the next safe point and persists state; `POST /task_resume` continues from the next step with history, observations, verifications and recoveries preserved.
+- [x] Support routes: `GET /task_pendentes`, `GET /task_detalhe/{task_id}` (history + audit events).
+- [x] Loop tests: `tests/` with 43 tests (`python -m unittest discover -s tests -t .`).
+- [x] End-to-end validation with real Ollama (`qwen2.5:7b`): file creation concluded by observer evidence, failure with explicit reason, and pause/resume with preserved context (run on 2026-10-15).
+- [ ] Dedicated screenshot observation in the observer (observation is currently textual: tool result + LLM).
 
 #### PHASE 27 - TARS Visual Overlay
 ![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square)
@@ -705,9 +713,11 @@
 - [ ] "I'll ask before acting" mode
 
 #### PHASE 24.5 - SQLite persistence
-- [ ] Tasks survive restart
-- [ ] Queryable history
-- [ ] SQLite schema
+![Completed by PHASE 26](https://img.shields.io/badge/-COMPLETED-brightgreen?style=flat-square)
+
+- [x] Tasks survive restart - `tasks/task_store.py` + `/task_resume`
+- [x] Queryable history - `GET /task_detalhe/{task_id}` and `GET /task_pendentes`
+- [x] SQLite schema - `tasks` and `task_eventos` tables
 
 #### PHASE 14 - Voice and Audio
 - [ ] TTS + Whisper
@@ -920,7 +930,7 @@
 |------|-------|--------|
 | Autonomy (PHASE 22.x + 24.x) | 18 | ![80%](https://img.shields.io/badge/-80%25-brightgreen?style=flat-square) |
 | Vision with coordinates (PHASE 25) | 6 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
-| Autonomous loop (PHASE 26) | 5 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Autonomous loop (PHASE 26) | 5 | ![80%](https://img.shields.io/badge/-80%25-yellow?style=flat-square) |
 | TARS overlay (PHASE 27) | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Mobile (PHASE 28) | 17 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | CarPlay (PHASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
@@ -948,23 +958,21 @@
 | Strategic / Meta | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
 **Total: ~244 items**
-**Overall progress: ~67%**
+**Overall progress: ~72%**
 
 ---
 
 ## Next action
 
-**PHASE 25 - Vision with Coordinates** (vision_locate)
+**Order set on 2026-10-15:**
 
-1. Investigate how /see talks to llm-eyes
-2. Prove concept with coordinate prompt
-3. Implement /vision_locate(description)
-4. Normalize coordinates (DPI, resolution)
-5. Integrate into planner
-6. Test end-to-end
+1. **Severe tests for all tools** (Testing/Quality track + confidence base for everything else): contracts, invalid arguments, errors, limits, unicode and path traversal, in 3 layers (pure offline / HTTP mock + TestClient / opt-in integration).
+2. **Finish PHASE 26**: screenshot observation in the observer and real-browser validation.
+3. **PHASE 27 - TARS Visual Overlay** (next named phase).
+4. PHASE 27.5 (REA), PHASE 22.5+ (polish), PHASE 14 (voice), PHASE 30 (distribution) as prioritised.
 
-**Goal:** MYRA can "see" a button by description and click it.
+**Note:** PHASE 25 (`vision_locate`) is complete and PHASE 24.5 was completed by PHASE 26.
 
 ---
 
-**Last updated:** 2026-10-12
+**Last updated:** 2026-10-15

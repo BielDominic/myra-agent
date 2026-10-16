@@ -1,4 +1,4 @@
-﻿# ============================================
+# ============================================
 # AMBIENTE VIRTUAL PYTHON
 # ============================================
 venv/
@@ -159,4 +159,11 @@ PS
 *.onnx
 
 _backups/
+
+# === FASE 26: suite de testes versionada ===
+# As regras test_*/_*.py acima sao para scripts temporarios na raiz; os testes
+# automatizados em tests/ fazem parte do projeto e devem ser versionados.
+!tests/
+!tests/__init__.py
+!tests/test_*.py
 

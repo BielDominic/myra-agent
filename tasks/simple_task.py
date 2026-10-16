@@ -1,10 +1,14 @@
 """
 FASE 24.1 — Loop de autonomia adaptativo.
-Cada iteracao: LLM decide 1 passo -> executa -> observa -> repete.
+FASE 26 — Ciclo autonomo: decide 1 passo -> executa -> observa -> verifica ->
+recupera -> persiste. Permite pausar/retomar e sobrevive a reinicio.
+
+Cada iteracao: LLM decide 1 passo -> executa -> observa -> verifica -> repete.
 Integrado com o widget: notifica passo_atual, passo_num, historico.
 """
 import json
-from tasks.cancel_state import esta_cancelada
+from tasks.cancel_state import esta_cancelada, esta_pausada, resetar, resetar_pausa
+from tasks import autonomy, task_store
 import re
 import time
 import urllib.request
@@ -16,10 +20,16 @@ FERRAMENTAS_DISPONIVEIS = {}
 FERRAMENTAS_DESCRICOES = {}
 
 MAX_PASSOS_PADRAO = 15
-MAX_ERROS_CONSECUTIVOS = 3
+# O limite de erros consecutivos e maior que o de recuperacoes para que o
+# motivo explicito da recuperacao (com o ultimo erro) seja sempre o que
+# encerra a task, em vez de um contador generico.
+MAX_ERROS_CONSECUTIVOS = autonomy.LIMITE_RECUPERACOES + 1
 MAX_REPETICOES_MESMA_ACAO = 1
 TAMANHO_MAX_RESULTADO_HISTORICO = 5000
 TAMANHO_MAX_CONTEXTO_SINTESE = 12000
+MAX_FINALIZACOES_RECUSADAS = 2      # vezes que recusamos "finalizar" sem evidencia
+MAX_RECUPERACOES = autonomy.LIMITE_RECUPERACOES
+PASSOS_EXTRA_AO_RETOMAR = 5         # folga de passos ao retomar uma task pausada
 
 
 # Referencia global injetada pelo agent.py no startup
@@ -146,7 +156,8 @@ def _formatar_resultado(res: dict) -> str:
 
 
 def _adicionar_observacao_ao_historico_str(historico: list) -> str:
-    """Versao melhorada de _formatar_historico que inclui observacao."""
+    """Versao melhorada de _formatar_historico que inclui observacao,
+    verificacao do objetivo e recuperacoes tentadas (FASE 26)."""
     base = _formatar_historico(historico)
     extras = []
     for h in historico:
@@ -157,8 +168,20 @@ def _adicionar_observacao_ao_historico_str(historico: list) -> str:
                 f"objetivo_atingido={obs.get('objetivo_atingido')} "
                 f"motivo={str(obs.get('motivo', ''))[:150]}"
             )
+        ver = h.get("verificacao")
+        if ver:
+            extras.append(
+                f"  - Passo {h.get('passo')}: verificacao -> atingido={ver.get('atingido')} "
+                f"confianca={ver.get('confianca')} motivo={str(ver.get('motivo', ''))[:150]}"
+            )
+        rec = h.get("recuperacao")
+        if rec:
+            extras.append(
+                f"  - Passo {h.get('passo')}: recuperacao -> recuperar={rec.get('recuperar')} "
+                f"desistir={rec.get('desistir')} motivo={str(rec.get('motivo', ''))[:150]}"
+            )
     if extras:
-        base += "\n\nOBSERVACOES:\n" + "\n".join(extras)
+        base += "\n\nOBSERVACOES / VERIFICACOES:\n" + "\n".join(extras)
     return base
 
 def _formatar_historico(historico: list) -> str:
@@ -187,7 +210,12 @@ def _formatar_historico(historico: list) -> str:
     return "\n".join(linhas)
 
 
-def _decidir_proximo_passo(objetivo: str, historico: list) -> dict:
+def _decidir_proximo_passo(
+    objetivo: str,
+    historico: list,
+    diretriz_recuperacao: str = "",
+    acoes_bloqueadas: list | None = None,
+) -> dict:
     # Em pedidos de navegação, priorize operar no navegador visível do usuário.
     # Mantemos as ferramentas de pesquisa disponíveis para outros tipos de objetivo.
     objetivo_lower = objetivo.lower()
@@ -218,11 +246,19 @@ def _decidir_proximo_passo(objetivo: str, historico: list) -> dict:
         "Responda SEMPRE com JSON puro, sem texto antes ou depois."
     )
 
+    # FASE 26 - bloco de recuperacao: diz explicitamente o que nao repetir.
+    bloco_recuperacao = ""
+    if diretriz_recuperacao:
+        bloco_recuperacao = f"\nDIRETRIZ DE RECUPERACAO (obrigatoria para o proximo passo):\n{diretriz_recuperacao}\n"
+    if acoes_bloqueadas:
+        lista = "\n".join(f"- {assinatura}" for assinatura in acoes_bloqueadas)
+        bloco_recuperacao += f"\nACOES BLOQUEADAS (nao repita nenhuma):\n{lista}\n"
+
     prompt = f"""OBJETIVO: {objetivo}
 
 HISTORICO DE PASSOS JA EXECUTADOS:
 {historico_str}
-
+{bloco_recuperacao}
 FERRAMENTAS DISPONIVEIS:
 {ferramentas_str}
 
@@ -235,6 +271,9 @@ REGRAS:
 - NUNCA chame a mesma ferramenta com os mesmos argumentos mais de uma vez.
 - Se o objetivo pede abrir um site E pesquisar, sao duas acoes diferentes.
 - FINALIZE somente quando o objetivo estiver COMPLETAMENTE atendido.
+- So finalize com EVIDENCIA observavel nos resultados; se as OBSERVACOES/VERIFICACOES mostrarem falha, tente outra estrategia antes de finalizar.
+- Se houver DIRETRIZ DE RECUPERACAO, siga-a e nunca repita uma ACAO BLOQUEADA.
+- Se o observer indicar "objetivo_atingido: true" e "sucesso: true", pode finalizar.
 - Para "pesquisar X no Google", use browser_search_google(termo); nao monte URL manualmente nem use open_url.
 - Para abrir resultados do YouTube, prefira browser_new_tab com a URL de pesquisa completa; use youtube_search apenas quando o objetivo pedir explicitamente metadados/resultados de videos.
 - Use youtube_search apenas quando o objetivo pedir explicitamente metadados/resultados de videos.
@@ -402,39 +441,127 @@ def _sintetizar(objetivo: str, historico: list) -> str:
         return f"Nao foi possivel concluir a tarefa nem gerar uma sintese ({type(e).__name__}: {e})."
 
 
-def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
+def _resposta(status: str, objetivo: str, historico: list, task_id: str | None = None, **extra) -> dict:
+    """Monta a resposta padrao de uma task (mesmo formato de antes + task_id)."""
+    dados = {
+        "status": status,
+        "objetivo": objetivo,
+        "task_id": task_id,
+        "plano": [{"ferramenta": h.get("ferramenta"), "args": h.get("args")} for h in historico],
+        "historico": historico,
+        "resultado_final": None,
+        "erro": None,
+    }
+    dados.update(extra)
+    return dados
+
+
+def _persistir(task_id: str | None, **kwargs) -> None:
+    """Salva o estado da task no SQLite. Nunca derruba a execucao da task."""
+    if not task_id:
+        return
+    try:
+        task_store.salvar_task(task_id, **kwargs)
+    except Exception as e:
+        print(f"[STORE] erro ao salvar task {task_id}: {e}")
+
+
+def _evento(task_id: str | None, tipo: str, detalhe: str = "", passo: int | None = None) -> None:
+    if not task_id:
+        return
+    try:
+        task_store.registrar_evento(task_id, tipo, detalhe=detalhe, passo=passo)
+    except Exception as e:
+        print(f"[STORE] erro ao registrar evento: {e}")
+
+
+def _bloquear_acao(acoes_bloqueadas: list, assinaturas: list) -> None:
+    for assinatura in assinaturas or []:
+        if assinatura not in acoes_bloqueadas:
+            acoes_bloqueadas.append(assinatura)
+
+
+def executar_task(
+    objetivo: str,
+    max_passos: int = MAX_PASSOS_PADRAO,
+    task_id: str | None = None,
+    historico: list | None = None,
+    passo_inicial: int = 1,
+    persistir: bool = True,
+) -> dict:
+    """Loop adaptativo completo: decide -> executa -> observa -> verifica ->
+    recupera -> persiste.
+
+    Args:
+        objetivo: objetivo da task.
+        max_passos: limite de passos desta execucao.
+        task_id: id de uma task existente (retomada). Se None, cria uma nova.
+        historico: historico ja executado (usado ao retomar).
+        passo_inicial: numero do proximo passo ao retomar.
+        persistir: desliga a persistencia (usado em testes/execucoes avulsas).
+    """
     print(f"[TASK] iniciando (adaptativo): {objetivo}")
 
     if not FERRAMENTAS_DISPONIVEIS:
-        return {
-            "status": "erro",
-            "objetivo": objetivo,
-            "plano": [],
-            "historico": [],
-            "resultado_final": None,
-            "erro": "Nenhuma ferramenta registrada.",
-        }
+        return _resposta("erro", objetivo, [], task_id, erro="Nenhuma ferramenta registrada.")
 
-    historico = []
+    historico = list(historico or [])
     erros_consecutivos = 0
     acoes_repetidas = {}
+    acoes_bloqueadas: list = []
+    recuperacoes_usadas = 0
+    finalizacoes_recusadas = 0
+    diretriz_recuperacao = ""
+    motivo_encerramento = ""
+    erro_encerramento = ""
 
-            # Notifica o widget: passo_total (e garante state=running)
+    # Reconstroi o estado do ciclo a partir do historico retomado: guarda
+    # anti-repeticao, acoes bloqueadas pela recuperacao e recuperacoes usadas.
+    # Sem isto, retomar uma task perderia o contexto de recuperacao (FASE 26).
+    for h in historico:
+        chave_antiga = autonomy.assinatura_acao(h.get("ferramenta", ""), h.get("args"))
+        acoes_repetidas[chave_antiga] = acoes_repetidas.get(chave_antiga, 0) + 1
+        rec = h.get("recuperacao")
+        if isinstance(rec, dict):
+            _bloquear_acao(acoes_bloqueadas, rec.get("acoes_bloqueadas"))
+            if rec.get("recuperar"):
+                recuperacoes_usadas += 1
+
+    # Cria (ou reaproveita) o registo persistido da task.
+    if persistir and not task_id:
+        try:
+            registo = task_store.criar_task(objetivo, max_passos=max_passos)
+            task_id = registo["task_id"]
+            _evento(task_id, "inicio", f"objetivo: {objetivo[:300]}")
+        except Exception as e:
+            print(f"[STORE] nao foi possivel persistir a task: {e}")
+            task_id = None
+    elif persistir and task_id:
+        _persistir(task_id, estado=task_store.ESTADO_EM_EXECUCAO)
+
+    # Notifica o widget: passo_total (e garante state=running)
     _widget_notify(passo_total=max_passos, state="running")
 
-    for passo_num in range(1, max_passos + 1):
+    for passo_num in range(passo_inicial, max_passos + 1):
         # Checa cancelamento antes de cada passo
         if esta_cancelada():
             print("[TASK] cancelada pelo usuario - abortando")
             _widget_notify(state="idle")
-            return {
-                "status": "cancelado",
-                "objetivo": objetivo,
-                "plano": [],
-                "historico": historico,
-                "resultado_final": None,
-                "erro": None,
-            }
+            _persistir(task_id, estado=task_store.ESTADO_CANCELADO, terminado=True)
+            _evento(task_id, "cancelada", "cancelada pelo usuario", passo=passo_num)
+            return _resposta("cancelado", objetivo, historico, task_id)
+
+        # FASE 26 - pausa: guarda o estado e devolve o controle sem perder contexto
+        if esta_pausada():
+            print("[TASK] pausada pelo usuario - estado persistido")
+            _widget_notify(passo_atual="PAUSADO", state="running")
+            _persistir(task_id, estado=task_store.ESTADO_PAUSADO, passo_atual=len(historico))
+            _evento(task_id, "pausada", "pausa solicitada pelo usuario", passo=passo_num)
+            return _resposta(
+                "pausado", objetivo, historico, task_id,
+                erro=None,
+                passo_atual=len(historico),
+            )
 
         print(f"\n[TASK] === PASSO {passo_num}/{max_passos} ===")
 
@@ -447,13 +574,20 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
         if esta_cancelada():
             print("[TASK] cancelada antes de decidir")
             _widget_notify(state="idle")
-            return {"status": "cancelado", "objetivo": objetivo, "plano": [],
-                    "historico": historico, "resultado_final": None, "erro": None}
+            _persistir(task_id, estado=task_store.ESTADO_CANCELADO, terminado=True)
+            _evento(task_id, "cancelada", "cancelada antes de decidir", passo=passo_num)
+            return _resposta("cancelado", objetivo, historico, task_id)
 
         try:
-            decisao = _decidir_proximo_passo(objetivo, historico)
+            decisao = _decidir_proximo_passo(
+                objetivo,
+                historico,
+                diretriz_recuperacao=diretriz_recuperacao,
+                acoes_bloqueadas=acoes_bloqueadas,
+            )
         except Exception as e:
             print(f"[TASK] Erro ao decidir: {e}")
+            motivo_encerramento = f"erro ao decidir o proximo passo: {type(e).__name__}: {e}"
             break
 
         acao = decisao.get("acao", "")
@@ -470,7 +604,55 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
             acao = "chamar"
 
         if acao == "finalizar":
-            print(f"[TASK] LLM decidiu finalizar: {decisao.get('motivo', '')}")
+            motivo_final = str(decisao.get("motivo", ""))[:200]
+            verificacao = autonomy.verificar(objetivo, historico)
+            if historico:
+                historico[-1]["verificacao"] = verificacao
+
+            # FASE 26 - nao aceita "finalizar" quando existe evidencia forte de falha.
+            evidencia_de_falha = (
+                verificacao.get("atingido") is False
+                and verificacao.get("confianca") == "alta"
+                and bool(historico)
+            )
+            if evidencia_de_falha and finalizacoes_recusadas < MAX_FINALIZACOES_RECUSADAS:
+                finalizacoes_recusadas += 1
+                ultimo = historico[-1]
+                rec = autonomy.recuperar(
+                    ultimo.get("ferramenta", ""),
+                    ultimo.get("args", {}),
+                    ultimo.get("erro") or verificacao.get("motivo"),
+                    historico,
+                    recuperacoes_usadas=recuperacoes_usadas,
+                )
+                recuperacoes_usadas += 1
+                ultimo["recuperacao"] = rec
+                _bloquear_acao(acoes_bloqueadas, rec.get("acoes_bloqueadas"))
+                _persistir(task_id, historico=historico, passo_atual=len(historico))
+                _evento(
+                    task_id, "finalizacao_recusada",
+                    f"{verificacao.get('motivo')} | {rec.get('motivo')}", passo=passo_num,
+                )
+                print(f"[VERIFICAR] finalizacao recusada: {verificacao.get('motivo')}")
+                if rec.get("desistir"):
+                    erro_encerramento = rec.get("motivo", "recuperacao esgotada")
+                    break
+                diretriz_recuperacao = rec.get("diretriz", "")
+                continue
+
+            if evidencia_de_falha:
+                # O planner insiste em declarar sucesso, mas a evidencia observada
+                # diz o contrario: encerra como falha em vez de mentir sucesso.
+                erro_encerramento = (
+                    "o planner declarou o objetivo concluido, mas a evidencia observada "
+                    f"indica falha: {verificacao.get('motivo')}"
+                )
+                _evento(task_id, "sucesso_sem_evidencia", erro_encerramento, passo=passo_num)
+                print(f"[VERIFICAR] encerrando sem sucesso: {erro_encerramento}")
+                break
+
+            print(f"[TASK] LLM decidiu finalizar: {motivo_final}")
+            motivo_encerramento = motivo_final
             break
 
         if acao == "chamar":
@@ -494,8 +676,16 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
             if esta_cancelada():
                 print("[TASK] cancelada antes de executar ferramenta")
                 _widget_notify(state="idle")
-                return {"status": "cancelado", "objetivo": objetivo, "plano": [],
-                        "historico": historico, "resultado_final": None, "erro": None}
+                _persistir(task_id, estado=task_store.ESTADO_CANCELADO, terminado=True)
+                _evento(task_id, "cancelada", "cancelada antes de executar", passo=passo_num)
+                return _resposta("cancelado", objetivo, historico, task_id)
+
+            if esta_pausada():
+                print("[TASK] pausada antes de executar ferramenta")
+                _widget_notify(passo_atual="PAUSADO", state="running")
+                _persistir(task_id, estado=task_store.ESTADO_PAUSADO, passo_atual=len(historico))
+                _evento(task_id, "pausada", "pausa antes de executar", passo=passo_num)
+                return _resposta("pausado", objetivo, historico, task_id, passo_atual=len(historico))
 
             if ferramenta not in FERRAMENTAS_DISPONIVEIS:
                 print(f"[TASK] ferramenta invalida: {ferramenta}")
@@ -508,16 +698,48 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
                     "ok": False,
                     "resultado": None,
                     "erro": f"ferramenta desconhecida: {ferramenta}",
+                    "timestamp": time.time(),
                 })
+                _persistir(task_id, historico=historico, passo_atual=passo_num)
                 if erros_consecutivos >= MAX_ERROS_CONSECUTIVOS:
                     print("[TASK] muitos erros consecutivos. Abortando.")
+                    erro_encerramento = f"{erros_consecutivos} erros consecutivos (ferramenta desconhecida)"
                     break
                 continue
 
-            chave = f"{ferramenta}:{json.dumps(args, sort_keys=True)}"
+            chave = autonomy.assinatura_acao(ferramenta, args)
             acoes_repetidas[chave] = acoes_repetidas.get(chave, 0) + 1
+
+            # FASE 26 - guarda de recuperacao: nunca reexecuta uma acao ja bloqueada
+            # (verificado antes do guarda de repeticao para dar um motivo explicito).
+            if chave in acoes_bloqueadas:
+                print(f"[RECUPERAR] acao bloqueada recusada: {chave}")
+                erros_consecutivos += 1
+                historico.append({
+                    "passo": passo_num,
+                    "ferramenta": ferramenta,
+                    "args": args,
+                    "motivo": motivo,
+                    "ok": False,
+                    "resultado": None,
+                    "erro": "acao bloqueada apos falhas repetidas (recuperacao)",
+                    "timestamp": time.time(),
+                })
+                _evento(task_id, "acao_bloqueada", chave, passo=passo_num)
+                _persistir(task_id, historico=historico, passo_atual=passo_num)
+                if erros_consecutivos >= MAX_ERROS_CONSECUTIVOS:
+                    erro_encerramento = (
+                        f"o planner insistiu em acoes bloqueadas apos falhas; "
+                        f"ultima acao recusada: {chave}"
+                    )
+                    break
+                continue
+
             if acoes_repetidas[chave] > MAX_REPETICOES_MESMA_ACAO:
                 print(f"[TASK] Acao repetida {acoes_repetidas[chave]}x. Abortando.")
+                erro_encerramento = (
+                    f"acao repetida {acoes_repetidas[chave]}x sem progresso: {chave}"
+                )
                 break
 
             # Notifica o widget: qual ferramenta ta rodando AGORA
@@ -525,14 +747,14 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
 
             r = _executar_passo(ferramenta, args)
 
-            # NOVO: observar o resultado (se a ferramenta muda estado)
+            # FASE 26 - observar o resultado (se a ferramenta muda estado)
             observacao = _observar(objetivo, ferramenta, args, r["resultado"], r["erro"])
             if observacao:
                 print(f"[OBSERVER] sucesso={observacao.get('sucesso')} "
                       f"objetivo_atingido={observacao.get('objetivo_atingido')} "
                       f"motivo={str(observacao.get('motivo', ''))[:80]}")
 
-            historico.append({
+            entrada = {
                 "passo": passo_num,
                 "ferramenta": ferramenta,
                 "args": args,
@@ -541,7 +763,46 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
                 "resultado": r["resultado"],
                 "erro": r["erro"],
                 "observacao": observacao,
-            })
+                "timestamp": time.time(),
+            }
+            historico.append(entrada)
+
+            # FASE 26 - verificar o objetivo com evidencia observavel
+            verificacao = autonomy.verificar(objetivo, historico, observacao)
+            entrada["verificacao"] = verificacao
+            print(f"[VERIFICAR] atingido={verificacao.get('atingido')} "
+                  f"confianca={verificacao.get('confianca')} "
+                  f"motivo={str(verificacao.get('motivo', ''))[:100]}")
+
+            # FASE 26 - recuperar de falhas com nova estrategia e limite explicito
+            if not r["ok"]:
+                rec = autonomy.recuperar(
+                    ferramenta,
+                    args,
+                    r["erro"],
+                    historico,
+                    recuperacoes_usadas=recuperacoes_usadas,
+                )
+                recuperacoes_usadas += 1
+                entrada["recuperacao"] = rec
+                _bloquear_acao(acoes_bloqueadas, rec.get("acoes_bloqueadas"))
+                _evento(task_id, "recuperacao", rec.get("motivo", ""), passo=passo_num)
+                print(f"[RECUPERAR] desistir={rec.get('desistir')} "
+                      f"motivo={str(rec.get('motivo', ''))[:100]}")
+                if rec.get("desistir"):
+                    erro_encerramento = rec.get("motivo", "recuperacao esgotada")
+                    _persistir(task_id, historico=historico, passo_atual=passo_num)
+                    break
+                diretriz_recuperacao = rec.get("diretriz", "")
+
+            # FASE 26 - persistir o passo (pausa/retomada e retomada apos crash)
+            _persistir(
+                task_id,
+                historico=historico,
+                passo_atual=passo_num,
+                estado=task_store.ESTADO_EM_EXECUCAO,
+            )
+            _evento(task_id, "passo", f"{ferramenta} ok={r['ok']}", passo=passo_num)
 
             # Notifica o widget: historico atualizado
             _widget_notify(
@@ -551,25 +812,120 @@ def executar_task(objetivo: str, max_passos: int = MAX_PASSOS_PADRAO) -> dict:
 
             if r["ok"]:
                 erros_consecutivos = 0
+                # A recuperacao funcionou: a diretriz deixa de ser necessaria
+                # (as acoes bloqueadas continuam bloqueadas).
+                diretriz_recuperacao = ""
+                # Objetivo confirmado pelo observer: encerra com evidencia, sem esperar o planner.
+                if verificacao.get("atingido") is True:
+                    motivo_encerramento = f"objetivo verificado: {verificacao.get('motivo')}"
+                    print(f"[VERIFICAR] objetivo atingido - encerrando: {motivo_encerramento}")
+                    break
             else:
                 erros_consecutivos += 1
                 if erros_consecutivos >= MAX_ERROS_CONSECUTIVOS:
                     print("[TASK] muitos erros consecutivos. Abortando.")
+                    erro_encerramento = f"{erros_consecutivos} erros consecutivos sem recuperacao"
                     break
 
             continue
 
         print(f"[TASK] acao desconhecida: {acao}")
+        erro_encerramento = erro_encerramento or f"acao desconhecida retornada pelo planner: {acao}"
         break
 
     print(f"\n[TASK] finalizando com {len(historico)} passos executados")
-    resultado_final = _sintetizar(objetivo, historico)
 
-    return {
-        "status": "ok",
-        "objetivo": objetivo,
-        "plano": [{"ferramenta": h["ferramenta"], "args": h["args"]} for h in historico],
-        "historico": historico,
-        "resultado_final": resultado_final,
-        "erro": None,
-    }
+    if erro_encerramento and not motivo_encerramento:
+        print(f"[TASK] encerrada com falha: {erro_encerramento}")
+        _persistir(
+            task_id,
+            historico=historico,
+            passo_atual=len(historico),
+            estado=task_store.ESTADO_FALHOU,
+            erro=erro_encerramento,
+            terminado=True,
+        )
+        _evento(task_id, "falhou", erro_encerramento)
+        return _resposta(
+            "falhou", objetivo, historico, task_id,
+            resultado_final=None,
+            erro=erro_encerramento,
+            motivo_encerramento=erro_encerramento,
+        )
+
+    resultado_final = _sintetizar(objetivo, historico)
+    _persistir(
+        task_id,
+        historico=historico,
+        passo_atual=len(historico),
+        estado=task_store.ESTADO_CONCLUIDO,
+        resultado_final=resultado_final,
+        terminado=True,
+    )
+    _evento(task_id, "concluida", motivo_encerramento or "sintese final")
+
+    return _resposta(
+        "ok", objetivo, historico, task_id,
+        resultado_final=resultado_final,
+        motivo_encerramento=motivo_encerramento,
+    )
+
+
+# ============================================================
+# FASE 26 - retomada de tasks persistidas
+# ============================================================
+
+def listar_tasks_pendentes(limite: int = 20) -> list:
+    """Tasks que podem ser retomadas (pausadas, em execucao ou interrompidas)."""
+    try:
+        return task_store.tasks_retomaveis(limite=limite)
+    except Exception as e:
+        print(f"[STORE] erro ao listar tasks: {e}")
+        return []
+
+
+def retomar_task(task_id: str, max_passos: int | None = None) -> dict:
+    """Retoma uma task persistida (pausa, reinicio do processo ou crash).
+
+    Preserva objetivo, historico, observacoes, verificacoes e recuperacoes ja
+    feitas: o planner recebe o historico completo e continua do passo seguinte.
+    """
+    try:
+        registo = task_store.carregar_task(task_id)
+    except Exception as e:
+        return _resposta("erro", "", [], task_id, erro=f"erro ao carregar task: {e}")
+
+    if not registo:
+        return _resposta("erro", "", [], task_id, erro=f"task nao encontrada: {task_id}")
+
+    estado = registo.get("estado")
+    if estado not in task_store.ESTADOS_RETOMAVEIS:
+        return _resposta(
+            "erro",
+            registo.get("objetivo", ""),
+            registo.get("historico") or [],
+            task_id,
+            erro=f"task nao pode ser retomada (estado={estado})",
+        )
+
+    if estado == task_store.ESTADO_INTERROMPIDO:
+        _evento(task_id, "retomada_apos_interrupcao", registo.get("erro") or "")
+
+    # Retomar significa voltar a rodar: limpa cancelamento e pausa.
+    resetar()
+    resetar_pausa()
+
+    historico = registo.get("historico") or []
+    total = max_passos or registo.get("max_passos") or MAX_PASSOS_PADRAO
+    total = max(int(total), len(historico) + PASSOS_EXTRA_AO_RETOMAR)
+
+    _evento(task_id, "retomada", f"retomando do passo {len(historico) + 1}", passo=len(historico))
+
+    return executar_task(
+        registo.get("objetivo", ""),
+        max_passos=total,
+        task_id=task_id,
+        historico=historico,
+        passo_inicial=len(historico) + 1,
+    )
+

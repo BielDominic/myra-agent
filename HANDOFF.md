@@ -1,9 +1,9 @@
 # MYRA — Handoff de Contexto
 
-- **Última atualização:** 2026-10-12
-- **Progresso declarado no roadmap:** ~70%
+- **Última atualização:** 2026-10-15
+- **Progresso declarado no roadmap:** ~72%
 - **Branch de referência:** `main`
-- **Último commit conhecido antes desta atualização:** `8bc41fc`
+- **Último commit conhecido antes desta atualização:** `4dddd09e`
 - **Roadmap:** [ROADMAP.md](ROADMAP.md)
 - **Arquitetura:** [ARCHITECTURE.md](ARCHITECTURE.md)
 - **Inventário de ferramentas:** [TOOLS.md](TOOLS.md)
@@ -15,7 +15,7 @@
 
 MYRA é um agente pessoal de IA local-first para Windows. Combina FastAPI, um modelo local via Ollama, ferramentas de navegador, extensão Chrome Manifest V3 com bridge persistente em SQLite, controles desktop, visão local e interface Open WebUI. O planner adaptativo escolhe ferramentas passo a passo, observa os resultados retornados e pode tentar novamente dentro do limite de passos.
 
-O commit `8bc41fc` adicionou as ferramentas `vision_locate`, `vision_click` e `vision_type` à integração `tools/browseragent.py` e regras no planner. O teste end-to-end reportado confirmou a sequência `vision_locate` → coordenadas → `vision_click`. A FASE 25 (Visão com Coordenadas) foi marcada como concluída no roadmap em 2026-10-12. A FASE 26 é o próximo foco: ciclo autónomo completo com observação, verificação, recuperação e persistência.
+O commit `8bc41fc` adicionou as ferramentas `vision_locate`, `vision_click` e `vision_type` à integração `tools/browseragent.py` e regras no planner. A FASE 25 (Visão com Coordenadas) foi marcada como concluída em 2026-10-12. A FASE 26 (Ciclo Autónomo Completo) está **em progresso a 80%**: observação textual (`computer/observer.py`), verificação de objetivo e recuperação de falhas (`tasks/autonomy.py`), persistência de tasks em SQLite (`tasks/task_store.py`), pausa/retomada (`/task_pause`, `/task_resume`) e retomada após crash estão implementadas e cobertas por 43 testes automatizados. A validação end-to-end com Ollama real (`qwen2.5:7b`) foi executada em 2026-10-15 (conclusão por evidência do observer, falha com motivo explícito e pausa/retomada com contexto preservado); falta a observação com screenshot e a validação com o navegador em uso real.
 
 ## O que funciona hoje (por área)
 
@@ -23,7 +23,16 @@ O commit `8bc41fc` adicionou as ferramentas `vision_locate`, `vision_click` e `v
 - FastAPI em `agent.py`, com rotas para ferramentas e integração compatível com OpenAI em `/v1/chat/completions`.
 - `/task_simple` executa o planner adaptativo de `tasks/simple_task.py`.
 - Estado de tarefa, cancelamento e eventos são expostos por rotas como `/task_status`, `/task_cancel` e `/task_events`.
+- **FASE 26:** `POST /task_pause` pausa no próximo ponto seguro e persiste o estado; `POST /task_resume` (body `{"task_id": "..."}`, opcional `max_passos`) retoma em background; `GET /task_pendentes` lista tasks retomáveis; `GET /task_detalhe/{task_id}` devolve histórico + eventos de auditoria.
 - O planner regista ferramentas estruturadas, ferramentas do browser bridge e ferramentas visuais.
+
+### Ciclo autónomo (FASE 26)
+- `computer/observer.py::observar` avalia cada ação (resultado da ferramenta + LLM local) e devolve `sucesso`, `objetivo_atingido`, `motivo` e `proximo_passo_sugerido`. É uma avaliação textual: não tira screenshot.
+- `tasks/autonomy.py::verificar` só declara sucesso com evidência (`sucesso=True` e `objetivo_atingido=True`); caso contrário devolve `False` (evidência negativa) ou `None`/`indeterminado` e o planner decide.
+- `tasks/autonomy.py::recuperar` gera a diretriz de nova estratégia, bloqueia assinaturas de ações que falharam e aplica limites (`MAX_TENTATIVAS_POR_ACAO=2`, `LIMITE_RECUPERACOES=3`). Falhas esgotadas encerram a task com `status="falhou"` e motivo explícito.
+- `executar_task` recusa `finalizar` quando há evidência forte de falha (máximo 2 recusas) e encerra em vez de declarar sucesso falso.
+- `tasks/task_store.py` persiste objetivo, passo atual, histórico, estado, timestamps e eventos em `%LOCALAPPDATA%\MYRA\myra_tasks.sqlite3` (`MYRA_TASK_DB` redireciona, útil em testes). No startup, tasks `em_execucao` de execuções anteriores passam a `interrompido` e podem ser retomadas.
+- Testes: `python -m unittest discover -s tests -t .` (43 testes; não chamam LLM, rede nem ferramentas reais).
 
 ### Navegador
 - Ferramentas Playwright legadas para abrir URLs, pesquisar, ler páginas, clicar, digitar, navegar para trás e esperar.
@@ -60,27 +69,24 @@ O commit `8bc41fc` adicionou as ferramentas `vision_locate`, `vision_click` e `v
 
 ## O que falta (priorizado)
 
-1. **FASE 26 — ciclo autónomo:** observar após cada ação, verificar o objetivo, recuperar de falhas, persistir estado e retomar tarefas após crash.
-2. **FASE 27 — overlay visual TARS:** janela transparente click-through, cursor/trajectória visível, highlight do alvo, estados visuais e eventos em tempo real.
-3. **Estabilidade e testes:** testes automatizados para planner, bridge, ferramentas visuais e fluxos de erro; logs estruturados e health checks.
+1. **FASE 26 — restante:** observação com screenshot dedicado (hoje é textual) e validação com o navegador/extensão em uso real; pausa, retomada, recuperação e retomada após crash já foram validadas com Ollama real em 2026-10-15.
+2. **FASE 27 — overlay visual TARS:** janela transparente click-through, cursor/trajectória visível, highlight do alvo, estados visuais e eventos em tempo real (o SSE `/task_events` já existe e a pausa é sinalizada por `passo_atual="PAUSADO (...)"`).
+3. **Estabilidade e testes:** ampliar a cobertura para planner/bridge reais, logs estruturados e health checks.
 4. **Browser/Computer Use:** melhorar recuperação de navegação, pop-ups inesperados, iFrames/shadow DOM, drag-and-drop, clipboard, múltiplos monitores e verificação pós-ação.
-5. **Persistência e observabilidade:** histórico consultável e tarefas sobrevivendo a reinícios.
+5. **Persistência e observabilidade:** histórico consultável pela interface (as rotas `/task_pendentes` e `/task_detalhe` já existem) e limpeza automática de tasks antigas.
 6. **Ferramentas avançadas:** anexos de e-mail, documentos PDF/Office, YouTube sem legendas, scheduler, voz e integrações externas.
 7. **Segurança e distribuição:** permissões explícitas, auditoria, sandbox de código, instalador, auto-start, notificações e documentação de instalação.
 
 Consulte [ROADMAP.md](ROADMAP.md) para a lista completa de fases e checkboxes. Não considere uma funcionalidade concluída apenas por estar listada: confirme a implementação e faça um teste relevante.
 
-## Próximos passos — FASE 26: ciclo autónomo
+## Próximos passos — FASE 26 (restante) e FASE 27
 
-1. Inspecionar `tasks/simple_task.py`, `computer/vision_locate.py`, as rotas de estado/eventos e o estado atual da branch.
-2. Definir contratos claros para observação, verificação e recuperação (entradas, saídas e estados de erro).
-3. Implementar observação após cada ação, começando por screenshot + resultado estruturado.
-4. Implementar verificação do objetivo com evidência observável, evitando declarar sucesso sem confirmação.
-5. Implementar recuperação limitada: nova estratégia, limite de tentativas e motivo explícito para falha.
-6. Persistir task ID, objetivo, passo atual, histórico, estado e timestamps em SQLite; testar retoma após reinício.
-7. Ligar pausa/continuação ao estado persistido sem perder o contexto.
-8. Criar testes unitários e end-to-end para sucesso, alvo não encontrado, timeout, cancelamento e reinício.
-9. Só depois integrar o ciclo no overlay da FASE 27.
+1. Rodar os testes: `python -m unittest discover -s tests -t .` (devem passar 43).
+2. Validar as rotas novas no servidor em execução (depois de reiniciar o agent, porque as rotas `/task_*` novas só existem no código atualizado): `POST /task_pause`, `GET /task_pendentes`, `POST /task_resume`, `GET /task_detalhe/{task_id}`.
+3. Testar a retomada após reinício do processo: matar o agent no meio de uma task, subir de novo e confirmar que a task aparece como `interrompido` em `/task_pendentes` e retoma pelo `/task_resume`.
+4. Adicionar screenshot ao observer (FASE 26 restante) e validar alvo não encontrado/timeout com o navegador real.
+5. Só depois integrar o ciclo no overlay da FASE 27.
+6. Atualizar roadmap e este handoff somente após verificar mudanças reais.
 
 ## Regras críticas do projeto
 
@@ -103,8 +109,8 @@ Consulte [ROADMAP.md](ROADMAP.md) para a lista completa de fases e checkboxes. N
    git branch --show-current
    git log -5 --oneline
    ```
-2. Leia, nesta ordem: `README.md`, `ROADMAP.md`, este `HANDOFF.md`, `tasks/simple_task.py`, `computer/vision_locate.py`, `agent.py`.
-3. Confirme que `vision_locate`, `vision_click` e `vision_type` estão registadas e que as rotas correspondentes existem.
-4. Execute os testes relevantes disponíveis no checkout e confirme serviços/portas antes do teste end-to-end.
-5. Comece pela FASE 26; não avance para o overlay avançado antes de haver um ciclo observe → act → verify → recover fiável.
+2. Leia, nesta ordem: `README.md`, `ROADMAP.md`, este `HANDOFF.md`, `tasks/simple_task.py`, `tasks/autonomy.py`, `tasks/task_store.py`, `computer/observer.py`, `agent.py`.
+3. Confirme que `vision_locate`, `vision_click` e `vision_type` estão registadas, que as rotas `/vision_*` existem e que as rotas `/task_pause`, `/task_resume`, `/task_pendentes` e `/task_detalhe/{task_id}` respondem.
+4. Execute `python -m unittest discover -s tests -t .` (43 testes, sem LLM/rede) e confirme serviços/portas antes do teste end-to-end.
+5. Valide a FASE 26 com serviços reais (Ollama + browser); só depois avance para o overlay da FASE 27.
 6. Atualize o roadmap e este handoff somente após verificar mudanças reais.

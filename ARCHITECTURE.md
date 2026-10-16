@@ -69,7 +69,9 @@
 | Tauri widget | Desktop mascot/widget and task status UI; optional local build. |
 | Chrome extension (Manifest V3) | Executes browser commands in the user's active authenticated browser context. |
 | `agent.py` | FastAPI application, API routes, tool registration, task endpoints and OpenAI-compatible chat endpoint. |
-| `tasks/simple_task.py` | Adaptive planner/executor loop and tool selection. |
+| `tasks/simple_task.py` | Adaptive planner/executor loop and tool selection; observe → act → verify → recover cycle with pause/resume support. |
+| `tasks/autonomy.py` | Goal verification (`verificar`) and failure recovery (`recuperar`) with blocked-action signatures and explicit limits. |
+| `tasks/task_store.py` | Task persistence in SQLite: goal, current step, history, state, timestamps and audit events; enables resume after pause or crash. |
 | `tasks/structured_tools.py` | Structured web and YouTube discovery helpers. |
 | `tasks/browser_bridge.py` | Token-protected command queue and routes for the Chrome extension; commands/results persist in SQLite. |
 | `tasks/cancel_state.py` | Shared cancellation state for tasks. |
@@ -102,10 +104,12 @@ These are documented defaults, not a guarantee that every service is running or 
 6. For visual interaction, `computer/vision_locate.py` captures/analyses the screen using its OCR/fuzzy-match/LLM pipeline, returns coordinates, and can invoke click/type actions.
 7. For local reasoning, the configured LLM is called through Ollama on port 11434. Vision inference is served separately through llm-eyes on port 8081.
 8. The planner uses the tool result to decide the next step until it finishes, fails, or reaches the step limit. Task state/events can update the widget.
+9. After each state-changing action, `computer/observer.py` judges the outcome and `tasks/autonomy.py` verifies the goal; failures produce a recovery directive, blocked actions, or an explicit failure reason. Progress is persisted by `tasks/task_store.py`, so a task can be paused (`/task_pause`) and resumed (`/task_resume`) without losing context — including after a crash.
 
 ## Databases and persistence
 
 - **Browser bridge SQLite:** stores queued browser commands and completion results. Default location is under `%LOCALAPPDATA%\MYRA\browser_bridge.sqlite3` (or `~/.myra/browser_bridge.sqlite3` when `LOCALAPPDATA` is unavailable); `MYRA_BROWSER_BRIDGE_DB` can override it.
+- **Task store SQLite:** stores task goal, current step, history, state, timestamps and audit events for pause/resume and crash recovery. Default location is `%LOCALAPPDATA%\MYRA\myra_tasks.sqlite3` (or `~/.myra/myra_tasks.sqlite3`); `MYRA_TASK_DB` can override it (used by the tests).
 - **Open WebUI SQLite:** Open WebUI persists its own application data in its configured Docker volume/database. The precise path depends on the container configuration; inspect Docker volumes rather than assuming a fixed host path.
 - **Other state:** some features use JSON files or local workspace files, depending on the module.
 

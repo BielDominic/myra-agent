@@ -55,6 +55,8 @@ The project combines a locally hosted language model with a FastAPI backend, bro
 
 The task planner receives an objective, chooses an available tool, observes the returned result, and continues until it can respond or reaches its step limit. Structured tools are designed to make results easier for the planner to interpret.
 
+The loop implements an observe → act → verify → recover cycle: after each state-changing action an observation is produced, the goal is verified against that evidence (success is not declared without it), failures produce a new-strategy directive with the failed action blocked, and every step is persisted to SQLite so tasks can be paused, resumed, or recovered after a crash. See [ROADMAP.md](ROADMAP.md) for the current status of this work.
+
 Example objectives:
 - Search for a topic, open a relevant result, and summarise the page.
 - Find a YouTube channel's latest video and report its title.
@@ -316,6 +318,31 @@ Invoke-RestMethod `
     -ContentType "application/json"
 ~~~
 
+### Pause, inspect and resume a task
+
+Tasks are persisted in SQLite (`%LOCALAPPDATA%\MYRA\myra_tasks.sqlite3`, override with `MYRA_TASK_DB`), so a task can be paused and later resumed without losing the goal, history, observations or recovery attempts. If the process is killed, tasks left `em_execucao` are marked `interrompido` on the next startup and can still be resumed.
+
+~~~powershell
+# Pausa a task em execucao (o loop para no proximo ponto seguro)
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/task_pause" -Method Post
+
+# Lista tasks retomaveis (pausadas / interrompidas / em execucao)
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/task_pendentes" -Method Get
+
+# Retoma uma task persistida, em background
+$body = @{ task_id = "task-1234-abcd1234" } | ConvertTo-Json
+Invoke-RestMethod `
+    -Uri "http://127.0.0.1:8000/task_resume" `
+    -Method Post `
+    -Body $body `
+    -ContentType "application/json"
+
+# Historico + eventos de auditoria de uma task
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/task_detalhe/task-1234-abcd1234" -Method Get
+~~~
+
+Task responses from `/task_simple` include `task_id` and `motivo_encerramento`; `status` can be `ok`, `pausado`, `cancelado`, `falhou` or `erro`.
+
 ## Available tool groups
 
 The following names are documented by the project. Availability depends on which tool modules are installed, registered, and enabled in your current environment.
@@ -411,14 +438,18 @@ myra-agent/
 ├── agent.py                  # FastAPI backend
 ├── requirements.txt          # Python dependencies, if present
 ├── tasks/
-│   ├── simple_task.py        # Task planner and execution loop
+│   ├── simple_task.py        # Task planner and execution loop (observe/verify/recover)
+│   ├── autonomy.py           # Goal verification and failure recovery
+│   ├── task_store.py         # Task persistence in SQLite (pause/resume/crash)
 │   ├── structured_tools.py   # Structured search and discovery
 │   ├── browser_bridge.py     # Browser bridge queue/API
-│   └── cancel_state.py       # Shared cancellation state
+│   └── cancel_state.py       # Shared cancellation and pause state
 ├── computer/
 │   ├── controller.py         # Mouse and keyboard
 │   ├── screen.py             # Screenshots
+│   ├── observer.py           # Post-action observation (tool result + local LLM)
 │   └── windows.py            # Window operations
+├── tests/                    # unittest suite for the autonomous loop and task store
 ├── browser-extension/        # Chrome MV3 extension
 ├── tools/
 │   ├── browseragent.py       # Open WebUI integration
@@ -478,6 +509,9 @@ Useful checks:
 ~~~powershell
 # Python syntax
 python -m py_compile .\agent.py
+
+# Autonomous loop / task store test suite (no LLM or network required)
+python -m unittest discover -s tests -t .
 
 # JavaScript syntax for the Chrome extension
 node --check .\browser-extension\offscreen.js
