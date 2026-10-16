@@ -1305,8 +1305,8 @@ def vision_locate_route(data: VisionLocateRequest):
     """Acha um elemento na tela por descricao textual e publica o alvo no overlay."""
     print(f"[VISION_LOCATE] descricao={data.descricao!r}")
     try:
-        from computer.vision_locate import vision_locate
-        resultado = vision_locate(data.descricao, data.screenshot_path)
+        from computer import vision_locate as vision_module
+        resultado = vision_module.vision_locate(data.descricao, data.screenshot_path)
         return _overlay_emit_target(resultado, data.descricao)
     except Exception as e:
         return {"status": "erro", "result": f"Erro: {type(e).__name__}: {e}"}
@@ -1314,52 +1314,22 @@ def vision_locate_route(data: VisionLocateRequest):
 
 @app.post("/vision_click")
 def vision_click_route(data: VisionLocateRequest):
-    """Destaca o alvo no overlay antes de clicar nele."""
+    """Localiza, destaca no overlay e clica no centro do elemento."""
     print(f"[VISION_CLICK] descricao={data.descricao!r}")
     try:
-        import time
-        import pyautogui
-        from computer.vision_locate import vision_locate
-        loc = vision_locate(data.descricao)
-        _overlay_emit_target(loc, data.descricao)
-        if loc.get("status") != "ok" or not loc.get("encontrado"):
-            return loc
-        time.sleep(0.22)  # deixa o highlight aparecer antes do clique
-        pyautogui.click(int(loc["x"]), int(loc["y"]))
-        return {
-            "status": "ok",
-            "result": f"Clicado em '{loc.get('label', data.descricao)}' ({loc['x']}, {loc['y']})",
-            "x": loc["x"], "y": loc["y"], "label": loc.get("label"),
-            "screenshot": loc.get("screenshot"), "metodo": loc.get("metodo"),
-        }
+        from computer.vision_locate import vision_click
+        return vision_click(data.descricao)
     except Exception as e:
         return {"status": "erro", "result": f"Erro: {type(e).__name__}: {e}"}
 
 
 @app.post("/vision_type")
 def vision_type_route(data: VisionTypeRequest):
-    """Destaca o campo, clica e digita texto."""
+    """Localiza, destaca, clica e digita no campo."""
     print(f"[VISION_TYPE] descricao={data.descricao!r}")
     try:
-        import time
-        import pyautogui
-        from computer.vision_locate import vision_locate
-        loc = vision_locate(data.descricao)
-        _overlay_emit_target(loc, data.descricao)
-        if loc.get("status") != "ok" or not loc.get("encontrado"):
-            return loc
-        time.sleep(0.22)
-        pyautogui.click(int(loc["x"]), int(loc["y"]))
-        time.sleep(0.2)
-        if data.limpar:
-            pyautogui.hotkey("ctrl", "a")
-            pyautogui.press("delete")
-        pyautogui.write(data.texto, interval=0.02)
-        return {
-            "status": "ok",
-            "result": f"Digitado em '{loc.get('label', data.descricao)}' ({loc['x']}, {loc['y']})",
-            "x": loc["x"], "y": loc["y"], "label": loc.get("label"),
-        }
+        from computer.vision_locate import vision_type
+        return vision_type(data.descricao, data.texto, data.limpar)
     except Exception as e:
         return {"status": "erro", "result": f"Erro: {type(e).__name__}: {e}"}
 
@@ -3331,9 +3301,14 @@ _system_tools.registrar_todas(registrar_ferramenta)
 # ============================================================
 # VISION LOCATE - ferramentas do planner
 # ============================================================
+from computer import vision_locate as _vision_module
 from computer.vision_locate import vision_locate as _vision_locate_fn
 from computer.vision_locate import vision_click as _vision_click_fn
 from computer.vision_locate import vision_type as _vision_type_fn
+
+# Injetar callback antes de registrar as ferramentas para destacar o alvo antes
+# de o modulo vision_locate clicar ou digitar.
+_vision_module.OVERLAY_TARGET_CALLBACK = _overlay_emit_target
 
 
 def _t_vision_locate(descricao: str):
@@ -3341,42 +3316,11 @@ def _t_vision_locate(descricao: str):
 
 
 def _t_vision_click(descricao: str):
-    import time
-    import pyautogui
-    loc = _overlay_emit_target(_vision_locate_fn(descricao), descricao)
-    if loc.get("status") != "ok" or not loc.get("encontrado"):
-        return loc
-    time.sleep(0.22)
-    try:
-        pyautogui.click(int(loc["x"]), int(loc["y"]))
-        return {
-            "status": "ok",
-            "result": f"Clicado em '{loc.get('label', descricao)}' ({loc['x']}, {loc['y']})",
-            "x": loc["x"], "y": loc["y"], "label": loc.get("label"),
-            "screenshot": loc.get("screenshot"), "metodo": loc.get("metodo"),
-        }
-    except Exception as e:
-        return {"status": "erro", "result": f"Erro ao clicar: {type(e).__name__}: {e}"}
+    return _vision_click_fn(descricao)
 
 
 def _t_vision_type(descricao: str, texto: str, limpar: bool = True):
-    import time
-    import pyautogui
-    loc = _overlay_emit_target(_vision_locate_fn(descricao), descricao)
-    if loc.get("status") != "ok" or not loc.get("encontrado"):
-        return loc
-    time.sleep(0.22)
-    try:
-        pyautogui.click(int(loc["x"]), int(loc["y"]))
-        time.sleep(0.2)
-        if limpar:
-            pyautogui.hotkey("ctrl", "a")
-            pyautogui.press("delete")
-        pyautogui.write(texto, interval=0.02)
-        return {"status": "ok", "result": f"Digitado em '{loc.get('label', descricao)}'", "x": loc["x"], "y": loc["y"], "label": loc.get("label")}
-    except Exception as e:
-        return {"status": "erro", "result": f"Erro ao digitar: {type(e).__name__}: {e}"}
-
+    return _vision_type_fn(descricao, texto, limpar)
 
 registrar_ferramenta(
     "vision_locate", _t_vision_locate,
