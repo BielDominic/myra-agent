@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Observer textual do MYRA: avalia a acao anterior com evidencias.
+"""Observer multimodal do MYRA: screenshot + resultado da ferramenta.
 
-A versao atual usa o resultado da ferramenta e o modelo textual do Ollama.
-O contrato aceita apenas booleanos JSON reais (nao transforma a string
-"false" em True), e uma resposta ambigua nunca pode confirmar sucesso.
+Tenta avaliar a tela atual pelo servidor visual local (LLM_EYES_URL). Se a
+captura ou o modelo visual estiver indisponivel, recorre ao Ollama textual.
+Respostas ambiguas nunca confirmam sucesso.
 """
 from __future__ import annotations
 
+import base64
+import io
 import json
 import os
 import urllib.request
@@ -14,6 +16,9 @@ import urllib.request
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434/api/chat")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b")
+LLM_EYES_URL = os.environ.get("LLM_EYES_URL", "http://127.0.0.1:8081/v1/chat/completions")
+LLM_EYES_MODEL = os.environ.get("LLM_EYES_MODEL", "Qwen3.5-0.8B")
+SCREENSHOT_ENABLED = os.environ.get("MYRA_OBSERVER_SCREENSHOT", "1").strip().lower() not in {"0", "false", "no"}
 
 
 def _extrair_json(texto: str) -> dict | None:
@@ -28,8 +33,7 @@ def _extrair_json(texto: str) -> dict | None:
         if linhas and linhas[-1].strip().startswith("```"):
             linhas = linhas[:-1]
         t = "\n".join(linhas).strip()
-    ini = t.find("{")
-    fim = t.rfind("}")
+    ini, fim = t.find("{"), t.rfind("}")
     if ini >= 0 and fim > ini:
         try:
             data = json.loads(t[ini:fim + 1])
@@ -52,8 +56,81 @@ def _bool_estrito(valor):
     return None
 
 
+def _capturar_screenshot_base64() -> str | None:
+    """Captura o monitor principal e devolve PNG Base64, sem gravar no disco."""
+    try:
+        import mss
+        from PIL import Image
+
+        with mss.mss() as capturador:
+            monitores = capturador.monitors
+            if len(monitores) < 2:
+                return None
+            captura = capturador.grab(monitores[1])
+            imagem = Image.frombytes("RGB", captura.size, captura.rgb)
+            imagem.thumbnail((1280, 720))
+            buffer = io.BytesIO()
+            imagem.save(buffer, format="PNG", optimize=True)
+            return base64.b64encode(buffer.getvalue()).decode("ascii")
+    except Exception as e:
+        # Ambiente headless, driver indisponível ou falha de captura: fallback textual.
+        print(f"[OBSERVER] screenshot indisponivel: {type(e).__name__}")
+        return None
+
+
+def _resposta_llm(prompt: str, imagem_b64: str | None = None) -> str:
+    """Chama o modelo visual se houver screenshot; depois o modelo textual."""
+    if imagem_b64:
+        payload_visual = {
+            "model": LLM_EYES_MODEL,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt + "\n\nUse a imagem anexada como evidencia visual principal."},
+                    {"type": "image_url", "image_url": {"url": "data:image/png;base64," + imagem_b64}},
+                ],
+            }],
+            "stream": False,
+            "temperature": 0.1,
+            "max_tokens": 250,
+        }
+        try:
+            req = urllib.request.Request(
+                LLM_EYES_URL,
+                data=json.dumps(payload_visual).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=60) as r:
+                resp = json.loads(r.read().decode("utf-8"))
+            texto = resp.get("choices", [{}])[0].get("message", {}).get("content", "")
+            if isinstance(texto, list):
+                texto = " ".join(str(p.get("text", "")) for p in texto if isinstance(p, dict))
+            if _extrair_json(str(texto)):
+                return str(texto).strip()
+            print("[OBSERVER] resposta visual sem JSON valido; usando fallback textual")
+        except Exception as e:
+            print(f"[OBSERVER] modelo visual indisponivel: {type(e).__name__}; fallback textual")
+
+    payload_texto = {
+        "model": OLLAMA_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False,
+        "options": {"temperature": 0.1, "num_predict": 200},
+    }
+    req = urllib.request.Request(
+        OLLAMA_URL,
+        data=json.dumps(payload_texto, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=60) as r:
+        resp = json.loads(r.read().decode("utf-8"))
+    return resp.get("message", {}).get("content", "").strip()
+
+
 def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
-    """Avalia se a ação anterior funcionou e se concluiu o objetivo."""
+    """Avalia ação, resultado e screenshot atual, com fallback textual seguro."""
     if not objetivo or not objetivo.strip():
         return {"status": "erro", "result": "objetivo vazio"}
 
@@ -72,10 +149,10 @@ def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
 
     prompt = (
         "Você é um avaliador de ações de um agente autônomo.\n"
-        "Analise a ação executada e diga se funcionou e se o objetivo foi atingido.\n\n"
+        "Analise a ação, o resultado e a tela atual. Não assuma que a ação funcionou apenas porque foi executada.\n\n"
         f"OBJETIVO DA TASK: {objetivo}\n\n"
         f"AÇÃO EXECUTADA: {ferramenta}({args_str})\n"
-        f"RESULTADO: {resultado_str}\n"
+        f"RESULTADO DA FERRAMENTA: {resultado_str}\n"
         f"ERRO: {erro_str or '(nenhum)'}\n\n"
         "Responda APENAS com JSON puro (nada antes, nada depois, sem markdown):\n"
         '{"sucesso": true/false, "objetivo_atingido": true/false, '
@@ -84,23 +161,9 @@ def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
         "JSON:"
     )
 
-    payload = {
-        "model": OLLAMA_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "stream": False,
-        "options": {"temperature": 0.1, "num_predict": 200},
-    }
-
     try:
-        req = urllib.request.Request(
-            OLLAMA_URL,
-            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=60) as r:
-            resp = json.loads(r.read().decode("utf-8"))
-        texto = resp.get("message", {}).get("content", "").strip()
+        imagem = _capturar_screenshot_base64() if SCREENSHOT_ENABLED else None
+        texto = _resposta_llm(prompt, imagem)
     except Exception as e:
         return {"status": "erro", "result": f"erro ao chamar LLM: {type(e).__name__}: {e}"}
 
@@ -117,7 +180,6 @@ def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
 
     sucesso = _bool_estrito(data.get("sucesso"))
     atingido = _bool_estrito(data.get("objetivo_atingido"))
-    # Resposta incompleta/ambígua não pode ser convertida em sucesso.
     if sucesso is None or atingido is None:
         return {
             "status": "ok",
