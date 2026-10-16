@@ -1299,6 +1299,11 @@ def _overlay_emit_target(resultado: dict, descricao: str = ""):
         _widget_set(target_x=None, target_y=None, target_label=None, overlay=None)
     return resultado
 
+def _overlay_notify_target(resultado: dict, descricao: str = "") -> bool:
+    """Publica o alvo e indica se a task ativa pode aguardar o highlight."""
+    _overlay_emit_target(resultado, descricao)
+    return _widget_status.get("state") == "running"
+
 
 @app.post("/vision_locate")
 def vision_locate_route(data: VisionLocateRequest):
@@ -3308,7 +3313,7 @@ from computer.vision_locate import vision_type as _vision_type_fn
 
 # Injetar callback antes de registrar as ferramentas para destacar o alvo antes
 # de o modulo vision_locate clicar ou digitar.
-_vision_module.OVERLAY_TARGET_CALLBACK = _overlay_emit_target
+_vision_module.OVERLAY_TARGET_CALLBACK = _overlay_notify_target
 
 
 def _t_vision_locate(descricao: str):
