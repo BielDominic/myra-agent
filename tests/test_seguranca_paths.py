@@ -47,6 +47,17 @@ class PathGuardUnitTestCase(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.agent.caminho_no_workspace(f"../{irmao.name}/pwn.txt")
 
+    def test_symlink_para_fora_do_workspace_rejeitado(self):
+        externo = self.ws.parent / f"{self.ws.name}_externo"
+        externo.mkdir()
+        link = self.ws / "atalho_externo"
+        try:
+            link.symlink_to(externo, target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"symlink indisponivel neste ambiente: {exc}")
+        with self.assertRaises(ValueError):
+            self.agent.caminho_no_workspace("atalho_externo/segredo.txt")
+
     def test_caminho_absoluto_rejeitado(self):
         alvo = Path(tempfile.gettempdir()) / "myra_pwn_abs.txt"
         with self.assertRaises(ValueError):
