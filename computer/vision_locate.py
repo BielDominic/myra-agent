@@ -32,14 +32,16 @@ MAX_CANDIDATOS_LLM = 10     # manda no maximo 10 pro LLM
 OVERLAY_TARGET_CALLBACK = None
 
 
-def _notificar_alvo_overlay(loc: dict) -> None:
+def _notificar_alvo_overlay(loc: dict) -> bool:
     callback = OVERLAY_TARGET_CALLBACK
     if not callable(callback) or not loc.get("encontrado"):
-        return
+        return False
     try:
         callback(loc, str(loc.get("label") or "Alvo"))
+        return True
     except Exception as e:
         print(f"[VISION_LOCATE] overlay callback ignorado: {type(e).__name__}")
+        return False
 
 
 def _screenshot() -> dict:
@@ -265,8 +267,9 @@ def vision_click(descricao: str) -> dict:
     try:
         import time
         import pyautogui
-        _notificar_alvo_overlay(loc)
-        time.sleep(0.22)  # tempo para o highlight aparecer antes do clique
+        overlay_notificado = _notificar_alvo_overlay(loc)
+        if overlay_notificado:
+            time.sleep(0.22)  # tempo para o highlight aparecer antes do clique
         pyautogui.click(loc["x"], loc["y"])
         return {
             "status": "ok",
@@ -289,9 +292,10 @@ def vision_type(descricao: str, texto: str, limpar: bool = True) -> dict:
 
     try:
         import pyautogui
-        _notificar_alvo_overlay(loc)
+        overlay_notificado = _notificar_alvo_overlay(loc)
         import time
-        time.sleep(0.22)  # tempo para o highlight aparecer antes do clique
+        if overlay_notificado:
+            time.sleep(0.22)  # tempo para o highlight aparecer antes do clique
         pyautogui.click(loc["x"], loc["y"])
         time.sleep(0.2)
         if limpar:
