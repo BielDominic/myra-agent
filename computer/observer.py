@@ -159,7 +159,7 @@ def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
         "Analise a ação, o resultado e a tela atual. Não assuma que a ação funcionou apenas porque foi executada.\n\n"
         f"OBJETIVO DA TASK: {objetivo}\n\n"
         f"ACAO EXECUTADA: {ferramenta}({args_str})\n"
-        f"RESULTADO DA FERRAMENTA: {resultado_str}\n"
+        f"RESULTADO: {resultado_str}\n"
         f"ERRO: {erro_str or '(nenhum)'}\n\n"
         "Responda APENAS com JSON puro (nada antes, nada depois, sem markdown):\n"
         '{"sucesso": true/false, "objetivo_atingido": true/false, '
