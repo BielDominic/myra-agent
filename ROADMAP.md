@@ -3,7 +3,7 @@
 [![Progress](https://img.shields.io/badge/Progress-72%25-orange?style=flat-square)]()
 [![Active Phase](https://img.shields.io/badge/Active_Phase-26-blue?style=flat-square)]()
 [![Phases](https://img.shields.io/badge/Phases-31-purple?style=flat-square)]()
-[![Updated](https://img.shields.io/badge/Updated-2026-10-15-lightgrey?style=flat-square)]()
+[![Updated](https://img.shields.io/badge/Updated-2026-10-16-lightgrey?style=flat-square)]()
 [![Language](https://img.shields.io/badge/Language-PT--BR_%7C_EN-green?style=flat-square)]()
 
 **Documentacao disponivel em:** [Portugues](#portugues) | [English](#english)
@@ -129,7 +129,7 @@
 
 **Meta:** LLM age, observa, verifica, corrige
 
-- [x] _observar() - avaliacao apos cada acao com o resultado da ferramenta + LLM (`computer/observer.py`, `tasks/simple_task.py::_observar`). Versao textual: screenshot dedicado ainda nao faz parte do observer.
+- [x] _observar() - avalia cada acao com resultado + LLM; screenshot enviado ao modelo visual local, com fallback textual (`computer/observer.py`).
 - [x] _verificar(objetivo) - `tasks/autonomy.py::verificar`: so declara sucesso com evidencia do observer (acao ok + objetivo atingido); nunca declara sucesso sem evidencia.
 - [x] _recuperar(erro) - `tasks/autonomy.py::recuperar`: nova estrategia sugerida por ferramenta, acoes bloqueadas por assinatura e limites explicitos (`MAX_TENTATIVAS_POR_ACAO`, `LIMITE_RECUPERACOES`).
 - [x] Task persistence (retomar apos crash) - `tasks/task_store.py` (SQLite, `%LOCALAPPDATA%\MYRA\myra_tasks.sqlite3`) grava objetivo, passo, historico, estado e eventos; tasks de um processo morto viram `interrompido` no startup e sao retomadas por `/task_resume`.
@@ -137,20 +137,20 @@
 - [x] Rotas de apoio: `GET /task_pendentes`, `GET /task_detalhe/{task_id}` (historico + eventos de auditoria).
 - [x] Testes do ciclo: `tests/` com 43 testes (`python -m unittest discover -s tests -t .`) cobrindo verificacao, recuperacao, pausa/retomada, retomada apos crash, erros e rotas HTTP.
 - [x] Validacao end-to-end com Ollama real (`qwen2.5:7b`): criacao de arquivo concluida por evidencia do observer, falha com motivo explicito e pausa/retomada com contexto preservado (executada em 2026-10-15).
-- [ ] Observacao com screenshot dedicado no observer (hoje a observacao e textual: resultado da ferramenta + LLM).
+- [x] Observacao com screenshot dedicado no observer, fallback textual se captura/modelo visual falhar.
 
 #### FASE 27 - Overlay Visual TARS
 ![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
 
 **Meta:** ver o cursor animado, highlight, borda ativa
 
-- [ ] Janela Tauri transparente click-through
-- [ ] Canal de eventos (SSE /task_events ja existe)
-- [ ] Cursor animado
-- [ ] Highlight do alvo antes de clicar
-- [ ] Estados visuais (observando/pensando/executando)
-- [ ] Trajetoria do mouse visivel
-- [ ] Cancelamento visual
+- [x] Janela Tauri transparente fullscreen, inicialmente oculta e nativamente click-through
+- [x] Canal SSE conectado a `/task_events`
+- [x] Cursor visual animado nos alvos publicados pelo sistema de visao
+- [x] Highlight do alvo antes de `vision_click` / `vision_type`
+- [x] Estados visuais (observando/pensando/executando/concluido/erro)
+- [x] Trajetoria visual entre alvos sucessivos publicados
+- [x] Cancelamento refletido visualmente quando o estado da task muda
 
 #### FASE 27.5 - Integracao REA
 
@@ -620,7 +620,7 @@
 
 **Goal:** LLM acts, observes, verifies, recovers
 
-- [x] _observe() - evaluates each action from the tool result + LLM (`computer/observer.py`, `tasks/simple_task.py::_observar`). Textual version: a dedicated screenshot is not part of the observer yet.
+- [x] _observe() - evaluates each action with tool result + LLM; screenshot is sent to the local vision model, with text fallback (`computer/observer.py`).
 - [x] _verify(goal) - `tasks/autonomy.py::verificar`: success is only declared with observer evidence (action ok + goal achieved); never claims success without evidence.
 - [x] _recover(error) - `tasks/autonomy.py::recuperar`: per-tool alternative strategy, blocked action signatures and explicit limits (`MAX_TENTATIVAS_POR_ACAO`, `LIMITE_RECUPERACOES`).
 - [x] Task persistence (resume after crash) - `tasks/task_store.py` (SQLite) stores goal, step, history, state and events; tasks from a dead process become `interrompido` at startup and are resumed by `/task_resume`.
@@ -628,20 +628,20 @@
 - [x] Support routes: `GET /task_pendentes`, `GET /task_detalhe/{task_id}` (history + audit events).
 - [x] Loop tests: `tests/` with 43 tests (`python -m unittest discover -s tests -t .`).
 - [x] End-to-end validation with real Ollama (`qwen2.5:7b`): file creation concluded by observer evidence, failure with explicit reason, and pause/resume with preserved context (run on 2026-10-15).
-- [ ] Dedicated screenshot observation in the observer (observation is currently textual: tool result + LLM).
+- [x] Dedicated screenshot observation in the observer, with text fallback if capture/vision inference fails.
 
 #### PHASE 27 - TARS Visual Overlay
 ![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square)
 
 **Goal:** see animated cursor, highlight, active border
 
-- [ ] Transparent click-through Tauri window
-- [ ] Event channel (SSE /task_events already exists)
-- [ ] Animated cursor
-- [ ] Target highlight before click
-- [ ] Visual states (observing/thinking/executing)
-- [ ] Visible mouse trajectory
-- [ ] Visual cancellation
+- [x] Transparent fullscreen Tauri window, initially hidden and natively click-through
+- [x] SSE channel connected to `/task_events`
+- [x] Animated visual cursor at targets published by vision tools
+- [x] Target highlight before `vision_click` / `vision_type`
+- [x] Visual states (observing/thinking/executing/done/error)
+- [x] Visible trajectory between successive published targets
+- [x] Cancellation reflected visually when task state changes
 
 #### PHASE 28 - Mobile Control
 ![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square)
@@ -975,4 +975,4 @@
 
 ---
 
-**Last updated:** 2026-10-15
+**Last updated:** 2026-10-16
