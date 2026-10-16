@@ -1289,33 +1289,77 @@ class VisionTypeRequest(BaseModel):
     texto: str = Field(..., max_length=5000)
     limpar: bool = True
 
+def _overlay_emit_target(resultado: dict, descricao: str = ""):
+    """Publica o alvo no SSE consumido pela janela TARS."""
+    if resultado.get("encontrado") and resultado.get("x") is not None and resultado.get("y") is not None:
+        x, y = int(resultado["x"]), int(resultado["y"])
+        label = str(resultado.get("label") or descricao or "Alvo")[:100]
+        _widget_set(target_x=x, target_y=y, target_label=label, overlay={"x": x, "y": y, "label": label})
+    else:
+        _widget_set(target_x=None, target_y=None, target_label=None, overlay=None)
+    return resultado
+
+
 @app.post("/vision_locate")
 def vision_locate_route(data: VisionLocateRequest):
-    """Acha um elemento na tela por descricao textual. Retorna coordenadas."""
+    """Acha um elemento na tela por descricao textual e publica o alvo no overlay."""
     print(f"[VISION_LOCATE] descricao={data.descricao!r}")
     try:
         from computer.vision_locate import vision_locate
-        return vision_locate(data.descricao, data.screenshot_path)
+        resultado = vision_locate(data.descricao, data.screenshot_path)
+        return _overlay_emit_target(resultado, data.descricao)
     except Exception as e:
         return {"status": "erro", "result": f"Erro: {type(e).__name__}: {e}"}
+
 
 @app.post("/vision_click")
 def vision_click_route(data: VisionLocateRequest):
-    """Localiza um elemento e clica no centro dele."""
+    """Destaca o alvo no overlay antes de clicar nele."""
     print(f"[VISION_CLICK] descricao={data.descricao!r}")
     try:
-        from computer.vision_locate import vision_click
-        return vision_click(data.descricao)
+        import time
+        import pyautogui
+        from computer.vision_locate import vision_locate
+        loc = vision_locate(data.descricao)
+        _overlay_emit_target(loc, data.descricao)
+        if loc.get("status") != "ok" or not loc.get("encontrado"):
+            return loc
+        time.sleep(0.22)  # deixa o highlight aparecer antes do clique
+        pyautogui.click(int(loc["x"]), int(loc["y"]))
+        return {
+            "status": "ok",
+            "result": f"Clicado em '{loc.get('label', data.descricao)}' ({loc['x']}, {loc['y']})",
+            "x": loc["x"], "y": loc["y"], "label": loc.get("label"),
+            "screenshot": loc.get("screenshot"), "metodo": loc.get("metodo"),
+        }
     except Exception as e:
         return {"status": "erro", "result": f"Erro: {type(e).__name__}: {e}"}
 
+
 @app.post("/vision_type")
 def vision_type_route(data: VisionTypeRequest):
-    """Localiza um campo, clica e digita texto."""
+    """Destaca o campo, clica e digita texto."""
     print(f"[VISION_TYPE] descricao={data.descricao!r}")
     try:
-        from computer.vision_locate import vision_type
-        return vision_type(data.descricao, data.texto, data.limpar)
+        import time
+        import pyautogui
+        from computer.vision_locate import vision_locate
+        loc = vision_locate(data.descricao)
+        _overlay_emit_target(loc, data.descricao)
+        if loc.get("status") != "ok" or not loc.get("encontrado"):
+            return loc
+        time.sleep(0.22)
+        pyautogui.click(int(loc["x"]), int(loc["y"]))
+        time.sleep(0.2)
+        if data.limpar:
+            pyautogui.hotkey("ctrl", "a")
+            pyautogui.press("delete")
+        pyautogui.write(data.texto, interval=0.02)
+        return {
+            "status": "ok",
+            "result": f"Digitado em '{loc.get('label', data.descricao)}' ({loc['x']}, {loc['y']})",
+            "x": loc["x"], "y": loc["y"], "label": loc.get("label"),
+        }
     except Exception as e:
         return {"status": "erro", "result": f"Erro: {type(e).__name__}: {e}"}
 
