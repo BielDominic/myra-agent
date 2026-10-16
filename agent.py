@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from playwright.sync_api import sync_playwright
 import os
 import sys
+from pathlib import Path
 import imaplib
 import smtplib
 import subprocess
@@ -57,22 +58,21 @@ WORKSPACE_DIR = r"C:\computer-agent\workspace"
 
 
 def caminho_no_workspace(caminho: str, base: str | None = None) -> str:
-    """Resolve um caminho do utilizador dentro de `base` (workspace por omissao).
+    """Resolve um caminho dentro da base e rejeita escapes, incluindo symlinks.
 
-    Usa os.path.commonpath em vez de str.startswith: o startswith aceitava
-    prefixos irmaos (ex.: C:\\computer-agent\\workspace_evil) e permitia ler,
-    escrever e apagar fora do workspace com "..". Levanta ValueError quando o
-    caminho resolvido sai da base.
+    O commonpath sozinho evita prefixos irmãos, mas não impede que um symlink
+    dentro do workspace aponte para fora dele. Path.resolve(strict=False)
+    normaliza componentes existentes e inexistentes antes da comparação.
     """
-    raiz = os.path.abspath(base or WORKSPACE_DIR)
-    destino = os.path.abspath(os.path.join(raiz, caminho or ""))
+    raiz = Path(base or WORKSPACE_DIR).expanduser().resolve(strict=False)
+    destino = (raiz / (caminho or "")).resolve(strict=False)
     try:
-        dentro = os.path.commonpath([raiz, destino]) == raiz
-    except ValueError:  # unidades diferentes (ex.: C: vs D:)
-        dentro = False
-    if not dentro:
-        raise ValueError(f"caminho fora do workspace: {caminho!r}")
-    return destino
+        destino.relative_to(raiz)
+    except ValueError:
+        raise ValueError(f"caminho fora do workspace: {caminho!r}") from None
+    return str(destino)
+
+
 SCREENSHOTS_DIR = r"C:\computer-agent\screenshots"
 LLM_EYES_URL = "http://127.0.0.1:8081/v1/chat/completions"
 
