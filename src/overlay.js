@@ -15,9 +15,12 @@
   const coordsFrom = (data) => {
     const t = data && (data.target || data.alvo || data.overlay || data);
     if (!t || typeof t !== "object") return null;
-    const x = finite(t.target_x ?? t.x ?? t.screen_x);
-    const y = finite(t.target_y ?? t.y ?? t.screen_y);
-    return x === null || y === null ? null : { x, y, label: String(t.target_label || t.label || t.descricao || "Alvo").slice(0, 100) };
+    const rawX = finite(t.target_x ?? t.x ?? t.screen_x);
+    const rawY = finite(t.target_y ?? t.y ?? t.screen_y);
+    if (rawX === null || rawY === null) return null;
+    // OCR/mss coordinates are physical pixels; the WebView uses logical CSS pixels.
+    const scale = window.devicePixelRatio || 1;
+    return { x: rawX / scale, y: rawY / scale, label: String(t.target_label || t.label || t.descricao || "Alvo").slice(0, 100) };
   };
   function setState(data) {
     const raw = String(data.state || data.estado || data.status || "").toLowerCase();
@@ -42,7 +45,8 @@
     if (coords) showTarget(coords.x, coords.y, coords.label);
     const cursorCoords = data.cursor || data.mouse;
     if (cursorCoords && finite(cursorCoords.x) !== null && finite(cursorCoords.y) !== null) {
-      moveCursor(Number(cursorCoords.x), Number(cursorCoords.y));
+      const scale = window.devicePixelRatio || 1;
+      moveCursor(Number(cursorCoords.x) / scale, Number(cursorCoords.y) / scale);
     }
   }
   function showTarget(x, y, text) {
