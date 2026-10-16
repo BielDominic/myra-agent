@@ -823,6 +823,29 @@ class VisionClickTestCase(helpers.CasoBase):
         self.assertEqual(r["y"], 210)
         self.assertEqual(fake.chamadas_de("click")[0][1], (120, 210))
 
+    def test_overlay_notificado_antes_do_clique(self):
+        ordem = []
+        fake = PyAutoGUIFalso()
+        fake.click = lambda x, y: ordem.append("click")
+        callback = lambda loc, label: ordem.append("target") or True
+        with mock.patch.object(vl, "vision_locate", return_value=self._loc_ok()), \
+             mock.patch.object(vl, "OVERLAY_TARGET_CALLBACK", callback), \
+             mock.patch.dict(sys.modules, {"pyautogui": fake}), \
+             mock.patch("time.sleep", side_effect=lambda segundos: ordem.append("sleep")):
+            resultado = vl.vision_click("alvo")
+        self.assertEqual(resultado["status"], "ok")
+        self.assertEqual(ordem, ["target", "sleep", "click"])
+
+    def test_sem_overlay_ativo_nao_adiciona_atraso(self):
+        fake = PyAutoGUIFalso()
+        with mock.patch.object(vl, "vision_locate", return_value=self._loc_ok()), \
+             mock.patch.object(vl, "OVERLAY_TARGET_CALLBACK", None), \
+             mock.patch.dict(sys.modules, {"pyautogui": fake}), \
+             mock.patch("time.sleep") as dormir:
+            resultado = vl.vision_click("alvo")
+        self.assertEqual(resultado["status"], "ok")
+        dormir.assert_not_called()
+
     def test_alvo_nao_encontrado_nao_clica(self):
         fake = PyAutoGUIFalso()
         loc = {"status": "ok", "encontrado": False, "result": "nada", "metodo": "none"}
