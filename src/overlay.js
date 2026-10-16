@@ -30,6 +30,7 @@
     else if (["done", "ok", "concluido", "concluído", "success"].includes(raw)) next = "done";
     else if (["error", "erro", "failed", "falha"].includes(raw)) next = "error";
     const tool = String(data.passo_atual || data.tool || data.ferramenta || "").trim();
+    if (next === "executing" && /observ|pens|planej|verific|analis/i.test(tool)) next = "thinking";
     label.textContent = next === "executing" ? (tool ? "Executando · " + tool : "MYRA executando")
       : next === "thinking" ? "MYRA observando / pensando"
       : next === "done" ? "Tarefa concluída"
