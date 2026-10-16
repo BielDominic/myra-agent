@@ -175,3 +175,7 @@ widget-tauri/**/*.backup
 widget-tauri/**/*.backup_*
 widget-tauri/**/*.old
 widget-tauri/**/*.old_*
+
+# Arquivos temporarios de contexto
+_contexto_*.txt
+_saida_*.txt
