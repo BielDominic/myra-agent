@@ -37,8 +37,8 @@ def _notificar_alvo_overlay(loc: dict) -> bool:
     if not callable(callback) or not loc.get("encontrado"):
         return False
     try:
-        callback(loc, str(loc.get("label") or "Alvo"))
-        return True
+        resultado = callback(loc, str(loc.get("label") or "Alvo"))
+        return resultado is not False
     except Exception as e:
         print(f"[VISION_LOCATE] overlay callback ignorado: {type(e).__name__}")
         return False
