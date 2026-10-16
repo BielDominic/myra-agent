@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, feature/fase26-ciclo-autonomo]
+    branches: [main, feature/fase26-ciclo-autonomo, feature/fase27-tars-overlay]
 
 permissions:
   contents: read
@@ -21,6 +21,15 @@ jobs:
         with:
           python-version: '3.14'
           cache: pip
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        run: |
+          node --check src/overlay.js
+          node --check src/tauri-widget.js
+          node --check src/script.js
       - name: Install headless display for desktop imports
         run: |
           sudo apt-get update
@@ -35,3 +44,14 @@ jobs:
           MYRA_TASK_DB: ${{ runner.temp }}/myra-ci-tasks.sqlite3
           MYRA_OBSERVER_SCREENSHOT: '0'
         run: xvfb-run -a python -m unittest discover -s tests -t . -v
+
+  tauri-check:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Check Tauri widget and overlay
+        run: cargo check --manifest-path src-tauri/Cargo.toml
