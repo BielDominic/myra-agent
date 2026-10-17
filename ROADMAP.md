@@ -153,24 +153,21 @@
 - [x] Cancelamento refletido visualmente quando o estado da task muda
 
 #### FASE 27.5 - Integracao REA
-
-![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
+![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
 
 **Repo:** https://github.com/morluto/rea
-**Descricao:** MCP server pra engenharia reversa.
-**Licenca:** MIT | **Requer:** Node.js 22+
+**Descricao:** ferramenta opcional de analise local de apps JavaScript/Electron.
+**Licenca:** MIT | **Requer:** Node.js 22.19+, 24.11+ ou 26+.
 
-**Caso de uso:** recriar features/programas a partir do original.
+- [x] Criado tasks/rea_tools.py com rea_status e rea_analyze_javascript.
+- [x] Ferramentas registradas no planner e regras para uso autorizado.
+- [x] Analise limitada a raizes configuradas; sem instalacao global nem execucao no startup.
+- [ ] Configurar MYRA_REA_ALLOWED_ROOTS e validar com um app JavaScript autorizado.
 
-**Implementacao (2-3 sessoes):**
-1. npm install --global rea-agents
-2. Criar tasks/rea_tools.py
-3. Regras no prompt do planner
-
-**Aviso legal:** so software autorizado.
+**Aviso legal:** usar somente software proprio ou explicitamente autorizado. Detalhes em PHASE27_5_REA.md.
 
 ### FASE 28 - Controle Mobile
-![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
+![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
 
 ##### 28.1 - Infra de acesso remoto (Tailscale)
 - [ ] Tailscale no PC Windows
@@ -178,11 +175,12 @@
 - [ ] IP estavel (100.x.y.z)
 
 ##### 28.2 - Telegram Bot
-- [ ] Bot no @BotFather
-- [ ] Webhook em agent.py
-- [ ] Comandos: /task, /status, /cancel, /screenshot, /see
-- [ ] Notificacao automatica ao concluir
-- [ ] Autenticacao por chat_id
+- [ ] Criar bot no @BotFather e configurar token/chat IDs no Windows.
+- [x] Integracao via long polling em tasks/telegram_bot.py (sem porta publica/webhook).
+- [x] Comandos implementados: /task, /status, /cancel, /pause, /resume, /screenshot, /see, /help.
+- [x] Autenticacao por allowlist MYRA_TELEGRAM_ALLOWED_CHAT_IDS; bot desativado sem token/allowlist.
+- [x] Rotas locais /telegram/status, /telegram/start, /telegram/stop.
+- [ ] Validar todos os comandos com Telegram real e configurar notificacoes no dispositivo.
 
 ##### 28.3 - App iOS Nativo
 - [ ] App shell (Swift/SwiftUI)

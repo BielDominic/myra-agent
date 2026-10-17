@@ -359,6 +359,12 @@ Se o objetivo menciona EMAIL, GMAIL, CAIXA DE ENTRADA:
 Se o objetivo menciona ABRIR SITE, NAVEGAR, PESQUISAR NO GOOGLE:
   -> use browser_new_tab(url) ou browser_search_google(termo).
 
+Se o objetivo menciona engenharia reversa autorizada de um app JavaScript/Electron:
+  -> use rea_analyze_javascript(target) para produzir evidencias locais.
+  -> target precisa estar dentro de MYRA_REA_ALLOWED_ROOTS; se houver erro de permissao, nao tente contornar a restricao.
+  -> use somente em software proprio ou para o qual o usuario tenha autorizacao explicita.
+  -> nao instale dependencias globais nem execute instaladores como parte da analise.
+
 Se o objetivo menciona CLICAR, DIGITAR, VISUALMENTE em elemento da tela:
   -> use vision_click(descricao) ou vision_type(descricao, texto).
 

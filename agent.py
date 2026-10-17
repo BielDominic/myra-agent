@@ -22,6 +22,8 @@ import yt_dlp
 from tasks.simple_task import executar_task, registrar_ferramenta
 from tasks import structured_tools as st
 from tasks import browser_bridge as browser_bridge
+from tasks import rea_tools as rea_tools
+from tasks.telegram_bot import criar_bot_do_ambiente
 from email.message import EmailMessage
 from email.header import decode_header
 import email as email_lib
@@ -36,6 +38,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 app = FastAPI()
+telegram_bot = criar_bot_do_ambiente()
 app.include_router(browser_bridge.router)
 
 # CORS ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â permite o widget (pywebview) acessar a API
@@ -3307,6 +3310,9 @@ browser_bridge.registrar_ferramentas(registrar_ferramenta)
 import tasks.system_tools as _system_tools
 _system_tools.registrar_todas(registrar_ferramenta)
 
+# FASE 27.5 - analise REA opcional, local e restrita a raizes autorizadas.
+rea_tools.registrar_todas(registrar_ferramenta)
+
 # ============================================================
 # VISION LOCATE - ferramentas do planner
 # ============================================================
@@ -3440,6 +3446,39 @@ def task_simple(data: TaskSimple):
         }
 
 
+
+
+# ============================================================
+# FASE 28.2 - Controle remoto Telegram (opt-in por variaveis de ambiente)
+# ============================================================
+
+@app.get("/telegram/status")
+def telegram_status():
+    return telegram_bot.status()
+
+
+@app.post("/telegram/start")
+def telegram_start():
+    return telegram_bot.start()
+
+
+@app.post("/telegram/stop")
+def telegram_stop():
+    return telegram_bot.stop()
+
+
+@app.on_event("startup")
+def _telegram_startup():
+    # Nunca habilita o bot sem token e chat IDs explicitamente autorizados.
+    if telegram_bot.configured:
+        resultado = telegram_bot.start()
+        print("[TELEGRAM] bot habilitado por configuracao de ambiente" if resultado.get("status") == "ok"
+              else "[TELEGRAM] configuracao encontrada, mas o bot nao iniciou")
+
+
+@app.on_event("shutdown")
+def _telegram_shutdown():
+    telegram_bot.stop()
 
 
 # ============================================================
