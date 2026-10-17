@@ -170,9 +170,12 @@
 ![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
 
 ##### 28.1 - Infra de acesso remoto (Tailscale)
-- [ ] Tailscale no PC Windows
-- [ ] Tailscale no iPhone
-- [ ] IP estavel (100.x.y.z)
+- [x] Diagnostico local implementado em tasks/remote_access.py e GET /remote_access/status.
+- [x] O diagnostico valida o IPv4 Tailscale do proprio PC e nao expoe a lista de peers.
+- [x] Documentadas instalacao oficial e etapas de conexao: PHASE28_1_TAILSCALE.md.
+- [ ] Instalar e autenticar Tailscale no PC Windows.
+- [ ] Instalar e autenticar Tailscale no iPhone na mesma conta.
+- [ ] Antes de acesso direto remoto, implementar autenticacao de API e restringir rotas sensiveis.
 
 ##### 28.2 - Telegram Bot
 - [ ] Criar bot no @BotFather e configurar token/chat IDs no Windows.

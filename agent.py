@@ -23,6 +23,7 @@ from tasks.simple_task import executar_task, registrar_ferramenta
 from tasks import structured_tools as st
 from tasks import browser_bridge as browser_bridge
 from tasks import rea_tools as rea_tools
+from tasks import remote_access as remote_access
 from tasks.telegram_bot import criar_bot_do_ambiente
 from email.message import EmailMessage
 from email.header import decode_header
@@ -3455,6 +3456,11 @@ def task_simple(data: TaskSimple):
 @app.get("/telegram/status")
 def telegram_status():
     return telegram_bot.status()
+
+
+@app.get("/remote_access/status")
+def remote_access_status():
+    return remote_access.tailscale_status()
 
 
 @app.post("/telegram/start")
