@@ -9,7 +9,7 @@ registo (``_executar_passo``).
 Regras de seguranca respeitadas:
   * nenhuma ligacao de rede: ``helpers.sem_rede()`` activo em todos os testes;
   * nenhuma ferramenta real e chamada: o registo e substituido por fakes
-    deterministicos (as 51 ferramentas reais so sao inspeccionadas, nunca
+    deterministicos (as 53 ferramentas reais so sao inspeccionadas, nunca
     invocadas);
   * bancos/temporarios redirecionados para tmp por ``helpers.CasoBase``;
   * ``time.sleep`` e sempre mockado (o retry de ``_executar_passo`` dorme 1s)
@@ -72,6 +72,7 @@ GRUPOS_ESPERADOS = {
         "web_search", "get_weather", "get_current_time", "youtube_transcript",
         "responder", "save_note", "read_notes",
     }),
+    "rea": frozenset({"rea_analyze_javascript", "rea_status"}),
 }
 
 TAMANHOS_ESPERADOS = {
@@ -82,12 +83,13 @@ TAMANHOS_ESPERADOS = {
     "email": 5,
     "web_youtube_estruturado": 6,
     "utilitarios_sistema": 7,
+    "rea": 2,
 }
 
 NOMES_ESPERADOS = frozenset(
     nome for grupo in GRUPOS_ESPERADOS.values() for nome in grupo
 )
-TOTAL_FERRAMENTAS = 51
+TOTAL_FERRAMENTAS = 53
 
 # Aliases legados (rotas HTTP antigas) que o registo do planner ja nao expoe.
 LEGADOS_ESPERADOS = frozenset({
@@ -164,7 +166,7 @@ class RegistoRealTestCase(_BaseRegisto):
         self.assertEqual(AGENT.executar_task.__module__, simple_task.__name__)
 
     # -- item (1): conjunto exacto, ordenado --------------------------------
-    def test_registo_exato_de_51_ferramentas(self):
+    def test_registo_exato_de_53_ferramentas(self):
         reais = sorted(simple_task.FERRAMENTAS_DISPONIVEIS)
         self.assertEqual(
             len(reais), TOTAL_FERRAMENTAS,
@@ -181,7 +183,7 @@ class RegistoRealTestCase(_BaseRegisto):
             "ferramentas em falta no registo",
         )
 
-    def test_grupos_somam_51_e_nao_se_sobrepoem(self):
+    def test_grupos_somam_53_e_nao_se_sobrepoem(self):
         todos: list[str] = []
         for grupo, nomes in GRUPOS_ESPERADOS.items():
             with self.subTest(grupo=grupo):
@@ -366,7 +368,7 @@ class RegistoRealTestCase(_BaseRegisto):
         self.assertIn("prompt", capturado, "_llm nao foi chamado")
         return capturado["prompt"]
 
-    def test_prompt_lista_as_51_ferramentas_com_a_sua_descricao(self):
+    def test_prompt_lista_as_53_ferramentas_com_a_sua_descricao(self):
         prompt = self._prompt_para("some dois numeros e diga o resultado")
         nomes_no_prompt = _RE_LINHA_FERRAMENTA.findall(prompt)
         self.assertEqual(len(nomes_no_prompt), len(set(nomes_no_prompt)), "nome duplicado")
