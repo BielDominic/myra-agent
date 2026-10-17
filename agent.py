@@ -1,5 +1,5 @@
 import asyncio
-from fastapi import FastAPI, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from playwright.sync_api import sync_playwright
@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import datetime
 import time
+import threading
 from tasks.cancel_state import marcar_cancelada, marcar_pausada, resetar, resetar_pausa
 import json
 import urllib.request
@@ -25,6 +26,7 @@ from tasks import browser_bridge as browser_bridge
 from tasks import rea_tools as rea_tools
 from tasks import remote_access as remote_access
 from tasks.telegram_bot import criar_bot_do_ambiente
+from tasks.remote_api_auth import validar_token_remoto
 from email.message import EmailMessage
 from email.header import decode_header
 import email as email_lib
@@ -457,6 +459,10 @@ class YouTubeRead(BaseModel):
 class TaskSimple(BaseModel):
     objetivo: str
     max_passos: int = 15
+
+class RemoteTaskRequest(BaseModel):
+    objetivo: str = Field(min_length=1, max_length=1200)
+    max_passos: int = Field(default=30, ge=1, le=50)
 
 
 def _contexto_vivo():
@@ -3447,6 +3453,54 @@ def task_simple(data: TaskSimple):
         }
 
 
+
+
+# ============================================================
+# FASE 28.3 - API remota autenticada para clientes mobile
+# ============================================================
+_remote_task_lock = threading.Lock()
+_remote_task_scheduled = False
+
+def _require_remote_api(authorization: str | None = Header(default=None)):
+    return validar_token_remoto(authorization)
+
+def _run_remote_task(data: TaskSimple):
+    global _remote_task_scheduled
+    try:
+        task_simple(data)
+    finally:
+        with _remote_task_lock:
+            _remote_task_scheduled = False
+
+@app.get("/remote/v1/status")
+def remote_v1_status(_authorized: bool = Depends(_require_remote_api)):
+    status = _widget_status if isinstance(_widget_status, dict) else {}
+    return {
+        "state": status.get("state", "idle"),
+        "task_id": status.get("task_id"),
+        "objetivo": status.get("objetivo"),
+        "passo_atual": status.get("passo_atual"),
+        "passo_num": status.get("passo_num", 0),
+        "passo_total": status.get("passo_total", 0),
+        "resultado": status.get("resultado"),
+        "erro": status.get("erro"),
+    }
+
+@app.post("/remote/v1/task")
+def remote_v1_start_task(data: RemoteTaskRequest, background_tasks: BackgroundTasks, _authorized: bool = Depends(_require_remote_api)):
+    global _remote_task_scheduled
+    if not data.objetivo.strip():
+        raise HTTPException(status_code=422, detail="Informe um objetivo de tarefa nao vazio.")
+    with _remote_task_lock:
+        if _remote_task_scheduled or _widget_status.get("state") == "running":
+            raise HTTPException(status_code=409, detail="Ja existe uma tarefa em execucao.")
+        _remote_task_scheduled = True
+        background_tasks.add_task(_run_remote_task, TaskSimple(objetivo=data.objetivo.strip(), max_passos=data.max_passos))
+    return {"status": "accepted", "result": "Tarefa recebida pela MYRA."}
+
+@app.post("/remote/v1/cancel")
+def remote_v1_cancel(_authorized: bool = Depends(_require_remote_api)):
+    return task_cancel()
 
 
 # ============================================================

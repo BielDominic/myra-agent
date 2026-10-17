@@ -186,12 +186,13 @@
 - [ ] Validar todos os comandos com Telegram real e configurar notificacoes no dispositivo.
 
 ##### 28.3 - App iOS Nativo
-- [ ] App shell (Swift/SwiftUI)
-- [ ] Tela de chat
-- [ ] Widget lock screen
-- [ ] Widget home screen
-- [ ] Siri Shortcuts
-- [ ] Notificacoes APNs
+- [x] API remota separada e protegida por MYRA_REMOTE_API_TOKEN (Bearer); desativada sem segredo.
+- [x] Endpoints autenticados: GET /remote/v1/status, POST /remote/v1/task, POST /remote/v1/cancel.
+- [x] Scaffold SwiftUI inicial em mobile-ios/MyraMobile (status, tarefa, cancelamento).
+- [x] Token guardado no Keychain; HTTPS obrigatorio fora de localhost.
+- [ ] Criar projeto Xcode e compilar/testar no macOS (nao disponivel neste PC Windows).
+- [ ] Configurar e validar Tailscale Serve com caminho restrito /remote/v1.
+- [ ] Widgets Lock Screen/Home Screen, Siri Shortcuts e notificacoes APNs.
 
 #### FASE 29 - Integracao CarPlay
 ![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
