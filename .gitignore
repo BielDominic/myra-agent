@@ -179,3 +179,8 @@ widget-tauri/**/*.old_*
 # Arquivos temporarios de contexto
 _contexto_*.txt
 _saida_*.txt
+
+# Backups pontuais do overlay/fix (nao versionar)
+*.before_edgefix_*
+*.bak3_*
+
