@@ -188,3 +188,15 @@ _saida_*.txt
 # Recovery backups - forcar ignore (redundante com regra existente)
 /recovery-backups/
 recovery-backups/**
+
+# Segredos locais
+.env
+*.env
+!.env.example
+
+
+# Segredos locais
+.env
+*.env
+!.env.example
+
