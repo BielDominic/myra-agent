@@ -184,3 +184,7 @@ _saida_*.txt
 *.before_edgefix_*
 *.bak3_*
 
+
+# Recovery backups - forcar ignore (redundante com regra existente)
+/recovery-backups/
+recovery-backups/**
