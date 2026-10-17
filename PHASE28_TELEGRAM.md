@@ -10,18 +10,20 @@ A integracao usa **long polling**, nao webhook. Assim, o PC inicia conexoes de s
 
 ## Configuracao
 
-1. Crie um bot no Telegram via [@BotFather](https://t.me/BotFather) e copie o token.
-2. Envie `/start` ao bot e descubra o seu `chat_id` usando `getUpdates` na API do Telegram antes de ligar o polling.
-3. Defina as variaveis de ambiente no Windows (nao coloque segredos no repositorio):
+**Preferencial:** execute o assistente local que pede o token sem exibi-lo, valida o bot e encontra chats a partir das mensagens recentes:
 
 ```powershell
-[Environment]::SetEnvironmentVariable("MYRA_TELEGRAM_BOT_TOKEN", "<TOKEN_DO_BOT>", "User")
-[Environment]::SetEnvironmentVariable("MYRA_TELEGRAM_ALLOWED_CHAT_IDS", "<SEU_CHAT_ID>", "User")
+cd C:\computer-agent
+powershell -ExecutionPolicy Bypass -File .\scripts\setup_telegram.ps1
 ```
+
+Antes, crie/regenere o token em [@BotFather](https://t.me/BotFather), abra o bot no Telegram e envie `/start`. O script solicita o token com entrada oculta, permite escolher o chat ID autorizado e grava `MYRA_TELEGRAM_BOT_TOKEN` e `MYRA_TELEGRAM_ALLOWED_CHAT_IDS` no ambiente do usuario do Windows. Depois, reinicie o backend.
+
+Alternativamente, configure as variaveis manualmente no Windows. Nunca coloque o token em arquivos versionados, comandos salvos, logs ou mensagens.
 
 Aceita varios IDs separados por virgula. Reinicie o backend; o bot inicia automaticamente somente se **as duas variaveis** estiverem configuradas. Para verificar, consulte `GET /telegram/status`. Tambem existem `POST /telegram/start` e `POST /telegram/stop`.
 
-Para obter o chat ID, depois de mandar uma mensagem ao bot, abra `https://api.telegram.org/bot<TOKEN_DO_BOT>/getUpdates` no navegador local. Nao compartilhe essa URL: ela contem o token.
+**Seguranca:** se um token foi colado em uma conversa ou outro local compartilhado, revogue-o no @BotFather e use um novo antes de ativar o bot. Evite abrir URLs da API contendo o token em navegadores ou compartilhar capturas delas.
 
 ## Comandos
 
