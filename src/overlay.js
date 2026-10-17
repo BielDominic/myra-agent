@@ -7,9 +7,28 @@
   const targetLabel = document.getElementById("target-label");
   const cursor = document.getElementById("cursor");
   const trail = document.getElementById("trail");
+  const activityBorder = document.getElementById("activity-border");
+  const activityBanner = document.getElementById("activity-banner");
+  const activityText = document.getElementById("activity-text");
   const points = [];
   let hideTargetTimer = null;
+  let lastTargetSignature = "";
   let lastState = "idle";
+
+  async function setOverlayVisible(visible) {
+    try {
+      if (window.__TAURI__ && window.__TAURI__.core) {
+        await window.__TAURI__.core.invoke(
+          "set_overlay_visible",
+          { visible }
+        );
+      } else {
+        console.warn("[MYRA overlay] API Tauri indisponivel");
+      }
+    } catch (e) {
+      console.warn("[MYRA overlay] falha ao alterar visibilidade", e);
+    }
+  }
 
   const finite = (n) => Number.isFinite(Number(n)) ? Number(n) : null;
   const coordsFrom = (data) => {
@@ -18,46 +37,71 @@
     const rawX = finite(t.target_x ?? t.x ?? t.screen_x);
     const rawY = finite(t.target_y ?? t.y ?? t.screen_y);
     if (rawX === null || rawY === null) return null;
-    // OCR/mss coordinates are physical pixels; the WebView uses logical CSS pixels.
     const scale = window.devicePixelRatio || 1;
     return { x: rawX / scale, y: rawY / scale, label: String(t.target_label || t.label || t.descricao || "Alvo").slice(0, 100) };
   };
   function setState(data) {
-    const raw = String(data.state || data.estado || data.status || "").toLowerCase();
-    let next = "idle";
-    if (["running", "executing", "executando", "acao"].includes(raw)) next = "executing";
-    else if (["thinking", "observing", "observando", "pensando", "planning"].includes(raw)) next = "thinking";
-    else if (["done", "ok", "concluido", "concluído", "success"].includes(raw)) next = "done";
-    else if (["error", "erro", "failed", "falha"].includes(raw)) next = "error";
     const tool = String(data.passo_atual || data.tool || data.ferramenta || "").trim();
-    if (next === "executing" && /observ|pens|planej|verific|analis/i.test(tool)) next = "thinking";
-    label.textContent = next === "executing" ? (tool ? "Executando · " + tool : "MYRA executando")
-      : next === "thinking" ? "MYRA observando / pensando"
-      : next === "done" ? "Tarefa concluída"
-      : next === "error" ? "Tarefa com erro"
+    const active = data.computer_activity === true;
+    const next = active
+      ? (/observ|pens|planej|verific|analis/i.test(tool) ? "thinking" : "executing")
+      : "idle";
+    label.textContent = active
+      ? (tool ? "MYRA · " + tool.replace(/_/g, " ") : "MYRA interagindo com o computador")
       : "MYRA pronta";
     state.dataset.state = next;
-    state.classList.toggle("visible", next !== "idle");
-    if (next !== lastState) {
-      lastState = next;
-      if (next === "idle") clearTarget();
+    state.classList.toggle("visible", active);
+    if (!active) {
+      lastState = "idle";
+      clearTarget();
+      syncActivityUI("idle", "");
+      void setOverlayVisible(false);
+      return;
     }
+    lastState = next;
     const coords = coordsFrom(data);
-    if (coords) showTarget(coords.x, coords.y, coords.label);
+    if (coords) {
+      const signature = Math.round(coords.x) + "|" + Math.round(coords.y) + "|" + coords.label;
+      if (signature !== lastTargetSignature) {
+        lastTargetSignature = signature;
+        showTarget(coords.x, coords.y, coords.label);
+      }
+    }
+    syncActivityUI(next, tool);
     const cursorCoords = data.cursor || data.mouse;
     if (cursorCoords && finite(cursorCoords.x) !== null && finite(cursorCoords.y) !== null) {
       const scale = window.devicePixelRatio || 1;
       moveCursor(Number(cursorCoords.x) / scale, Number(cursorCoords.y) / scale);
     }
+    void setOverlayVisible(true);
   }
+  function syncActivityUI(next, tool) {
+    const active = next !== "idle";
+    if (activityBorder) activityBorder.classList.toggle("active", active);
+    if (activityBanner) activityBanner.classList.toggle("active", active);
+    if (activityText) {
+      activityText.textContent = next === "executing" ? (tool ? "MYRA executando · " + tool : "MYRA executando…")
+        : next === "thinking" ? "MYRA observando / pensando…"
+        : next === "done" ? "Tarefa concluída ✓"
+        : next === "error" ? "Tarefa com erro"
+        : "MYRA pronta";
+    }
+  }
+
   function showTarget(x, y, text) {
     const maxX = window.innerWidth, maxY = window.innerHeight;
     if (x < 0 || y < 0 || x > maxX || y > maxY) return;
     target.style.left = x + "px"; target.style.top = y + "px";
     targetLabel.textContent = text;
     target.hidden = false;
+    void setOverlayVisible(true);
     if (hideTargetTimer) clearTimeout(hideTargetTimer);
-    hideTargetTimer = setTimeout(() => { target.hidden = true; }, 2600);
+    hideTargetTimer = setTimeout(() => {
+      target.hidden = true;
+      hideTargetTimer = null;
+      if (lastState !== "idle") void setOverlayVisible(true);
+      else void setOverlayVisible(false);
+    }, 2600);
     moveCursor(x, y);
   }
   function moveCursor(x, y) {
@@ -69,15 +113,17 @@
     trail.innerHTML = d ? '<path d="' + d + '"></path>' : "";
   }
   function clearTarget() {
+    lastTargetSignature = "";
     target.hidden = true; cursor.hidden = true; points.length = 0; trail.replaceChildren();
     if (hideTargetTimer) clearTimeout(hideTargetTimer);
+    hideTargetTimer = null;
   }
   function connect() {
     const stream = new EventSource(API + "/task_events");
     stream.onmessage = (event) => {
       try { setState(JSON.parse(event.data)); } catch (e) { console.warn("[MYRA overlay] evento invalido", e); }
     };
-    stream.onerror = () => { state.dataset.state = "idle"; label.textContent = "Reconectando ao MYRA…"; };
+    stream.onerror = () => { state.dataset.state = "idle"; state.classList.remove("visible"); label.textContent = "Reconectando ao MYRA..."; lastState = "idle"; clearTarget(); void setOverlayVisible(false); };
   }
   connect();
   window.addEventListener("resize", () => { trail.setAttribute("viewBox", "0 0 " + innerWidth + " " + innerHeight); });

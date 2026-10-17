@@ -48,6 +48,18 @@ def _widget_notify(**kwargs):
         print(f"[WIDGET-NOTIFY] erro: {e}")
 
 
+_COMPUTER_ACTIVITY_PREFIXES = ("browser_", "pc_", "vision_", "computer_", "mouse_", "keyboard_", "desktop_")
+_COMPUTER_ACTIVITY_TOOLS = {
+    "open_url", "read_page", "click_element", "type_text",
+    "search_google", "search_google_visivel", "press_key",
+}
+
+
+def _is_computer_activity_tool(name: str) -> bool:
+    """True somente para ferramentas que interagem com navegador/desktop."""
+    tool = str(name or "").strip().lower()
+    return tool in _COMPUTER_ACTIVITY_TOOLS or tool.startswith(_COMPUTER_ACTIVITY_PREFIXES)
+
 # Ferramentas legadas que deixam de ser expostas ao planner quando
 # a ferramenta equivalente do Browser Bridge estiver registrada.
 # Isso altera somente o registro usado pelo planner; as rotas HTTP do agent.py
@@ -638,8 +650,9 @@ def executar_task(
     elif persistir and task_id:
         _persistir(task_id, estado=task_store.ESTADO_EM_EXECUCAO)
 
-    # Notifica o widget: passo_total (e garante state=running)
-    _widget_notify(passo_total=max_passos, state="running")
+    # Publica o ID persistido no widget para que pausar/retomar use o registro certo.
+    # O ID tempor?rio criado por /task_simple n?o ? o task_id do SQLite.
+    _widget_notify(task_id=task_id, passo_total=max_passos, state="running", computer_activity=False)
 
     for passo_num in range(passo_inicial, max_passos + 1):
         # Checa cancelamento antes de cada passo
@@ -668,6 +681,7 @@ def executar_task(
         _widget_notify(
             passo_num=passo_num,
             historico=[{"ferramenta": h["ferramenta"]} for h in historico],
+            computer_activity=False,
         )
 
         if esta_cancelada():
@@ -842,12 +856,13 @@ def executar_task(
                 break
 
             # Notifica o widget: qual ferramenta ta rodando AGORA
-            _widget_notify(passo_atual=ferramenta, state="running")
+            _widget_notify(passo_atual=ferramenta, state="running", computer_activity=_is_computer_activity_tool(ferramenta))
 
             r = _executar_passo(ferramenta, args)
 
             # FASE 26 - observar o resultado (se a ferramenta muda estado)
             observacao = _observar(objetivo, ferramenta, args, r["resultado"], r["erro"])
+            _widget_notify(computer_activity=False)
             if observacao:
                 print(f"[OBSERVER] sucesso={observacao.get('sucesso')} "
                       f"objetivo_atingido={observacao.get('objetivo_atingido')} "

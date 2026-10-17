@@ -55,5 +55,22 @@ class TarsOverlayContractTests(unittest.TestCase):
         self.assertIn("_notificar_alvo_overlay(loc)", vision)
 
 
+
+
+def test_overlay_js_requests_window_visibility_for_target():
+    source = (ROOT / "src" / "overlay.js").read_text(encoding="utf-8")
+    assert '"set_overlay_visible"' in source
+    assert "void setOverlayVisible(true);" in source
+    assert "void setOverlayVisible(false);" in source
+
+
+def test_overlay_capabilities_include_required_window_permissions():
+    path = ROOT / "src-tauri" / "capabilities" / "default.json"
+    capabilities = json.loads(path.read_text(encoding="utf-8"))
+    permissions = set(capabilities["permissions"])
+    assert "core:window:allow-show" in permissions
+    assert "core:window:allow-hide" in permissions
+    assert "core:window:allow-set-ignore-cursor-events" in permissions
+
 if __name__ == "__main__":
     unittest.main()

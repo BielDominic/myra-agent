@@ -6,44 +6,228 @@
     <title>MYRA</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-theme="dark" data-compact="off" data-popover="off">
+
+    <!-- Isla principal -->
     <div id="island" class="island idle">
-        <div class="view view-idle active">
-            <div class="mascot idle"><div class="eye left"></div><div class="eye right"></div></div>
-            <span class="label">MYRA</span><span class="status-dot"></span>
+
+        <!-- VIEW: idle -->
+        <div class="view view-idle active" data-tauri-drag-region>
+            <div class="mascot idle" id="mascot">
+                <div class="eye left"></div>
+                <div class="eye right"></div>
+                <div class="mouth"></div>
+                <div class="zzz">zZz</div>
+                <div class="speech" id="speech"></div>
+            </div>
+            <span class="label" data-tauri-drag-region>MYRA</span>
+            <span class="status-dot"></span>
+            <button id="btn-open-settings" title="Configurações">&#9881;</button>
         </div>
+
+        <!-- VIEW: configuracoes -->
+        <div class="view view-settings" data-tauri-drag-region>
+            <div class="header settings-header" data-tauri-drag-region>
+                <button class="btn-back" id="btn-back-settings" title="Voltar (Esc)" aria-label="Voltar">&#8592;</button>
+                <div class="settings-heading">
+                    <span class="label">Prefer&ecirc;ncias</span>
+                    <span class="settings-subtitle">Personalize o widget</span>
+                </div>
+                <button class="btn-close" id="btn-close-widget" title="Fechar widget" aria-label="Fechar">&#10005;</button>
+            </div>
+            <div class="content settings-content">
+                <section class="set-section">
+                    <div class="set-title">Apar&ecirc;ncia</div>
+                    <div class="set-panel">
+                        <div class="set-control-row">
+                            <div class="set-copy"><span class="set-name">Tema</span><span class="set-description">Claro ou escuro</span></div>
+                            <button class="set-btn set-btn-small" id="btn-theme">Alternar</button>
+                        </div>
+                        <div class="set-divider"></div>
+                        <div class="set-control-row">
+                            <div class="set-copy"><span class="set-name">Modo compacto</span><span class="set-description">Reduzir o tamanho do widget</span></div>
+                            <button class="set-btn set-btn-small" id="btn-compact" title="Atalho: Ctrl+Shift+M">Desativado</button>
+                        </div>
+                        <div class="set-divider"></div>
+                        <label class="set-control-row set-color">
+                            <span class="set-copy"><span class="set-name">Cor de destaque</span><span class="set-description">Cor do mascote e dos detalhes</span></span>
+                            <input type="color" id="mascot-color" value="#6366f1" aria-label="Cor de destaque">
+                        </label>
+                    </div>
+                </section>
+                <section class="set-section">
+                    <div class="set-title">Comportamento</div>
+                    <div class="set-panel">
+                        <div class="set-control-row">
+                            <div class="set-copy"><span class="set-name">Sons</span><span class="set-description">Sons de intera&ccedil;&atilde;o</span></div>
+                            <button class="set-btn set-btn-small" id="btn-sound" title="Atalho: Ctrl+Shift+S">Ativado</button>
+                        </div>
+                        <div class="set-divider"></div>
+                        <div class="set-control-row">
+                            <div class="set-copy"><span class="set-name">N&atilde;o perturbe</span><span class="set-description">Desativar sons e efeitos</span></div>
+                            <button class="set-btn set-btn-small" id="btn-dnd" title="Ativar ou desativar sons e efeitos">Desativado</button>
+                        </div>
+                        <div class="set-divider"></div>
+                        <div class="set-control-row">
+                            <div class="set-copy"><span class="set-name">Posi&ccedil;&atilde;o do widget</span><span class="set-description">Impedir que seja arrastado</span></div>
+                            <button class="set-btn set-btn-small" id="btn-top" title="Travar posi&ccedil;&atilde;o">Destravado</button>
+                        </div>
+                    </div>
+                </section>
+                <section class="set-section">
+                    <div class="set-title">Desempenho</div>
+                    <div class="set-panel">
+                        <div class="set-control-row">
+                            <div class="set-copy"><span class="set-name">Monitor de GPU</span><span class="set-description">Mostrar consumo de VRAM na tela</span></div>
+                            <button class="set-btn set-btn-small" id="btn-gpu-monitor">Ativado</button>
+                        </div>
+                    </div>
+                </section>
+                <section class="set-section">
+                    <div class="set-title set-title-inline"><label for="opacity">Transpar&ecirc;ncia</label><span id="opacity-value">100%</span></div>
+                    <div class="set-panel opacity-panel">
+                        <input type="range" id="opacity" min="30" max="100" value="100" aria-label="Transpar&ecirc;ncia do widget">
+                        <div class="range-labels"><span>Mais transparente</span><span>Mais s&oacute;lido</span></div>
+                    </div>
+                </section>
+                <section class="set-section">
+                    <div class="set-title">Hist&oacute;rico e rotinas</div>
+                    <div class="set-panel">
+                        <div class="set-control-row">
+                            <div class="set-copy"><span class="set-name">Execu&ccedil;&otilde;es recentes</span><span class="set-description">Guardadas localmente neste widget</span></div>
+                            <div class="history-actions">
+                                <button class="set-btn set-btn-small" id="btn-history-toggle" aria-expanded="false">Mostrar</button>
+                                <button class="set-btn set-btn-small" id="btn-history-clear">Limpar</button>
+                            </div>
+                        </div>
+                        <div id="task-history" class="local-list" hidden></div>
+                        <div class="set-divider"></div>
+                        <div class="routine-editor">
+                            <label class="set-name" for="routine-name">Nova rotina</label>
+                            <input id="routine-name" class="routine-input" maxlength="48" placeholder="Nome curto (ex.: Resumo di?rio)">
+                            <textarea id="routine-objective" class="routine-input routine-textarea" maxlength="1200" rows="2" placeholder="O que a MYRA deve fazer quando executar esta rotina"></textarea>
+                            <button class="set-btn routine-save" id="btn-save-routine">Salvar rotina</button>
+                        </div>
+                        <div id="routine-list" class="local-list"></div>
+                    </div>
+                </section>
+            </div>
+            <div class="footer settings-footer">
+                <span class="meta">MYRA <span class="footer-separator">&middot;</span> Esc para voltar</span>
+                <span class="meta">Ctrl+Shift+M compacto</span>
+            </div>
+        </div>
+
+        <!-- VIEW: running -->
         <div class="view view-running">
-            <div class="header">
-                <div class="mascot running"><div class="eye left"></div><div class="eye right"></div></div>
-                <span class="label">MYRA</span>
-                <button class="btn-close" onclick="closeWidget()" title="Fechar">×</button>
+            <div class="header" data-tauri-drag-region>
+                <div class="mascot running" id="mascot-running">
+                    <div class="eye left"></div>
+                    <div class="eye right"></div>
+                    <div class="mouth"></div>
+                    <div class="speech"></div>
+                </div>
+                <span class="label" data-tauri-drag-region>MYRA</span>
+                <span class="status-dot running-dot"></span>
+                <span class="pill-timer" id="pill-timer"></span>
+                <button class="btn-toggle-mode" id="btn-toggle-running-mode" title="Alternar modo">&#9660;</button>
+                <button class="btn-cancel-pill" id="btn-cancel-pill" title="Cancelar task">&#10005;</button>
+                <button class="btn-close" onclick="closeWidget()" title="Fechar">&times;</button>
             </div>
             <div class="content">
-                <div class="state-row"><span class="state-icon spinning">⚙️</span><span class="state-text">Executando...</span></div>
-                <div class="tool-row"><span class="tool-name" id="tool-name">—</span></div>
+                <div class="state-row">
+                    <span class="state-icon spinning" aria-hidden="true"></span>
+                    <span class="state-text" id="task-state-label">Executando...</span>
+                </div>
+                <div class="task-objective" id="task-objective" title="Objetivo atual"></div>
+                <div class="task-progress" role="progressbar" aria-label="Progresso da tarefa" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <div class="task-progress-fill" id="task-progress-fill"></div>
+                </div>
+                <div class="task-progress-caption"><span id="task-progress-label">Preparando tarefa</span><span id="task-progress-percent">0%</span></div>
+                <div class="tool-row">
+                    <span class="tool-name" id="tool-name">&mdash;</span>
+                </div>
+                <div class="task-timeline" id="task-timeline" aria-label="Etapas recentes"></div>
             </div>
-            <div class="footer">
-                <span class="meta" id="meta-tempo">⏱ 0s</span><span class="meta" id="meta-passos">⚙ 0 passos</span>
+            <div class="footer running-footer">
+                <span class="meta" id="meta-tempo">&#9201; 0s</span>
+                <span class="meta" id="meta-passos">0 passos</span>
+                <button class="btn btn-pause" id="btn-pause-resume" onclick="pauseResumeTask()" title="Atalho: Ctrl+Shift+P">Pausar</button>
                 <button class="btn btn-cancel" onclick="cancelTask()">Cancelar</button>
             </div>
         </div>
+
+        <!-- VIEW: done -->
         <div class="view view-done">
-            <div class="header">
-                <div class="mascot done"><div class="eye left"></div><div class="eye right"></div></div>
-                <span class="label">MYRA</span><button class="btn-close" onclick="closeWidget()" title="Fechar">×</button>
+            <div class="header" data-tauri-drag-region>
+                <div class="mascot done" id="mascot-done">
+                    <div class="eye left"></div>
+                    <div class="eye right"></div>
+                    <div class="mouth"></div>
+                    <div class="speech"></div>
+                </div>
+                <span class="label" data-tauri-drag-region>MYRA</span>
+                <button class="btn-close" onclick="closeWidget()" title="Fechar">&times;</button>
             </div>
-            <div class="content"><div class="state-row"><span class="state-icon">✅</span><span class="state-text">Concluído</span></div><div class="result-text" id="result-text">(sem resultado)</div></div>
-            <div class="footer"><button class="btn btn-ok" onclick="resetWidget()">OK</button></div>
+            <div class="content">
+                <div class="state-row">
+                    <span class="state-icon">&#9989;</span>
+                    <span class="state-text">Concluido</span>
+                </div>
+                <div class="result-text" id="result-text">(sem resultado)</div>
+                <div class="quick-actions">
+                    <button class="qa" onclick="copyResult()" title="Copiar">&#128203; Copiar</button>
+                    <button class="qa" onclick="repeatTask()" title="Repetir">&#128257; Repetir</button>
+                </div>
+            </div>
+            <div class="footer">
+                <button class="btn btn-ok" onclick="resetWidget()">OK</button>
+            </div>
         </div>
+
+        <!-- VIEW: error -->
         <div class="view view-error">
-            <div class="header">
-                <div class="mascot error"><div class="eye left"></div><div class="eye right"></div></div>
-                <span class="label">MYRA</span><button class="btn-close" onclick="closeWidget()" title="Fechar">×</button>
+            <div class="header" data-tauri-drag-region>
+                <div class="mascot error" id="mascot-error">
+                    <div class="eye left"></div>
+                    <div class="eye right"></div>
+                    <div class="mouth"></div>
+                    <div class="speech"></div>
+                </div>
+                <span class="label" data-tauri-drag-region>MYRA</span>
+                <button class="btn-close" onclick="closeWidget()" title="Fechar">&times;</button>
             </div>
-            <div class="content"><div class="state-row"><span class="state-icon">⚠️</span><span class="state-text">Erro</span></div><div class="result-text error-text" id="error-text">(sem mensagem)</div></div>
-            <div class="footer"><button class="btn btn-ok" onclick="resetWidget()">Fechar</button></div>
+            <div class="content">
+                <div class="state-row">
+                    <span class="state-icon">&#9888;&#65039;</span>
+                    <span class="state-text">Erro</span>
+                </div>
+                <div class="result-text error-text" id="error-text">(sem mensagem)</div>
+                <div class="quick-actions error-actions">
+                    <button class="qa" id="btn-copy-error" onclick="copyError()" title="Copiar detalhes do erro">Copiar erro</button>
+                    <button class="qa" id="btn-retry-error" onclick="retryFailedTask()" title="Tentar novamente">Tentar novamente</button>
+                </div>
+            </div>
+            <div class="footer">
+                <button class="btn btn-ok" onclick="resetWidget()">Fechar</button>
+            </div>
         </div>
+
     </div>
+
+    <canvas id="particles"></canvas>
+    <div id="confetti-layer"></div>
+
+    <div id="gpu-badge" title="VRAM da GPU">
+        <span id="gpu-icon">&#127918;</span>
+        <span id="gpu-text">0/4096 MB</span>
+        <div id="gpu-bar"><div id="gpu-fill"></div></div>
+    </div>
+
+    <script>window.MYRA_RICH_WIDGET = true;</script>
     <script src="tauri-widget.js"></script>
+    <script src="main.js"></script>
+    <script src="features.js"></script>
+    <script src="features-vida.js"></script>
 </body>
 </html>

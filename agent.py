@@ -96,6 +96,7 @@ CHAT_CACHE_TTL = 5
 
 _widget_status = {
     "state": "idle",           # idle | running | done | error | question
+    "computer_activity": False,
     "task_id": None,
     "objetivo": None,
     "passo_atual": None,
@@ -142,6 +143,8 @@ def _widget_notify():
 def _widget_set(**kwargs):
     """Atualiza o status do widget e notifica os listeners."""
     global _widget_status
+    if kwargs.get("state") in ("idle", "done", "error"):
+        kwargs.setdefault("computer_activity", False)
     for k, v in kwargs.items():
         _widget_status[k] = v
     _widget_notify()
@@ -1170,6 +1173,7 @@ def task_resume(data: TaskResumeRequest):
     historico_anterior = registo.get("historico") or []
     _widget_set(
         state="running",
+        computer_activity=False,
         task_id=data.task_id,
         objetivo=registo.get("objetivo"),
         passo_atual=None,
@@ -3372,6 +3376,7 @@ def task_simple(data: TaskSimple):
     # Atualiza o widget: task comeÃƒÆ’Ã‚Â§ou
     _widget_set(
         state="running",
+        computer_activity=False,
         task_id=str(int(time.time())),
         objetivo=data.objetivo,
         passo_atual=None,
@@ -3513,6 +3518,7 @@ async def openai_chat_completions(request: Request):
 
     _widget_set(
         state="running",
+        computer_activity=False,
         task_id=str(int(time.time())),
         objetivo=user_msg,
         passo_atual=None,

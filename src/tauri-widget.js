@@ -1,3 +1,17 @@
+if (window.MYRA_RICH_WIDGET) {
+    window.myraTauriWidget = {
+        async syncOverlayVisibility(state) {
+            try {
+                if (state === "idle") await window.__TAURI__.core.invoke("set_overlay_visible", { visible: false });
+            } catch (e) {
+                console.debug("[OVERLAY] visibilidade indisponivel:", e);
+            }
+        },
+        async setWindowSize(width, height) {
+            return window.__TAURI__.core.invoke("resize_window", { width, height });
+        }
+    };
+} else {
 // ============================================================
 // MYRA Widget — Script (versão Tauri)
 // ============================================================
@@ -175,3 +189,86 @@ window.addEventListener("DOMContentLoaded", () => {
     // Polling a cada 500ms
     setInterval(pollStatus, 500);
 });
+// ============================================================
+// ============================================================
+// Hold-and-drag da janela main, sem interferir nos controles
+// ============================================================
+function initWidgetDrag() {
+    const island = document.getElementById("island");
+    const getCurrentWindow = window.__TAURI__?.window?.getCurrentWindow;
+
+    if (!island || typeof getCurrentWindow !== "function") {
+        console.warn("[DRAG] API de janela Tauri indisponível");
+        return;
+    }
+
+    const currentWindow = getCurrentWindow();
+
+    island.addEventListener("mousedown", (e) => {
+        if (e.button !== 0) return;
+
+        // Controles e texto selecionável nunca iniciam arraste.
+        const noDrag = e.target.closest(
+            "button, input, textarea, select, [contenteditable], " +
+            ".no-drag, .result-text, .tool-name, .state-text, .meta"
+        );
+        if (noDrag) return;
+
+        e.preventDefault();
+        currentWindow.startDragging().catch((err) => {
+            console.error("[DRAG] Falha ao mover a janela:", err);
+        });
+    });
+}
+
+window.addEventListener("DOMContentLoaded", initWidgetDrag);
+// Click-through condicional (padrao CodeWalkers)
+// Quando o cursor esta sobre a UI do widget, desliga ignore_cursor_events
+// Quando esta sobre area vazia, liga ignore_cursor_events
+// ============================================================
+
+let clickThroughOn = false;
+let lastIgnoreState = null;
+
+async function updateClickThrough() {
+    try {
+        const pos = await invoke("get_mouse_pos");
+        if (!pos) return;
+
+        // Converte coordenadas globais (Windows) para locais do WebView
+        const scale = window.devicePixelRatio || 1;
+        const winX = Math.round(pos.x / scale) - Math.round(window.screenX / scale);
+        const winY = Math.round(pos.y / scale) - Math.round(window.screenY / scale);
+
+        const el = document.elementFromPoint(winX, winY);
+        const interativo = !!(
+            el && (
+                el.closest("#island") ||
+                el.closest(".mascot") ||
+                el.closest(".set-btn") ||
+                el.closest("button") ||
+                el.closest("[data-tauri-drag-region]")
+            )
+        );
+
+        // Se cursor sobre UI: ignore=false (permite interagir)
+        // Senao: ignore=true (clique passa direto pra baixo)
+        const deveIgnorar = !interativo;
+        if (deveIgnorar !== lastIgnoreState) {
+            await invoke("set_ignore_cursor_events", {
+                label: "main",
+                ignore: deveIgnorar,
+            });
+            lastIgnoreState = deveIgnorar;
+            clickThroughOn = deveIgnorar;
+        }
+    } catch (e) {
+        // silencio
+    }
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+    // Polling rapido: 100ms responde bem ao movimento do mouse
+    setInterval(updateClickThrough, 100);
+});
+}
