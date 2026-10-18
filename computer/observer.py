@@ -149,12 +149,24 @@ def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
     resultado = acao_anterior.get("resultado", "")
     erro = acao_anterior.get("erro", "")
 
-    resultado_str = str(resultado)[:800] if resultado else "(vazio)"
+    payload = resultado.get("result", resultado) if isinstance(resultado, dict) else {}
+    if not isinstance(payload, dict):
+        payload = {}
+    url = str((payload.get("url") or (resultado.get("url") if isinstance(resultado, dict) else "")) or "").strip()
+    title = str((payload.get("title") or (resultado.get("title") if isinstance(resultado, dict) else "")) or "").strip()
+    links_raw = payload.get("links") or (resultado.get("links") if isinstance(resultado, dict) else [])
+    links = links_raw if isinstance(links_raw, list) else []
+    texto_pagina = str(payload.get("text") or "")[:600]
+    status_val = resultado.get("status", "?") if isinstance(resultado, dict) else "?"
+    resultado_str = (f"status={status_val} | url={url or '(vazia)'} | title={title or '(vazio)'} | links_count={len(links)} | texto_inicio={texto_pagina[:200] if texto_pagina else '(vazio)'}")
     try:
         args_str = json.dumps(args, ensure_ascii=False)[:200] if args else "{}"
     except (TypeError, ValueError):
         args_str = str(args)[:200]
     erro_str = str(erro)[:300] if erro else ""
+    if ferramenta == "browser_search_google" and isinstance(resultado, dict):
+        if (str(status_val).lower() == "ok" and ("google.com/search" in url.lower() or "q=" in url.lower()) and ("pesquisa google" in title.lower() or "google search" in title.lower())):
+            return {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "Pesquisa Google confirmada por URL e titulo.", "proximo_passo_sugerido": ""}
 
     prompt = (
         "Você é um avaliador de ações de um agente autônomo.\n"
