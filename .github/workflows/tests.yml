@@ -57,7 +57,7 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          $skip = @('numpy==', 'opencv-python==', 'onnxruntime==', 'rapidocr-onnxruntime==', 'torch==', 'ultralytics==', 'pywebview==')
+          $skip = @('numpy==', 'opencv-python==', 'onnxruntime==', 'torch==', 'ultralytics==', 'pywebview==')
           $lines = Get-Content requirements.txt | Where-Object {
             $line = $_.Trim()
             $line -eq '' -or $line.StartsWith('#') -or -not ($skip | Where-Object { $line.StartsWith($_, [System.StringComparison]::OrdinalIgnoreCase) })
