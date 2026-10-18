@@ -150,7 +150,7 @@ def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
     erro = acao_anterior.get("erro", "")
 
     # Regra deterministica para browser_search_google (nao depende do LLM).
-    if acao_anterior.get("ferramenta") == "browser_search_google":
+    if str(acao_anterior.get("ferramenta", "")).startswith("browser_search_google"):
         _res = acao_anterior.get("resultado") or {}
         if isinstance(_res, dict):
             _payload = _res.get("result", _res)

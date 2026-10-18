@@ -255,12 +255,12 @@ def _decidir_proximo_passo(
     # Em pedidos de navegação, priorize operar no navegador visível do usuário.
     # Mantemos as ferramentas de pesquisa disponíveis para outros tipos de objetivo.
     objetivo_lower = objetivo.lower()
-    termos_navegacao = ("abre", "abrir", "navega", "visita", "acesse", "acessa", "vai para", "entre no site", "entre em", "no navegador")
+    termos_navegacao = ("abre", "abra", "abrir", "navega", "visita", "acesse", "acessa", "vai para", "entre no site", "entre em", "no navegador", "chrome", "pesquise")
     eh_navegacao = any(t in objetivo_lower for t in termos_navegacao)
     ferramentas_ocultas_navegacao = {
         "web_search_structured", "youtube_search", "youtube_summarize",
         "youtube_ask", "youtube_transcript", "youtube_channel_latest",
-        "search_google", "search_google_structured",
+        "search_google", "search_google_structured", "get_current_time",
     }
     # Se o objetivo e sobre ARQUIVO/local, esconde TODAS as ferramentas de browser.
     # Sem isto, o 3b chama browser_new_tab pra "pesquisar como criar arquivo".
@@ -530,7 +530,7 @@ def _sintetizar(objetivo: str, historico: list) -> str:
         f"Com base APENAS nos resultados acima, responda o objetivo em portugues, "
         f"de forma clara e direta. Se os resultados nao tiverem a informacao, "
         f"diga exatamente o que conseguiu e o que nao conseguiu. "
-        f"Se a tarefa pede um dado especifico (populacao, preco, data ou numero), "
+        f"IMPORTANTE: resuma APENAS o que o objetivo pediu. NAO invente requisitos que nao estao no objetivo. "
         f"procure tambem nas TABELAS listadas no historico, nao apenas no texto corrido. "
         f"Dados estruturados costumam estar em tabelas ou listas."
     )

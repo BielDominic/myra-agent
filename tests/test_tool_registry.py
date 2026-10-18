@@ -102,7 +102,7 @@ LEGADOS_ESPERADOS = frozenset({
 OCULTAS_EM_NAVEGACAO = frozenset({
     "web_search_structured", "youtube_search", "youtube_summarize",
     "youtube_ask", "youtube_transcript", "youtube_channel_latest",
-    "search_google", "search_google_structured",
+    "search_google", "search_google_structured", "get_current_time",
 })
 
 # FERRAMENTAS_OBSERVAVEIS inclui nomes que existem apenas como rotas HTTP do

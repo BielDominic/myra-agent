@@ -239,7 +239,7 @@ class TelegramBot:
         try:
             result = self._agent_request(
                 "POST", "/task_simple",
-                {"objetivo": objective, "max_passos": 30},
+                {"objetivo": objective},
                 timeout=1800,
             )
             state = result.get("status", "concluida")

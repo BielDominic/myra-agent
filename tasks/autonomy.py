@@ -180,12 +180,25 @@ def verificar(objetivo: str, historico: list, observacao: dict | None = None) ->
     if ferramenta in FERRAMENTAS_AUTO_CONFIRM:
         res = ultimo.get("resultado") or {}
         if isinstance(res, dict) and res.get("status") == "ok":
-            return {
-                "atingido": True,
-                "confianca": "alta",
-                "motivo": ferramenta + " retornou com sucesso",
-                "evidencia": str(res.get("result", ""))[:200],
-            }
+            # Obter a hora so confirma objetivos que realmente pedem hora/data.
+            # Caso contrario, o planner pode encerrar uma tarefa de navegador
+            # apos executar get_current_time sem sequer tentar abrir o Chrome.
+            confirma_objetivo = True
+            if ferramenta == "get_current_time":
+                objetivo_lower = objetivo.casefold()
+                termos_tempo = (
+                    "hora", "horário", "que horas",
+                    "current time", "what time", "data de hoje",
+                    "date today", "today's date",
+                )
+                confirma_objetivo = any(t in objetivo_lower for t in termos_tempo)
+            if confirma_objetivo:
+                return {
+                    "atingido": True,
+                    "confianca": "alta",
+                    "motivo": ferramenta + " retornou com sucesso",
+                    "evidencia": str(res.get("result", ""))[:200],
+                }
 
     # 3) Observacao do observer (LLM) sobre a ultima acao.
     if obs and obs.get("status") == "ok":
