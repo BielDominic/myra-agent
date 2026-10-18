@@ -44,7 +44,7 @@ def _extrair_json(texto: str) -> dict | None:
 
 
 def _bool_estrito(valor):
-    """Coage valores comuns, mas deixa respostas textuais ambíguas indeterminadas."""
+    """Coage valores comuns, mas deixa respostas textuais ambÃ­guas indeterminadas."""
     if isinstance(valor, bool):
         return valor
     if valor is None:
@@ -55,7 +55,7 @@ def _bool_estrito(valor):
         normalizado = valor.strip().lower()
         if normalizado in {"true", "1", "sim", "yes", "y"}:
             return True
-        if normalizado in {"false", "0", "nao", "não", "no", "n", ""}:
+        if normalizado in {"false", "0", "nao", "nÃ£o", "no", "n", ""}:
             return False
         return None
     if isinstance(valor, (list, dict, tuple, set)) and not valor:
@@ -80,7 +80,7 @@ def _capturar_screenshot_base64() -> str | None:
             imagem.save(buffer, format="PNG", optimize=True)
             return base64.b64encode(buffer.getvalue()).decode("ascii")
     except Exception as e:
-        # Ambiente headless, driver indisponível ou falha de captura: fallback textual.
+        # Ambiente headless, driver indisponÃ­vel ou falha de captura: fallback textual.
         print(f"[OBSERVER] screenshot indisponivel: {type(e).__name__}")
         return None
 
@@ -139,7 +139,7 @@ def _resposta_llm(prompt: str, imagem_b64: str | None = None) -> str:
 
 
 def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
-    """Avalia ação, resultado e screenshot atual, com fallback textual seguro."""
+    """Avalia aÃ§Ã£o, resultado e screenshot atual, com fallback textual seguro."""
     if not objetivo or not objetivo.strip():
         return {"status": "erro", "result": "objetivo vazio"}
 
@@ -149,36 +149,37 @@ def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
     resultado = acao_anterior.get("resultado", "")
     erro = acao_anterior.get("erro", "")
 
-    payload = resultado.get("result", resultado) if isinstance(resultado, dict) else {}
-    if not isinstance(payload, dict):
-        payload = {}
-    url = str((payload.get("url") or (resultado.get("url") if isinstance(resultado, dict) else "")) or "").strip()
-    title = str((payload.get("title") or (resultado.get("title") if isinstance(resultado, dict) else "")) or "").strip()
-    links_raw = payload.get("links") or (resultado.get("links") if isinstance(resultado, dict) else [])
-    links = links_raw if isinstance(links_raw, list) else []
-    texto_pagina = str(payload.get("text") or "")[:600]
-    status_val = resultado.get("status", "?") if isinstance(resultado, dict) else "?"
-    resultado_str = (f"status={status_val} | url={url or '(vazia)'} | title={title or '(vazio)'} | links_count={len(links)} | texto_inicio={texto_pagina[:200] if texto_pagina else '(vazio)'}")
+    # Regra deterministica para browser_search_google (nao depende do LLM).
+    if acao_anterior.get("ferramenta") == "browser_search_google":
+        _res = acao_anterior.get("resultado") or {}
+        if isinstance(_res, dict):
+            _payload = _res.get("result", _res)
+            if not isinstance(_payload, dict):
+                _payload = {}
+            _url = str((_payload.get("url") or _res.get("url") or "")).strip().lower()
+            _title = str((_payload.get("title") or _res.get("title") or "")).strip().lower()
+            _status = str(_res.get("status", "")).lower()
+            if _status == "ok" and ("google.com/search" in _url or "q=" in _url) and ("pesquisa google" in _title or "google search" in _title):
+                return {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "Pesquisa Google confirmada por URL e titulo.", "proximo_passo_sugerido": ""}
+
+    resultado_str = str(resultado)[:800] if resultado else "(vazio)"
     try:
         args_str = json.dumps(args, ensure_ascii=False)[:200] if args else "{}"
     except (TypeError, ValueError):
         args_str = str(args)[:200]
     erro_str = str(erro)[:300] if erro else ""
-    if ferramenta == "browser_search_google" and isinstance(resultado, dict):
-        if (str(status_val).lower() == "ok" and ("google.com/search" in url.lower() or "q=" in url.lower()) and ("pesquisa google" in title.lower() or "google search" in title.lower())):
-            return {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "Pesquisa Google confirmada por URL e titulo.", "proximo_passo_sugerido": ""}
 
     prompt = (
-        "Você é um avaliador de ações de um agente autônomo.\n"
-        "Analise a ação, o resultado e a tela atual. Não assuma que a ação funcionou apenas porque foi executada.\n\n"
+        "VocÃª Ã© um avaliador de aÃ§Ãµes de um agente autÃ´nomo.\n"
+        "Analise a aÃ§Ã£o, o resultado e a tela atual. NÃ£o assuma que a aÃ§Ã£o funcionou apenas porque foi executada.\n\n"
         f"OBJETIVO DA TASK: {objetivo}\n\n"
         f"ACAO EXECUTADA: {ferramenta}({args_str})\n"
         f"RESULTADO: {resultado_str}\n"
         f"ERRO: {erro_str or '(nenhum)'}\n\n"
         "Responda APENAS com JSON puro (nada antes, nada depois, sem markdown):\n"
         '{"sucesso": true/false, "objetivo_atingido": true/false, '
-        '"motivo": "explicação curta em 1 frase", '
-        '"proximo_passo_sugerido": "o que fazer se não atingiu (ou vazio)"}\n\n'
+        '"motivo": "explicaÃ§Ã£o curta em 1 frase", '
+        '"proximo_passo_sugerido": "o que fazer se nÃ£o atingiu (ou vazio)"}\n\n'
         "JSON:"
     )
 
@@ -206,7 +207,7 @@ def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
             "status": "ok",
             "sucesso": None,
             "objetivo_atingido": None,
-            "motivo": str(data.get("motivo", "resposta ambígua do observer"))[:300],
+            "motivo": str(data.get("motivo", "resposta ambÃ­gua do observer"))[:300],
             "proximo_passo_sugerido": str(data.get("proximo_passo_sugerido", ""))[:300],
             "raw": texto[:500],
         }
