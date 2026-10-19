@@ -20,12 +20,25 @@ class FakeHTTP:
 
     def post(self, url, json=None, data=None, files=None, timeout=None):
         self.calls.append(("POST", url, json, data, files))
+        if "127.0.0.1:11434/api/generate" in url:
+            prompt = (json or {}).get("prompt", "")
+            if "Classifique a mensagem" in prompt:
+                answer = getattr(self, "intent_response", "CHAT")
+                if answer == "AUTO":
+                    answer = "ACAO" if "abra" in prompt.lower() or "pesquise" in prompt.lower() else "CHAT"
+                return FakeResponse({"response": answer})
+            return FakeResponse({"response": "Python é uma linguagem de programação."})
         if "/sendPhoto" in url:
             return FakeResponse({"ok": True, "result": {"message_id": 2}})
         return FakeResponse({"ok": True, "result": {"message_id": 1}})
 
     def get(self, url, params=None, timeout=None):
         self.calls.append(("GET", url, params, None, None))
+        if url.endswith("/api/tags"):
+            return FakeResponse({"models": [
+                {"name": "qwen2.5:3b-instruct-q5_K_M", "size": 3000000000},
+                {"name": "llama3.2:3b", "size": 2000000000},
+            ]})
         return FakeResponse({"ok": True, "result": []})
 
     def request(self, method, url, json=None, timeout=None):
@@ -113,3 +126,141 @@ def test_cancel_and_pause_call_only_local_agent_routes():
     routes = [call[1] for call in http.calls if call[0] == "POST" and "127.0.0.1:8000" in call[1]]
     assert any(route.endswith("/task_cancel") for route in routes)
     assert any(route.endswith("/task_pause") for route in routes)
+
+
+def test_plain_text_is_routed_without_command_prefix():
+    import threading
+
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    received = []
+    done = threading.Event()
+
+    def route(chat_id, text):
+        received.append((chat_id, text))
+        done.set()
+
+    bot._route_text_message = route
+    bot.handle_update(update(123, "Quem é você?"))
+    assert done.wait(1)
+    assert received == [("123", "Quem é você?")]
+    assert not any(call[1].endswith("/task_simple") for call in http.calls)
+
+
+def test_free_text_chat_uses_local_ollama_and_sends_answer():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+
+    bot._route_text_message("123", "O que é Python?")
+
+    sent = [call for call in http.calls if "/sendMessage" in call[1]]
+    assert "Python é uma linguagem de programação." in sent[-1][2]["text"]
+    assert any("127.0.0.1:11434/api/generate" in call[1] for call in http.calls)
+    assert not any(call[1].endswith("/task_simple") for call in http.calls)
+
+
+def test_free_text_action_routes_to_task_simple_path():
+    http = FakeHTTP()
+    http.intent_response = "ACAO"
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    routed = []
+    bot._start_routed_task = lambda chat_id, objective: routed.append((chat_id, objective))
+
+    bot._route_text_message("123", "Abra o Google")
+
+    assert routed == [("123", "Abra o Google")]
+    assert not any(call[1].endswith("/task_simple") for call in http.calls)
+
+
+def test_uncertain_intent_defaults_to_chat_not_computer_action():
+    http = FakeHTTP()
+    http.intent_response = "nao sei"
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+
+    assert bot._classify_intent("talvez faça algo") == "CHAT"
+
+
+def test_models_command_lists_local_models_and_current_selection():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    bot.handle_update(update(123, "/models"))
+    sent = [call for call in http.calls if "/sendMessage" in call[1]]
+    assert "llama3.2:3b" in sent[-1][2]["text"]
+    assert bot.chat_model in sent[-1][2]["text"]
+
+
+def test_model_command_changes_only_telegram_chat_model(monkeypatch, tmp_path):
+    import tasks.telegram_bot as telegram_module
+
+    state_file = tmp_path / ".telegram_chat_model"
+    monkeypatch.setattr(telegram_module, "CHAT_MODEL_STATE_FILE", state_file)
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    original = bot.chat_model
+
+    bot.handle_update(update(123, "/model llama3.2:3b"))
+
+    assert bot.chat_model == "llama3.2:3b"
+    assert state_file.read_text(encoding="utf-8") == "llama3.2:3b"
+    assert original != bot.chat_model
+    sent = [call for call in http.calls if "/sendMessage" in call[1]]
+    assert "A MYRA principal não foi alterada" in sent[-1][2]["text"]
+
+
+def test_chat_uses_selected_model_but_classifier_keeps_default(monkeypatch, tmp_path):
+    import tasks.telegram_bot as telegram_module
+
+    monkeypatch.setattr(telegram_module, "CHAT_MODEL_STATE_FILE", tmp_path / ".telegram_chat_model")
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    bot.chat_model = "llama3.2:3b"
+
+    assert bot._chat("Oi") == "Python é uma linguagem de programação."
+    generate_calls = [call for call in http.calls if "127.0.0.1:11434/api/generate" in call[1]]
+    assert generate_calls[-1][2]["model"] == "llama3.2:3b"
+
+    bot._classify_intent("Quem é você?")
+    generate_calls = [call for call in http.calls if "127.0.0.1:11434/api/generate" in call[1]]
+    assert generate_calls[-1][2]["model"] == telegram_module.DEFAULT_CHAT_MODEL
+
+
+def test_model_command_rejects_uninstalled_model():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    original = bot.chat_model
+    bot.handle_update(update(123, "/model modelo-inexistente"))
+    assert bot.chat_model == original
+    sent = [call for call in http.calls if "/sendMessage" in call[1]]
+    assert "não está instalado" in sent[-1][2]["text"]
+
+
+def test_commands_alias_and_ping():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    bot.handle_update(update(123, "/commands"))
+    bot.handle_update(update(123, "/ping"))
+    sent = [call for call in http.calls if "/sendMessage" in call[1]]
+    assert "/models" in sent[0][2]["text"]
+    assert "/taskinfo" in sent[0][2]["text"]
+    assert "MYRA backend: online" in sent[1][2]["text"]
+
+
+def test_task_command_still_bypasses_intent_router():
+    import threading
+
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    done = threading.Event()
+    called = []
+    bot._classify_intent = lambda text: called.append(("classified", text)) or "CHAT"
+
+    def run_task(chat_id, objective):
+        called.append((chat_id, objective))
+        done.set()
+
+    bot._run_task = run_task
+    bot.handle_update(update(123, "/task abra o Google"))
+
+    assert done.wait(1)
+    assert called == [("123", "abra o Google")]
+    assert not any("127.0.0.1:11434/api/generate" in call[1] for call in http.calls)
