@@ -30,12 +30,20 @@ class PathGuardUnitTestCase(unittest.TestCase):
         self.addCleanup(lambda: self._ctx.__exit__(None, None, None))
 
     def test_caminho_dentro_do_workspace(self):
-        destino = self.agent.caminho_no_workspace("sub/a.txt")
-        self.assertTrue(destino.startswith(str(self.ws)))
-        self.assertTrue(destino.endswith(os.path.join("sub", "a.txt")))
+        # Windows: tempfile.mkdtemp() pode devolver 8.3 (ADMINI~1) numa chamada
+        # e nome longo (Administrator) noutra. Normalizar ambos antes de comparar.
+        destino = Path(self.agent.caminho_no_workspace("sub/a.txt")).resolve()
+        ws_resolvido = Path(self.ws).resolve()
+        self.assertEqual(destino.parent.parent, ws_resolvido)
+        self.assertEqual(destino.name, "a.txt")
+        self.assertEqual(destino.parent.name, "sub")
 
     def test_caminho_vazio_resolve_para_raiz(self):
-        self.assertEqual(self.agent.caminho_no_workspace(""), str(self.ws))
+        # Normalizar ambos: Windows pode devolver 8.3 (ADMINI~1) vs nome longo.
+        self.assertEqual(
+            Path(self.agent.caminho_no_workspace("")).resolve(),
+            Path(self.ws).resolve(),
+        )
 
     def test_traversal_simples_rejeitado(self):
         with self.assertRaises(ValueError):
@@ -66,8 +74,10 @@ class PathGuardUnitTestCase(unittest.TestCase):
     def test_base_diferente_e_respeitada(self):
         base = self.ws / "code"
         base.mkdir(parents=True, exist_ok=True)
-        ok = self.agent.caminho_no_workspace("x.py", str(base))
-        self.assertTrue(ok.startswith(str(base)))
+        ok = Path(self.agent.caminho_no_workspace("x.py", str(base))).resolve()
+        base_resolvido = Path(base).resolve()
+        self.assertEqual(ok.parent, base_resolvido)
+        self.assertEqual(ok.name, "x.py")
         with self.assertRaises(ValueError):
             self.agent.caminho_no_workspace("../fora.py", str(base))
 

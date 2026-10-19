@@ -6,13 +6,27 @@
     <title>MYRA</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<body data-theme="dark" data-compact="off" data-popover="off">
+<body>
 
-    <!-- Isla principal -->
+    <!-- Botão engrenagem (sempre visível) -->
+    <button id="btn-settings" title="Configurações">⚙</button>
+
+    <!-- Painel de configurações (abre com a engrenagem) -->
+    <div id="chrome" data-tauri-drag-region>
+        <span class="drag-handle" data-tauri-drag-region>⋮⋮</span>
+        <span class="chrome-label" data-tauri-drag-region>MYRA</span>
+        <button id="btn-theme" title="Tema claro/escuro">🌙</button>
+        <button id="btn-sound" title="Sons on/off">🔊</button>
+        <button id="btn-dnd" title="Não perturbe">🔕</button>
+        <button id="btn-top" title="Sempre no topo">📌</button>
+        <input type="range" id="opacity" min="30" max="100" value="95" title="Opacidade">
+        <input type="color" id="mascot-color" value="#6366f1" title="Cor do mascote">
+        <button id="btn-close" title="Fechar">✕</button>
+    </div>
+
     <div id="island" class="island idle">
 
-        <!-- VIEW: idle -->
-        <div class="view view-idle active" data-tauri-drag-region>
+        <div class="view view-idle active">
             <div class="mascot idle" id="mascot">
                 <div class="eye left"></div>
                 <div class="eye right"></div>
@@ -20,109 +34,60 @@
                 <div class="zzz">zZz</div>
                 <div class="speech" id="speech"></div>
             </div>
-            <span class="label" data-tauri-drag-region>MYRA</span>
+            <span class="label">MYRA</span>
             <span class="status-dot"></span>
-            <button id="btn-open-settings" title="Configuracoes">&#9881;</button>
         </div>
 
-        <!-- VIEW: configuracoes (ocupa o island inteiro) -->
-        <div class="view view-settings" data-tauri-drag-region>
-            <div class="header" data-tauri-drag-region>
-                <button class="btn-back" id="btn-back-settings" title="Voltar">&#8592;</button>
-                <span class="label">Configuracoes</span>
-                <button class="btn-close" id="btn-close-widget" title="Fechar widget">&#10005;</button>
-            </div>
-            <div class="content">
-
-                <div class="set-section">
-                    <div class="set-title">Aparencia</div>
-                    <div class="set-row">
-                        <button class="set-btn" id="btn-theme">&#127769; Tema</button>
-                        <button class="set-btn" id="btn-compact">&#9723; Compacto</button>
-                    </div>
-                    <div class="set-row">
-                        <label class="set-color">
-                            <span>Cor do mascote</span>
-                            <input type="color" id="mascot-color" value="#6366f1">
-                        </label>
-                    </div>
-                </div>
-
-                <div class="set-section">
-                    <div class="set-title">Comportamento</div>
-                    <div class="set-row">
-                        <button class="set-btn" id="btn-sound">&#128266; Som</button>
-                        <button class="set-btn" id="btn-dnd">&#128277; Nao perturbe</button>
-                    </div>
-                    <div class="set-row">
-                        <button class="set-btn" id="btn-top">&#128204; Travar posicao</button>
-                    </div>
-                </div>
-
-                <div class="set-section">
-                    <div class="set-title">Opacidade</div>
-                    <input type="range" id="opacity" min="30" max="100" value="95">
-                </div>
-
-            </div>
-            <div class="footer">
-                <span class="meta">MYRA v0.1</span>
-            </div>
-        </div>
-
-        <!-- VIEW: running -->
         <div class="view view-running">
-            <div class="header" data-tauri-drag-region>
+            <div class="header">
                 <div class="mascot running" id="mascot-running">
                     <div class="eye left"></div>
                     <div class="eye right"></div>
                     <div class="mouth"></div>
                     <div class="speech"></div>
                 </div>
-                <span class="label" data-tauri-drag-region>MYRA</span>
-                <span class="status-dot running-dot"></span>
-                <span class="pill-timer" id="pill-timer"></span>
-                <button class="btn-toggle-mode" id="btn-toggle-running-mode" title="Alternar modo">&#9660;</button>
-                <button class="btn-cancel-pill" id="btn-cancel-pill" title="Cancelar task">&#10005;</button>
-                <button class="btn-close" onclick="closeWidget()" title="Fechar">&times;</button>
+                <span class="label">MYRA</span>
+                <button class="btn-close" onclick="closeWidget()" title="Fechar">×</button>
             </div>
             <div class="content">
                 <div class="state-row">
-                    <span class="state-icon spinning">&#9881;&#65039;</span>
+                    <span class="state-icon spinning">⚙️</span>
                     <span class="state-text">Executando...</span>
                 </div>
                 <div class="tool-row">
-                    <span class="tool-name" id="tool-name">&mdash;</span>
+                    <span class="tool-name" id="tool-name">—</span>
+                </div>
+                <div class="quick-actions" id="quick-actions-running">
+                    <button class="qa" onclick="cancelTask()">Cancelar</button>
                 </div>
             </div>
             <div class="footer">
-                <span class="meta" id="meta-tempo">&#9201; 0s</span>
-                <span class="meta" id="meta-passos">&#9881; 0 passos</span>
+                <span class="meta" id="meta-tempo">⏱ 0s</span>
+                <span class="meta" id="meta-passos">⚙ 0 passos</span>
                 <button class="btn btn-cancel" onclick="cancelTask()">Cancelar</button>
             </div>
         </div>
 
-        <!-- VIEW: done -->
         <div class="view view-done">
-            <div class="header" data-tauri-drag-region>
+            <div class="header">
                 <div class="mascot done" id="mascot-done">
                     <div class="eye left"></div>
                     <div class="eye right"></div>
                     <div class="mouth"></div>
                     <div class="speech"></div>
                 </div>
-                <span class="label" data-tauri-drag-region>MYRA</span>
-                <button class="btn-close" onclick="closeWidget()" title="Fechar">&times;</button>
+                <span class="label">MYRA</span>
+                <button class="btn-close" onclick="closeWidget()" title="Fechar">×</button>
             </div>
             <div class="content">
                 <div class="state-row">
-                    <span class="state-icon">&#9989;</span>
-                    <span class="state-text">Concluido</span>
+                    <span class="state-icon">✅</span>
+                    <span class="state-text">Concluído</span>
                 </div>
                 <div class="result-text" id="result-text">(sem resultado)</div>
                 <div class="quick-actions">
-                    <button class="qa" onclick="copyResult()" title="Copiar">&#128203; Copiar</button>
-                    <button class="qa" onclick="repeatTask()" title="Repetir">&#128257; Repetir</button>
+                    <button class="qa" onclick="copyResult()" title="Copiar">📋 Copiar</button>
+                    <button class="qa" onclick="repeatTask()" title="Repetir">🔁 Repetir</button>
                 </div>
             </div>
             <div class="footer">
@@ -130,21 +95,20 @@
             </div>
         </div>
 
-        <!-- VIEW: error -->
         <div class="view view-error">
-            <div class="header" data-tauri-drag-region>
+            <div class="header">
                 <div class="mascot error" id="mascot-error">
                     <div class="eye left"></div>
                     <div class="eye right"></div>
                     <div class="mouth"></div>
                     <div class="speech"></div>
                 </div>
-                <span class="label" data-tauri-drag-region>MYRA</span>
-                <button class="btn-close" onclick="closeWidget()" title="Fechar">&times;</button>
+                <span class="label">MYRA</span>
+                <button class="btn-close" onclick="closeWidget()" title="Fechar">×</button>
             </div>
             <div class="content">
                 <div class="state-row">
-                    <span class="state-icon">&#9888;&#65039;</span>
+                    <span class="state-icon">⚠️</span>
                     <span class="state-text">Erro</span>
                 </div>
                 <div class="result-text error-text" id="error-text">(sem mensagem)</div>
@@ -154,15 +118,6 @@
             </div>
         </div>
 
-    </div>
-
-    <canvas id="particles"></canvas>
-    <div id="confetti-layer"></div>
-
-    <div id="gpu-badge" title="VRAM da GPU">
-        <span id="gpu-icon">&#127918;</span>
-        <span id="gpu-text">0/4096 MB</span>
-        <div id="gpu-bar"><div id="gpu-fill"></div></div>
     </div>
 
     <script src="main.js"></script>

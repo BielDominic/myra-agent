@@ -167,3 +167,36 @@ _backups/
 !tests/__init__.py
 !tests/test_*.py
 
+
+# Backups locais do widget
+widget-tauri/**/*.bak
+widget-tauri/**/*.bak_*
+widget-tauri/**/*.backup
+widget-tauri/**/*.backup_*
+widget-tauri/**/*.old
+widget-tauri/**/*.old_*
+
+# Arquivos temporarios de contexto
+_contexto_*.txt
+_saida_*.txt
+
+# Backups pontuais do overlay/fix (nao versionar)
+*.before_edgefix_*
+*.bak3_*
+
+
+# Recovery backups - forcar ignore (redundante com regra existente)
+/recovery-backups/
+recovery-backups/**
+
+# Segredos locais
+.env
+*.env
+!.env.example
+
+
+# Segredos locais
+.env
+*.env
+!.env.example
+

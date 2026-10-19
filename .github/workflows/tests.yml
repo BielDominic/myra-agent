@@ -4,15 +4,38 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, feature/fase26-ciclo-autonomo]
+    branches: [main]
 
 permissions:
   contents: read
 
 jobs:
-  unittest:
+  overlay-static:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        run: |
+          node --check src/overlay.js
+          node --check src/tauri-widget.js
+          node --check src/script.js
+      - name: Run TARS overlay contract tests
+        run: python -m unittest tests.test_overlay_contract -v
+
+  validation:
+    # MYRA is a Windows desktop agent; platform-sensitive imports must be tested on Windows.
+    runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,17 +44,32 @@ jobs:
         with:
           python-version: '3.14'
           cache: pip
-      - name: Install headless display for desktop imports
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
         run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb
+          node --check src/overlay.js
+          node --check src/tauri-widget.js
+          node --check src/script.js
       - name: Install core and test dependencies
+        shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          grep -vE '^(numpy|opencv-python|onnxruntime|rapidocr-onnxruntime|torch|ultralytics|pywebview)==' requirements.txt > /tmp/requirements-ci.txt
-          python -m pip install -r /tmp/requirements-ci.txt
-      - name: Run unit and contract tests (no real services)
+          $skip = @('numpy==', 'opencv-python==', 'onnxruntime==', 'torch==', 'ultralytics==', 'pywebview==')
+          $lines = Get-Content requirements.txt | Where-Object {
+            $line = $_.Trim()
+            $line -eq '' -or $line.StartsWith('#') -or -not ($skip | Where-Object { $line.StartsWith($_, [System.StringComparison]::OrdinalIgnoreCase) })
+          }
+          $lines | Set-Content requirements-ci.txt -Encoding utf8
+          python -m pip install -r requirements-ci.txt
+      - name: Run unit and contract tests
         env:
-          MYRA_TASK_DB: ${{ runner.temp }}/myra-ci-tasks.sqlite3
+          MYRA_TASK_DB: ${{ runner.temp }}\myra-ci-tasks.sqlite3
           MYRA_OBSERVER_SCREENSHOT: '0'
-        run: xvfb-run -a python -m unittest discover -s tests -t . -v
+        run: python -m unittest discover -s tests -t . -v
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Check Tauri widget and overlay
+        run: cargo check --manifest-path src-tauri/Cargo.toml

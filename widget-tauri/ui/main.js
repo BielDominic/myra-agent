@@ -154,8 +154,11 @@ async function pollStatus() {
         if (!status) return;
         const state = status.state || "idle";
 
-        if (state !== lastState) {
-            console.log("[POLL] " + lastState + " -> " + state + " | passo=" + status.passo_atual + " num=" + status.passo_num);
+        const island = document.getElementById("island");
+        const visualStateMatches = !!island && island.classList.contains(state);
+        // Reconcile o visual mesmo se lastState ja estiver sincronizado, mas a view/classe tiver sido alterada.
+        if (state !== lastState || !visualStateMatches) {
+            console.log("[POLL] " + lastState + " -> " + state + " | visualOK=" + visualStateMatches + " | passo=" + status.passo_atual + " num=" + status.passo_num);
             lastState = state;
 
             if (state === "running") {

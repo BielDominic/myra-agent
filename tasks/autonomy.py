@@ -165,6 +165,41 @@ def verificar(objetivo: str, historico: list, observacao: dict | None = None) ->
             "evidencia": f"{ultimo.get('ferramenta')}: {str(detalhe)[:200]}",
         }
 
+    # 2.5) Ferramentas de LEITURA SIMPLES: sucesso ja e prova suficiente.
+    #      get_current_time, get_weather, etc retornam status=ok. Nao ha
+    #      "observacao visual" possivel. Sem isto, o verifier cai no caso 4
+    #      (None) e o planner repete a ferramenta -> loop.
+    FERRAMENTAS_AUTO_CONFIRM = {
+        "get_current_time", "get_weather", "read_notes", "list_dir",
+        "read_file", "email_list", "email_read", "get_current_url",
+        "browser_get_tabs", "browser_read_active_tab", "read_page_structured",
+        "save_note", "search_google_structured", "web_search_structured",
+        "youtube_search", "youtube_channel_latest",
+    }
+    ferramenta = ultimo.get("ferramenta", "")
+    if ferramenta in FERRAMENTAS_AUTO_CONFIRM:
+        res = ultimo.get("resultado") or {}
+        if isinstance(res, dict) and res.get("status") == "ok":
+            # Obter a hora so confirma objetivos que realmente pedem hora/data.
+            # Caso contrario, o planner pode encerrar uma tarefa de navegador
+            # apos executar get_current_time sem sequer tentar abrir o Chrome.
+            confirma_objetivo = True
+            if ferramenta == "get_current_time":
+                objetivo_lower = objetivo.casefold()
+                termos_tempo = (
+                    "hora", "horário", "que horas",
+                    "current time", "what time", "data de hoje",
+                    "date today", "today's date",
+                )
+                confirma_objetivo = any(t in objetivo_lower for t in termos_tempo)
+            if confirma_objetivo:
+                return {
+                    "atingido": True,
+                    "confianca": "alta",
+                    "motivo": ferramenta + " retornou com sucesso",
+                    "evidencia": str(res.get("result", ""))[:200],
+                }
+
     # 3) Observacao do observer (LLM) sobre a ultima acao.
     if obs and obs.get("status") == "ok":
         sucesso = obs.get("sucesso")

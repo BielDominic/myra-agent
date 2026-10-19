@@ -69,6 +69,7 @@ CHAVES_WIDGET = {
     "resultado",
     "erro",
     "historico",
+    "computer_activity",
 }
 
 DIAS_SEMANA = ("segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo")

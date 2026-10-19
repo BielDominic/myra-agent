@@ -86,6 +86,15 @@ async function bridgeFetch(path, settings, options = {}) {
   }
 }
 
+async function focusTabWindow(tabId) {
+  // Ativar uma aba nao garante que a janela do Chrome venha para frente.
+  const tab = await chrome.tabs.get(tabId);
+  if (Number.isInteger(tab.windowId)) {
+    await chrome.windows.update(tab.windowId, { focused: true });
+  }
+  await chrome.tabs.update(tabId, { active: true });
+}
+
 function waitForTabComplete(tabId, timeoutMs = 20000) {
   return new Promise(async (resolve, reject) => {
     let settled = false;
@@ -250,7 +259,7 @@ async function executeBridgeCommand(command) {
       });
       return { ok: true, result };
     } finally {
-      if (tempTab?.id != null) {
+      if (tempTab?.id != null && !command.args?.keep_tab) {
         try { await chrome.tabs.remove(tempTab.id); } catch (e) {
           console.warn("[MYRA Bridge] nao foi possivel fechar aba temporaria:", e?.message || e);
         }
@@ -269,8 +278,10 @@ async function executeBridgeCommand(command) {
       throw new Error("Somente URLs HTTP/HTTPS podem ser abertas em nova aba.");
     }
     const tab = await chrome.tabs.create({ url: url.href, active: true });
+    await focusTabWindow(tab.id);
     try {
       await waitForTabComplete(tab.id, 20000);
+      await focusTabWindow(tab.id);
     } catch (e) {
       return {
         ok: true,
@@ -306,8 +317,10 @@ async function executeBridgeCommand(command) {
 
     const tab = await chrome.tabs.create({ url: "https://www.google.com", active: true });
     const tabId = tab.id;
+    await focusTabWindow(tabId);
     try {
       await waitForTabComplete(tabId, 20000);
+      await focusTabWindow(tabId);
     } catch (e) {
       const current = await chrome.tabs.get(tabId).catch(() => null);
       throw new Error(
@@ -423,6 +436,8 @@ async function executeBridgeCommand(command) {
       throw new Error((e?.message || String(e)) + " URL atual: " + (current?.url || "desconhecida"));
     }
 
+    await focusTabWindow(tabId);
+
     if (scrollSuave) {
       await new Promise(resolve => setTimeout(resolve, 500));
       await chrome.scripting.executeScript({
@@ -510,7 +525,7 @@ async function executeBridgeCommand(command) {
     const searchUrl = "https://www.google.com/search?" + new URLSearchParams({ q: term }).toString();
     // Reutiliza o mesmo fluxo seguro de leitura: aguarda o carregamento,
     // extrai title/url/text/links/tables e fecha a aba temporária em finally.
-    return await executeBridgeCommand({ action: "read_page_url", args: { url: searchUrl } });
+    return await executeBridgeCommand({ action: "read_page_url", args: { url: searchUrl, keep_tab: true } });
   }
   if (command.action === "scroll") {
     const direction = String(command.args?.direction || "down").toLowerCase();

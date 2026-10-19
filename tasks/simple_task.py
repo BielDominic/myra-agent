@@ -11,10 +11,11 @@ from tasks.cancel_state import esta_cancelada, esta_pausada, resetar, resetar_pa
 from tasks import autonomy, task_store
 import re
 import time
+import unicodedata
 import urllib.request
 
 OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
-MODELO_PLANNER = "qwen2.5:7b"
+MODELO_PLANNER = "qwen2.5:3b-instruct-q5_K_M"
 
 FERRAMENTAS_DISPONIVEIS = {}
 FERRAMENTAS_DESCRICOES = {}
@@ -46,6 +47,18 @@ def _widget_notify(**kwargs):
     except Exception as e:
         print(f"[WIDGET-NOTIFY] erro: {e}")
 
+
+_COMPUTER_ACTIVITY_PREFIXES = ("browser_", "pc_", "vision_", "computer_", "mouse_", "keyboard_", "desktop_")
+_COMPUTER_ACTIVITY_TOOLS = {
+    "open_url", "read_page", "click_element", "type_text",
+    "search_google", "search_google_visivel", "press_key",
+}
+
+
+def _is_computer_activity_tool(name: str) -> bool:
+    """True somente para ferramentas que interagem com navegador/desktop."""
+    tool = str(name or "").strip().lower()
+    return tool in _COMPUTER_ACTIVITY_TOOLS or tool.startswith(_COMPUTER_ACTIVITY_PREFIXES)
 
 # Ferramentas legadas que deixam de ser expostas ao planner quando
 # a ferramenta equivalente do Browser Bridge estiver registrada.
@@ -82,14 +95,16 @@ def registrar_ferramenta(nome: str, fn, descricao: str = ""):
             FERRAMENTAS_DESCRICOES.pop(legado, None)
 
 
-def _llm(prompt: str, system: str = "", timeout: int = 120) -> str:
+def _llm(prompt: str, system: str = "", timeout: int = 120, format_json: bool = True) -> str:
     payload = {
         "model": MODELO_PLANNER,
         "prompt": prompt,
         "system": system,
         "stream": False,
-        "options": {"temperature": 0.1, "num_ctx": 8192},
+        "options": {"temperature": 0.1, "num_ctx": 4096},
     }
+    if format_json:
+        payload["format"] = "json"
     req = urllib.request.Request(
         OLLAMA_URL,
         data=json.dumps(payload).encode("utf-8"),
@@ -120,6 +135,27 @@ def _extrair_json(texto: str):
         except Exception:
             pass
     return None
+
+
+def _eh_pedido_hora_atual(objetivo: str) -> bool:
+    """Reconhece pedidos curtos e explicitos pela hora/data atual em portugues."""
+    texto = unicodedata.normalize("NFKD", str(objetivo or "").lower())
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    texto = re.sub(r"[^a-z0-9]+", " ", texto).strip()
+    padroes = (
+        "que horas sao",
+        "que hora e",
+        "qual a hora",
+        "qual e a hora",
+        "hora atual",
+        "horario atual",
+        "horas agora",
+        "hora agora",
+        "que dia e hoje",
+        "data de hoje",
+        "data e hora atual",
+    )
+    return any(padrao in texto for padrao in padroes)
 
 
 def _formatar_resultado(res: dict) -> str:
@@ -219,16 +255,33 @@ def _decidir_proximo_passo(
     # Em pedidos de navegação, priorize operar no navegador visível do usuário.
     # Mantemos as ferramentas de pesquisa disponíveis para outros tipos de objetivo.
     objetivo_lower = objetivo.lower()
-    termos_navegacao = ("abre", "abrir", "navega", "visita", "acesse", "acessa", "vai para", "entre no site", "entre em", "no navegador")
+    termos_navegacao = ("abre", "abra", "abrir", "navega", "visita", "acesse", "acessa", "vai para", "entre no site", "entre em", "no navegador", "chrome", "pesquise")
     eh_navegacao = any(t in objetivo_lower for t in termos_navegacao)
     ferramentas_ocultas_navegacao = {
         "web_search_structured", "youtube_search", "youtube_summarize",
         "youtube_ask", "youtube_transcript", "youtube_channel_latest",
-        "search_google", "search_google_structured",
+        "search_google", "search_google_structured", "get_current_time",
+    }
+    # Se o objetivo e sobre ARQUIVO/local, esconde TODAS as ferramentas de browser.
+    # Sem isto, o 3b chama browser_new_tab pra "pesquisar como criar arquivo".
+    termos_arquivo = (
+        "escreve", "escrever", "salvar arquivo", "criar arquivo", "criar pasta",
+        "arquivo", "pasta", "diretorio", "ler arquivo", "apagar arquivo",
+        "deletar arquivo", "mover arquivo", "renomear arquivo", "listar arquivos",
+        "criar diretorio", "apagar pasta",
+    )
+    eh_arquivo = any(t in objetivo_lower for t in termos_arquivo)
+    ferramentas_ocultas_arquivo = {
+        "browser_new_tab", "browser_search_google", "browser_search_google_visivel",
+        "browser_navigate_active_tab", "browser_read_active_tab", "browser_read_page",
+        "browser_scroll", "browser_click_text", "browser_close_tab",
+        "browser_get_tabs", "browser_type_text", "browser_wait",
+        "web_search_structured", "search_google_structured", "search_google",
     }
     nomes_prompt = sorted(
         nome for nome in FERRAMENTAS_DISPONIVEIS
         if not (eh_navegacao and nome in ferramentas_ocultas_navegacao)
+        and not (eh_arquivo and nome in ferramentas_ocultas_arquivo)
     )
     if FERRAMENTAS_DESCRICOES:
         ferramentas_str = "\n".join(
@@ -262,45 +315,89 @@ HISTORICO DE PASSOS JA EXECUTADOS:
 FERRAMENTAS DISPONIVEIS:
 {ferramentas_str}
 
-REGRAS:
+REGRA CRITICA ANTI-ALUCINACAO (LEIA ANTES DE TUDO):
+
+- Voce NUNCA executou nada ainda. O historico mostra apenas passos JA executados.
+- Se o historico esta VAZIO, voce NAO chamou nenhuma ferramenta ainda.
+- NUNCA finalize dizendo que uma ferramenta retornou algo se voce NAO chamou ela neste passo.
+- Se o objetivo pede hora, VOCE DEVE CHAMAR get_current_time AGORA. Nao diga que ja chamou.
+- Exemplo ERRADO: acao=finalizar, motivo='get_current_time retornou a hora'
+- Exemplo CERTO:  acao=chamar, ferramenta=get_current_time, motivo='obter hora'
+
+REGRAS DE TEMA (LEIA PRIMEIRO - PRIORIDADE MAXIMA):
+
+Se o objetivo menciona HORA, DATA, DIA, MES ou ANO:
+  -> use get_current_time().
+  Exemplos: "que horas sao", "que dia e hoje", "qual a data".
+
+Se o objetivo menciona CLIMA, TEMPO, TEMPERATURA, CHUVA, FRIO ou CALOR:
+  -> use get_weather(cidade="...").
+  Exemplos: "clima em Dublin", "vai chover hoje", "esta frio?".
+
+Se o objetivo menciona CRIAR, ESCREVER ou SALVAR arquivo:
+  -> use write_file(caminho, conteudo).
+  Exemplos: "escreve um arquivo texto.txt com ola".
+
+Se o objetivo menciona LER ou MOSTRAR arquivo:
+  -> use read_file(caminho) ou list_dir.
+
+Se o objetivo menciona LISTAR arquivos de uma pasta:
+  -> use list_dir(caminho).
+
+Se o objetivo menciona APAGAR ou DELETAR arquivo:
+  -> use delete_file(caminho).
+
+Se o objetivo menciona EXECUTAR ou RODAR codigo Python:
+  -> use code_run(codigo) ou run_python(codigo).
+
+Se o objetivo menciona NOTAS, ANOTACOES, SALVAR ANOTACAO:
+  -> use save_note(texto) ou read_notes().
+
+Se o objetivo menciona EMAIL, GMAIL, CAIXA DE ENTRADA:
+  -> use email_list/email_read/email_send/email_search.
+
+Se o objetivo menciona ABRIR SITE, NAVEGAR, PESQUISAR NO GOOGLE:
+  -> use browser_new_tab(url) ou browser_search_google(termo).
+
+Se o objetivo menciona engenharia reversa autorizada de um app JavaScript/Electron:
+  -> use rea_analyze_javascript(target) para produzir evidencias locais.
+  -> target precisa estar dentro de MYRA_REA_ALLOWED_ROOTS; se houver erro de permissao, nao tente contornar a restricao.
+  -> use somente em software proprio ou para o qual o usuario tenha autorizacao explicita.
+  -> nao instale dependencias globais nem execute instaladores como parte da analise.
+
+Se o objetivo menciona CLICAR, DIGITAR, VISUALMENTE em elemento da tela:
+  -> use vision_click(descricao) ou vision_type(descricao, texto).
+
+Se o objetivo menciona ROLAR a pagina:
+  -> use browser_scroll(direcao, quantidade).
+
+Se o objetivo menciona FECHAR aba do navegador:
+  -> use browser_close_tab(tab_id).
+
+REGRA CRITICA: se o tema NAO envolve navegador, NAO use browser_*.
+Se o tema NAO envolve arquivo, NAO use write_file/read_file.
+
+OUTRAS REGRAS:
+
 - Escolha UMA ferramenta por vez, ou finalize se o objetivo ja foi atingido.
 - Escolha a ferramenta MAIS ESPECIFICA pro proximo passo.
+- REGRA CRITICA: se uma ferramenta de LEITURA SIMPLES (get_current_time,
+  get_weather, read_notes, email_list, list_dir) retornou com sucesso,
+  o objetivo JA FOI ATINGIDO. FINALIZE com o resultado. NAO chame de novo.
 - Se o historico ja tem a informacao necessaria, FINALIZE.
 - Se algo deu errado no historico, MUDE DE ESTRATEGIA; nao repita a mesma ferramenta com os mesmos argumentos.
 - Se uma ferramenta falhou 2 vezes, use uma ferramenta DIFERENTE ou finalize explicando o bloqueio.
 - NUNCA chame a mesma ferramenta com os mesmos argumentos mais de uma vez.
-- Se o objetivo pede abrir um site E pesquisar, sao duas acoes diferentes.
 - FINALIZE somente quando o objetivo estiver COMPLETAMENTE atendido.
 - So finalize com EVIDENCIA observavel nos resultados; se as OBSERVACOES/VERIFICACOES mostrarem falha, tente outra estrategia antes de finalizar.
 - Se houver DIRETRIZ DE RECUPERACAO, siga-a e nunca repita uma ACAO BLOQUEADA.
 - Se o observer indicar "objetivo_atingido: true" e "sucesso: true", pode finalizar.
-- Para "pesquisar X no Google", use browser_search_google(termo); nao monte URL manualmente nem use open_url.
-- Para abrir resultados do YouTube, prefira browser_new_tab com a URL de pesquisa completa; use youtube_search apenas quando o objetivo pedir explicitamente metadados/resultados de videos.
-- Use youtube_search apenas quando o objetivo pedir explicitamente metadados/resultados de videos.
-- Se o usuario perguntar quais abas estao abertas, use browser_get_tabs.
-- Para abrir um site, dominio ou URL especifica, use browser_new_tab com a URL HTTP/HTTPS completa; nao use open_url para isso e nao substitua a aba atual.
-- Para aguardar um intervalo, use browser_wait(ms), com ms inteiro entre 100 e 30000.
-- Para pesquisar um termo no Google e ler os resultados, use browser_search_google(termo) em vez de montar URL manualmente.
-- Se o usuario pedir para rolar uma pagina, use browser_scroll com direcao "up", "down", "top" ou "bottom" e quantidade em pixels.
-- Se o usuario pedir para fechar uma aba, use browser_get_tabs primeiro se precisar identificar qual aba; depois use browser_close_tab com tab_id dessa aba. Sem aba especificada, browser_close_tab fecha a aba web alvo. Nunca tente fechar a interface do MYRA ou paginas internas do navegador.
-- Se o usuario pedir para preencher ou digitar em um campo de uma pagina aberta, use browser_type_text com campo (seletor CSS ou label exato) e texto; se o campo nao estiver claro, leia a pagina primeiro e nao adivinhe.
-- Se o usuario quiser ler uma aba especifica e voce nao sabe qual, use browser_get_tabs primeiro.
-- Se o usuario mencionar um site, dominio ou trecho de URL para ler, prefira browser_read_active_tab com o argumento url_contains correspondente; isso seleciona a aba certa mesmo com varias abas abertas.
-- Para "leia o que esta aberto no meu Chrome" sem indicar site, use browser_read_active_tab sem url_contains; o bridge escolhe a aba ativa ou a pagina web mais recente quando o Open WebUI esta ativo.
-- Se um passo devolveu links/URLs, use browser_new_tab para abrir um link em nova aba ou browser_read_page para ler uma URL sem deixar aba residual; evite open_url/read_page legados quando houver ferramenta browser_* equivalente.
-- Se um passo devolveu texto de uma pagina, o proximo pode ser extrair info ou finalizar.
-- Se o usuario pedir para CLICAR em algo visivel na tela (botao, icone, aba) sem saber as coordenadas, use vision_click(descricao). Ex: vision_click(descricao="botao de login"). NAO use read_page_structured pra isso.
-- Se o usuario pedir para ENCONTRAR onde esta um elemento visual (retornar x, y), use vision_locate(descricao). Ex: vision_locate(descricao="icone de configuracoes").
-- Se o usuario pedir para PREENCHER um campo visualmente, use vision_type(descricao, texto). Ex: vision_type(descricao="campo de email", texto="user@example.com").
-- DIFERENCA CRITICA: read_page_structured le o DOM/HTML (pra SABER o que tem). vision_locate/vision_click/vision_type olham os PIXELS da tela (pra ACHAR visualmente e agir). Se o objetivo pede pra CLICAR em algo visivel sem coordenadas, prefira vision_click.
-- REGRA DE ARQUIVO: se o objetivo pede para CRIAR/ESCREVER/SALVAR um arquivo, use write_file(caminho, conteudo). NAO use browser_new_tab ou navegador pra isso.
-- REGRA DE ARQUIVO: se o objetivo pede para LER um arquivo, use read_file(caminho).
-- REGRA DE ARQUIVO: se o objetivo pede para DELETAR um arquivo, use delete_file(caminho).
-- REGRA DE ARQUIVO: se o objetivo pede para LISTAR arquivos, use list_dir(caminho).
-- REGRA DE ARQUIVO: se o objetivo pede para CRIAR uma pasta, use create_dir(caminho).
-- REGRA DE ARQUIVO: se o objetivo pede para MOVER/RENOMEAR um arquivo, use move_file(origem, destino).
-- REGRA DE CODIGO: se o objetivo pede para EXECUTAR codigo Python, use code_run(codigo) ou run_python(codigo).
-- REGRA DE NAVEGADOR: use browser_new_tab/browser_navigate_active_tab SOMENTE quando o objetivo menciona explicitamente navegar, abrir site, acessar URL, pesquisa web, etc. NAO use navegador para tarefas de arquivo local.
+- Se o usuario pedir para preencher ou digitar em campo de pagina aberta, use browser_type_text com campo e texto; leia a pagina primeiro se nao estiver claro.
+- Se o usuario mencionar site, dominio ou trecho de URL, use browser_read_active_tab com url_contains correspondente.
+- Para "leia o que esta aberto no Chrome" sem indicar site, use browser_read_active_tab sem url_contains.
+- Se um passo devolveu links/URLs, use browser_new_tab para abrir ou browser_read_page para ler.
+- DIFERENCA CRITICA: read_page_structured le o DOM/HTML. vision_locate/vision_click/vision_type olham os PIXELS. Use vision_* para CLICAR em algo visual.
+
 
 FORMATO DA RESPOSTA (JSON puro):
 
@@ -321,6 +418,25 @@ Para finalizar:
 
     texto = _llm(prompt, system)
     data = _extrair_json(texto)
+
+    # Guarda de confiabilidade: pedidos diretos pela hora atual nao podem ser
+    # encerrados sem executar a ferramenta que fornece o horario real.
+    # O modelo continua sendo consultado normalmente; isto so corrige uma
+    # decisao prematura/invalida antes do primeiro passo.
+    if (
+        not historico
+        and "get_current_time" in FERRAMENTAS_DISPONIVEIS
+        and _eh_pedido_hora_atual(objetivo)
+        and (not isinstance(data, dict) or data.get("acao") != "chamar"
+             or data.get("ferramenta") != "get_current_time")
+    ):
+        print("[TASK] fallback de intencao: pedido de hora -> get_current_time")
+        return {
+            "acao": "chamar",
+            "ferramenta": "get_current_time",
+            "args": {},
+            "motivo": "pedido explicito pela hora atual; consultar a ferramenta de horario real",
+        }
 
     if not data or "acao" not in data:
         print(f"[TASK] LLM nao retornou JSON valido. Texto cru: {texto[:200]}")
@@ -414,7 +530,7 @@ def _sintetizar(objetivo: str, historico: list) -> str:
         f"Com base APENAS nos resultados acima, responda o objetivo em portugues, "
         f"de forma clara e direta. Se os resultados nao tiverem a informacao, "
         f"diga exatamente o que conseguiu e o que nao conseguiu. "
-        f"Se a tarefa pede um dado especifico (populacao, preco, data ou numero), "
+        f"IMPORTANTE: resuma APENAS o que o objetivo pediu. NAO invente requisitos que nao estao no objetivo. "
         f"procure tambem nas TABELAS listadas no historico, nao apenas no texto corrido. "
         f"Dados estruturados costumam estar em tabelas ou listas."
     )
@@ -422,6 +538,7 @@ def _sintetizar(objetivo: str, historico: list) -> str:
         return _llm(
             prompt,
             "Voce responde de forma clara e objetiva em portugues. Nunca responda em outro idioma.",
+            format_json=False,
         )
     except Exception as e:
         # Fallback deterministico: preserva os resultados obtidos mesmo se o LLM falhar.
@@ -539,8 +656,9 @@ def executar_task(
     elif persistir and task_id:
         _persistir(task_id, estado=task_store.ESTADO_EM_EXECUCAO)
 
-    # Notifica o widget: passo_total (e garante state=running)
-    _widget_notify(passo_total=max_passos, state="running")
+    # Publica o ID persistido no widget para que pausar/retomar use o registro certo.
+    # O ID tempor?rio criado por /task_simple n?o ? o task_id do SQLite.
+    _widget_notify(task_id=task_id, passo_total=max_passos, state="running", computer_activity=False)
 
     for passo_num in range(passo_inicial, max_passos + 1):
         # Checa cancelamento antes de cada passo
@@ -569,6 +687,7 @@ def executar_task(
         _widget_notify(
             passo_num=passo_num,
             historico=[{"ferramenta": h["ferramenta"]} for h in historico],
+            computer_activity=False,
         )
 
         if esta_cancelada():
@@ -743,12 +862,13 @@ def executar_task(
                 break
 
             # Notifica o widget: qual ferramenta ta rodando AGORA
-            _widget_notify(passo_atual=ferramenta, state="running")
+            _widget_notify(passo_atual=ferramenta, state="running", computer_activity=_is_computer_activity_tool(ferramenta))
 
             r = _executar_passo(ferramenta, args)
 
             # FASE 26 - observar o resultado (se a ferramenta muda estado)
             observacao = _observar(objetivo, ferramenta, args, r["resultado"], r["erro"])
+            _widget_notify(computer_activity=False)
             if observacao:
                 print(f"[OBSERVER] sucesso={observacao.get('sucesso')} "
                       f"objetivo_atingido={observacao.get('objetivo_atingido')} "

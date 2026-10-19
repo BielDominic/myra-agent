@@ -27,6 +27,22 @@ AMBIGUOUS_LOW = 0.3        # abaixo disso, nao tenta LLM (nao vale)
 AMBIGUOUS_HIGH = 0.75       # entre LOW e HIGH, chama LLM
 MAX_CANDIDATOS_LLM = 10     # manda no maximo 10 pro LLM
 
+# Injetado pelo agent.py. Callback opcional usado pelo overlay; testes e usos
+# standalone continuam independentes do servidor HTTP.
+OVERLAY_TARGET_CALLBACK = None
+
+
+def _notificar_alvo_overlay(loc: dict) -> bool:
+    callback = OVERLAY_TARGET_CALLBACK
+    if not callable(callback) or not loc.get("encontrado"):
+        return False
+    try:
+        resultado = callback(loc, str(loc.get("label") or "Alvo"))
+        return resultado is not False
+    except Exception as e:
+        print(f"[VISION_LOCATE] overlay callback ignorado: {type(e).__name__}")
+        return False
+
 
 def _screenshot() -> dict:
     """Tira screenshot da tela. Retorna dict com path."""
@@ -84,6 +100,33 @@ def _fuzzy_match(descricao: str, elementos: list) -> tuple:
     return melhor, sim
 
 
+def _coordenadas_para_mouse(loc: dict, pyautogui_mod) -> tuple | None:
+    """Converte pixels do screenshot para o espaco de coordenadas do PyAutoGUI.
+
+    O Windows pode expor resolucoes diferentes ao MSS (pixels fisicos) e ao
+    PyAutoGUI (coordenadas logicas/DPI). Sem metadados, preserva o contrato
+    antigo; com metadados, escala e recusa coordenadas fora da captura.
+    """
+    try:
+        x, y = int(loc["x"]), int(loc["y"])
+        largura = int(loc.get("screen_width") or 0)
+        altura = int(loc.get("screen_height") or 0)
+        if largura <= 0 or altura <= 0:
+            return x, y
+        if not (0 <= x < largura and 0 <= y < altura):
+            return None
+        tamanho = pyautogui_mod.size()
+        mouse_w, mouse_h = int(tamanho.width), int(tamanho.height)
+        if mouse_w <= 0 or mouse_h <= 0:
+            return None
+        mouse_x = round(x * mouse_w / largura)
+        mouse_y = round(y * mouse_h / altura)
+        # Coordenadas de clique sao zero-based: limite superior exclusivo.
+        return (min(mouse_x, mouse_w - 1), min(mouse_y, mouse_h - 1))
+    except (KeyError, TypeError, ValueError, AttributeError, OverflowError):
+        return None
+
+
 def _llm_escolher(descricao: str, candidatos: list) -> dict:
     """Manda lista pro Qwen3.5 escolher. Retorna o elemento escolhido ou None."""
     if not candidatos:
@@ -108,7 +151,7 @@ def _llm_escolher(descricao: str, candidatos: list) -> dict:
     )
 
     OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
-    OLLAMA_MODEL = "qwen2.5:7b"
+    OLLAMA_MODEL = "qwen2.5:3b-instruct-q5_K_M"
 
     payload = {
         "model": OLLAMA_MODEL,
@@ -238,6 +281,10 @@ def vision_locate(descricao: str, screenshot_path: str = None) -> dict:
         "label": escolhido["label"],
         "conf": escolhido["conf"],
         "screenshot": ss["path"],
+        # Dimensoes de origem permitem converter pixels fisicos do MSS para
+        # coordenadas logicas do PyAutoGUI quando o Windows aplica escalonamento DPI.
+        "screen_width": ss.get("width"),
+        "screen_height": ss.get("height"),
         "metodo": metodo,
     }
 
@@ -249,11 +296,18 @@ def vision_click(descricao: str) -> dict:
         return loc
 
     try:
+        import time
         import pyautogui
-        pyautogui.click(loc["x"], loc["y"])
+        overlay_notificado = _notificar_alvo_overlay(loc)
+        coordenadas = _coordenadas_para_mouse(loc, pyautogui)
+        if coordenadas is None:
+            return {"status": "erro", "result": "Coordenadas invalidas ou incompatíveis com a resolucao atual."}
+        if overlay_notificado:
+            time.sleep(0.22)  # tempo para o highlight aparecer antes do clique
+        pyautogui.click(*coordenadas)
         return {
             "status": "ok",
-            "result": f"Clicado em '{loc['label']}' ({loc['x']}, {loc['y']})",
+            "result": f"Clicado em '{loc['label']}' ({coordenadas[0]}, {coordenadas[1]})",
             "x": loc["x"],
             "y": loc["y"],
             "label": loc["label"],
@@ -272,8 +326,14 @@ def vision_type(descricao: str, texto: str, limpar: bool = True) -> dict:
 
     try:
         import pyautogui
-        pyautogui.click(loc["x"], loc["y"])
+        overlay_notificado = _notificar_alvo_overlay(loc)
+        coordenadas = _coordenadas_para_mouse(loc, pyautogui)
+        if coordenadas is None:
+            return {"status": "erro", "result": "Coordenadas invalidas ou incompatíveis com a resolucao atual."}
         import time
+        if overlay_notificado:
+            time.sleep(0.22)  # tempo para o highlight aparecer antes do clique
+        pyautogui.click(*coordenadas)
         time.sleep(0.2)
         if limpar:
             pyautogui.hotkey("ctrl", "a")

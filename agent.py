@@ -1,5 +1,5 @@
 import asyncio
-from fastapi import FastAPI, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from playwright.sync_api import sync_playwright
@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import datetime
 import time
+import threading
 from tasks.cancel_state import marcar_cancelada, marcar_pausada, resetar, resetar_pausa
 import json
 import urllib.request
@@ -22,6 +23,10 @@ import yt_dlp
 from tasks.simple_task import executar_task, registrar_ferramenta
 from tasks import structured_tools as st
 from tasks import browser_bridge as browser_bridge
+from tasks import rea_tools as rea_tools
+from tasks import remote_access as remote_access
+from tasks.telegram_bot import criar_bot_do_ambiente
+from tasks.remote_api_auth import validar_token_remoto
 from email.message import EmailMessage
 from email.header import decode_header
 import email as email_lib
@@ -36,6 +41,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 app = FastAPI()
+telegram_bot = criar_bot_do_ambiente()
 app.include_router(browser_bridge.router)
 
 # CORS ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â permite o widget (pywebview) acessar a API
@@ -96,6 +102,7 @@ CHAT_CACHE_TTL = 5
 
 _widget_status = {
     "state": "idle",           # idle | running | done | error | question
+    "computer_activity": False,
     "task_id": None,
     "objetivo": None,
     "passo_atual": None,
@@ -142,6 +149,8 @@ def _widget_notify():
 def _widget_set(**kwargs):
     """Atualiza o status do widget e notifica os listeners."""
     global _widget_status
+    if kwargs.get("state") in ("idle", "done", "error"):
+        kwargs.setdefault("computer_activity", False)
     for k, v in kwargs.items():
         _widget_status[k] = v
     _widget_notify()
@@ -450,6 +459,10 @@ class YouTubeRead(BaseModel):
 class TaskSimple(BaseModel):
     objetivo: str
     max_passos: int = 15
+
+class RemoteTaskRequest(BaseModel):
+    objetivo: str = Field(min_length=1, max_length=1200)
+    max_passos: int = Field(default=30, ge=1, le=50)
 
 
 def _contexto_vivo():
@@ -1170,6 +1183,7 @@ def task_resume(data: TaskResumeRequest):
     historico_anterior = registo.get("historico") or []
     _widget_set(
         state="running",
+        computer_activity=False,
         task_id=data.task_id,
         objetivo=registo.get("objetivo"),
         passo_atual=None,
@@ -1289,19 +1303,37 @@ class VisionTypeRequest(BaseModel):
     texto: str = Field(..., max_length=5000)
     limpar: bool = True
 
+def _overlay_emit_target(resultado: dict, descricao: str = ""):
+    """Publica o alvo no SSE consumido pela janela TARS."""
+    if resultado.get("encontrado") and resultado.get("x") is not None and resultado.get("y") is not None:
+        x, y = int(resultado["x"]), int(resultado["y"])
+        label = str(resultado.get("label") or descricao or "Alvo")[:100]
+        _widget_set(target_x=x, target_y=y, target_label=label, overlay={"x": x, "y": y, "label": label})
+    else:
+        _widget_set(target_x=None, target_y=None, target_label=None, overlay=None)
+    return resultado
+
+def _overlay_notify_target(resultado: dict, descricao: str = "") -> bool:
+    """Publica o alvo e indica se a task ativa pode aguardar o highlight."""
+    _overlay_emit_target(resultado, descricao)
+    return _widget_status.get("state") == "running"
+
+
 @app.post("/vision_locate")
 def vision_locate_route(data: VisionLocateRequest):
-    """Acha um elemento na tela por descricao textual. Retorna coordenadas."""
+    """Acha um elemento na tela por descricao textual e publica o alvo no overlay."""
     print(f"[VISION_LOCATE] descricao={data.descricao!r}")
     try:
-        from computer.vision_locate import vision_locate
-        return vision_locate(data.descricao, data.screenshot_path)
+        from computer import vision_locate as vision_module
+        resultado = vision_module.vision_locate(data.descricao, data.screenshot_path)
+        return _overlay_emit_target(resultado, data.descricao)
     except Exception as e:
         return {"status": "erro", "result": f"Erro: {type(e).__name__}: {e}"}
 
+
 @app.post("/vision_click")
 def vision_click_route(data: VisionLocateRequest):
-    """Localiza um elemento e clica no centro dele."""
+    """Localiza, destaca no overlay e clica no centro do elemento."""
     print(f"[VISION_CLICK] descricao={data.descricao!r}")
     try:
         from computer.vision_locate import vision_click
@@ -1309,9 +1341,10 @@ def vision_click_route(data: VisionLocateRequest):
     except Exception as e:
         return {"status": "erro", "result": f"Erro: {type(e).__name__}: {e}"}
 
+
 @app.post("/vision_type")
 def vision_type_route(data: VisionTypeRequest):
-    """Localiza um campo, clica e digita texto."""
+    """Localiza, destaca, clica e digita no campo."""
     print(f"[VISION_TYPE] descricao={data.descricao!r}")
     try:
         from computer.vision_locate import vision_type
@@ -3284,23 +3317,43 @@ browser_bridge.registrar_ferramentas(registrar_ferramenta)
 import tasks.system_tools as _system_tools
 _system_tools.registrar_todas(registrar_ferramenta)
 
+# FASE 27.5 - analise REA opcional, local e restrita a raizes autorizadas.
+rea_tools.registrar_todas(registrar_ferramenta)
+
 # ============================================================
 # VISION LOCATE - ferramentas do planner
 # ============================================================
+from computer import vision_locate as _vision_module
 from computer.vision_locate import vision_locate as _vision_locate_fn
 from computer.vision_locate import vision_click as _vision_click_fn
 from computer.vision_locate import vision_type as _vision_type_fn
 
+# Injetar callback antes de registrar as ferramentas para destacar o alvo antes
+# de o modulo vision_locate clicar ou digitar.
+_vision_module.OVERLAY_TARGET_CALLBACK = _overlay_notify_target
+
+
+def _t_vision_locate(descricao: str):
+    return _overlay_emit_target(_vision_locate_fn(descricao), descricao)
+
+
+def _t_vision_click(descricao: str):
+    return _vision_click_fn(descricao)
+
+
+def _t_vision_type(descricao: str, texto: str, limpar: bool = True):
+    return _vision_type_fn(descricao, texto, limpar)
+
 registrar_ferramenta(
-    "vision_locate", _vision_locate_fn,
+    "vision_locate", _t_vision_locate,
     "Acha um elemento na tela pela descricao textual. Retorna coordenadas x, y. Use quando precisar saber onde clicar em algo que voce ve na tela mas nao sabe a posicao. Obrigatorio: descricao (ex: 'botao de login', 'New Chat')."
 )
 registrar_ferramenta(
-    "vision_click", _vision_click_fn,
+    "vision_click", _t_vision_click,
     "Acha um elemento pela descricao e clica no centro dele. Use quando quiser clicar em algo visivel sem saber as coordenadas. Obrigatorio: descricao."
 )
 registrar_ferramenta(
-    "vision_type", _vision_type_fn,
+    "vision_type", _t_vision_type,
     "Acha um campo pela descricao, clica e digita texto. Use para preencher formularios visualmente. Obrigatorio: descricao e texto."
 )
 
@@ -3336,6 +3389,7 @@ def task_simple(data: TaskSimple):
     # Atualiza o widget: task comeÃƒÆ’Ã‚Â§ou
     _widget_set(
         state="running",
+        computer_activity=False,
         task_id=str(int(time.time())),
         objetivo=data.objetivo,
         passo_atual=None,
@@ -3399,6 +3453,92 @@ def task_simple(data: TaskSimple):
         }
 
 
+
+
+# ============================================================
+# FASE 28.3 - API remota autenticada para clientes mobile
+# ============================================================
+_remote_task_lock = threading.Lock()
+_remote_task_scheduled = False
+
+def _require_remote_api(authorization: str | None = Header(default=None)):
+    return validar_token_remoto(authorization)
+
+def _run_remote_task(data: TaskSimple):
+    global _remote_task_scheduled
+    try:
+        task_simple(data)
+    finally:
+        with _remote_task_lock:
+            _remote_task_scheduled = False
+
+@app.get("/remote/v1/status")
+def remote_v1_status(_authorized: bool = Depends(_require_remote_api)):
+    status = _widget_status if isinstance(_widget_status, dict) else {}
+    return {
+        "state": status.get("state", "idle"),
+        "task_id": status.get("task_id"),
+        "objetivo": status.get("objetivo"),
+        "passo_atual": status.get("passo_atual"),
+        "passo_num": status.get("passo_num", 0),
+        "passo_total": status.get("passo_total", 0),
+        "resultado": status.get("resultado"),
+        "erro": status.get("erro"),
+    }
+
+@app.post("/remote/v1/task")
+def remote_v1_start_task(data: RemoteTaskRequest, background_tasks: BackgroundTasks, _authorized: bool = Depends(_require_remote_api)):
+    global _remote_task_scheduled
+    if not data.objetivo.strip():
+        raise HTTPException(status_code=422, detail="Informe um objetivo de tarefa nao vazio.")
+    with _remote_task_lock:
+        if _remote_task_scheduled or _widget_status.get("state") == "running":
+            raise HTTPException(status_code=409, detail="Ja existe uma tarefa em execucao.")
+        _remote_task_scheduled = True
+        background_tasks.add_task(_run_remote_task, TaskSimple(objetivo=data.objetivo.strip(), max_passos=data.max_passos))
+    return {"status": "accepted", "result": "Tarefa recebida pela MYRA."}
+
+@app.post("/remote/v1/cancel")
+def remote_v1_cancel(_authorized: bool = Depends(_require_remote_api)):
+    return task_cancel()
+
+
+# ============================================================
+# FASE 28.2 - Controle remoto Telegram (opt-in por variaveis de ambiente)
+# ============================================================
+
+@app.get("/telegram/status")
+def telegram_status():
+    return telegram_bot.status()
+
+
+@app.get("/remote_access/status")
+def remote_access_status():
+    return remote_access.tailscale_status()
+
+
+@app.post("/telegram/start")
+def telegram_start():
+    return telegram_bot.start()
+
+
+@app.post("/telegram/stop")
+def telegram_stop():
+    return telegram_bot.stop()
+
+
+@app.on_event("startup")
+def _telegram_startup():
+    # Nunca habilita o bot sem token e chat IDs explicitamente autorizados.
+    if telegram_bot.configured:
+        resultado = telegram_bot.start()
+        print("[TELEGRAM] bot habilitado por configuracao de ambiente" if resultado.get("status") == "ok"
+              else "[TELEGRAM] configuracao encontrada, mas o bot nao iniciou")
+
+
+@app.on_event("shutdown")
+def _telegram_shutdown():
+    telegram_bot.stop()
 
 
 # ============================================================
@@ -3477,6 +3617,7 @@ async def openai_chat_completions(request: Request):
 
     _widget_set(
         state="running",
+        computer_activity=False,
         task_id=str(int(time.time())),
         objetivo=user_msg,
         passo_atual=None,

@@ -823,6 +823,29 @@ class VisionClickTestCase(helpers.CasoBase):
         self.assertEqual(r["y"], 210)
         self.assertEqual(fake.chamadas_de("click")[0][1], (120, 210))
 
+    def test_overlay_notificado_antes_do_clique(self):
+        ordem = []
+        fake = PyAutoGUIFalso()
+        fake.click = lambda x, y: ordem.append("click")
+        callback = lambda loc, label: ordem.append("target") or True
+        with mock.patch.object(vl, "vision_locate", return_value=self._loc_ok()), \
+             mock.patch.object(vl, "OVERLAY_TARGET_CALLBACK", callback), \
+             mock.patch.dict(sys.modules, {"pyautogui": fake}), \
+             mock.patch("time.sleep", side_effect=lambda segundos: ordem.append("sleep")):
+            resultado = vl.vision_click("alvo")
+        self.assertEqual(resultado["status"], "ok")
+        self.assertEqual(ordem, ["target", "sleep", "click"])
+
+    def test_sem_overlay_ativo_nao_adiciona_atraso(self):
+        fake = PyAutoGUIFalso()
+        with mock.patch.object(vl, "vision_locate", return_value=self._loc_ok()), \
+             mock.patch.object(vl, "OVERLAY_TARGET_CALLBACK", None), \
+             mock.patch.dict(sys.modules, {"pyautogui": fake}), \
+             mock.patch("time.sleep") as dormir:
+            resultado = vl.vision_click("alvo")
+        self.assertEqual(resultado["status"], "ok")
+        dormir.assert_not_called()
+
     def test_alvo_nao_encontrado_nao_clica(self):
         fake = PyAutoGUIFalso()
         loc = {"status": "ok", "encontrado": False, "result": "nada", "metodo": "none"}
@@ -855,8 +878,7 @@ class VisionClickTestCase(helpers.CasoBase):
         self.assertTrue(helpers.eh_erro_estruturado(r))
         self.assertIn("failsafe", r["result"])
 
-    @unittest.expectedFailure
-    def test_BUG_localizacao_sem_coordenadas_reporta_sucesso(self):
+    def test_localizacao_sem_coordenadas_reporta_erro(self):
         """BUG: locate sem x/y -> vision_click devolve {'status':'ok', x: None, y: None}.
 
         Pior do que o alvo nao encontrado: o resultado diz ``ok`` e
@@ -1704,8 +1726,9 @@ class RotasVisionTestCase(helpers.CasoBase):
     def test_rota_vision_type_pipeline_real_nao_usa_servico_externo(self):
         elementos = [{"label": "campo email", "bbox": [0, 0, 20, 20], "conf": 0.9}]
         fake_pyautogui = PyAutoGUIFalso()
+        fake_pyautogui.size = lambda: type("Size", (), {"width": 100, "height": 100})()
         with mock.patch.object(vl, "_screenshot",
-                               return_value={"path": "C:/tmp/a.png", "width": 1, "height": 1}), \
+                               return_value={"path": "C:/tmp/a.png", "width": 100, "height": 100}), \
              mock.patch.object(vl, "_ocr", return_value=elementos), \
              mock.patch.dict(sys.modules, {"pyautogui": fake_pyautogui}), \
              mock.patch("time.sleep"):

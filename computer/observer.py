@@ -15,7 +15,7 @@ import urllib.request
 
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434/api/chat")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:3b-instruct-q5_K_M")
 LLM_EYES_URL = os.environ.get("LLM_EYES_URL", "http://127.0.0.1:8081/v1/chat/completions")
 LLM_EYES_MODEL = os.environ.get("LLM_EYES_MODEL", "Qwen3.5-0.8B")
 SCREENSHOT_ENABLED = os.environ.get("MYRA_OBSERVER_SCREENSHOT", "1").strip().lower() not in {"0", "false", "no"}
@@ -44,7 +44,7 @@ def _extrair_json(texto: str) -> dict | None:
 
 
 def _bool_estrito(valor):
-    """Coage valores comuns, mas deixa respostas textuais ambíguas indeterminadas."""
+    """Coage valores comuns, mas deixa respostas textuais ambÃ­guas indeterminadas."""
     if isinstance(valor, bool):
         return valor
     if valor is None:
@@ -55,7 +55,7 @@ def _bool_estrito(valor):
         normalizado = valor.strip().lower()
         if normalizado in {"true", "1", "sim", "yes", "y"}:
             return True
-        if normalizado in {"false", "0", "nao", "não", "no", "n", ""}:
+        if normalizado in {"false", "0", "nao", "nÃ£o", "no", "n", ""}:
             return False
         return None
     if isinstance(valor, (list, dict, tuple, set)) and not valor:
@@ -80,7 +80,7 @@ def _capturar_screenshot_base64() -> str | None:
             imagem.save(buffer, format="PNG", optimize=True)
             return base64.b64encode(buffer.getvalue()).decode("ascii")
     except Exception as e:
-        # Ambiente headless, driver indisponível ou falha de captura: fallback textual.
+        # Ambiente headless, driver indisponÃ­vel ou falha de captura: fallback textual.
         print(f"[OBSERVER] screenshot indisponivel: {type(e).__name__}")
         return None
 
@@ -100,6 +100,7 @@ def _resposta_llm(prompt: str, imagem_b64: str | None = None) -> str:
             "stream": False,
             "temperature": 0.1,
             "max_tokens": 250,
+            "response_format": {"type": "json_object"},
         }
         try:
             req = urllib.request.Request(
@@ -123,6 +124,7 @@ def _resposta_llm(prompt: str, imagem_b64: str | None = None) -> str:
         "model": OLLAMA_MODEL,
         "messages": [{"role": "user", "content": prompt}],
         "stream": False,
+        "format": "json",
         "options": {"temperature": 0.1, "num_predict": 200},
     }
     req = urllib.request.Request(
@@ -137,7 +139,7 @@ def _resposta_llm(prompt: str, imagem_b64: str | None = None) -> str:
 
 
 def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
-    """Avalia ação, resultado e screenshot atual, com fallback textual seguro."""
+    """Avalia aÃ§Ã£o, resultado e screenshot atual, com fallback textual seguro."""
     if not objetivo or not objetivo.strip():
         return {"status": "erro", "result": "objetivo vazio"}
 
@@ -147,6 +149,19 @@ def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
     resultado = acao_anterior.get("resultado", "")
     erro = acao_anterior.get("erro", "")
 
+    # Regra deterministica para browser_search_google (nao depende do LLM).
+    if str(acao_anterior.get("ferramenta", "")).startswith("browser_search_google"):
+        _res = acao_anterior.get("resultado") or {}
+        if isinstance(_res, dict):
+            _payload = _res.get("result", _res)
+            if not isinstance(_payload, dict):
+                _payload = {}
+            _url = str((_payload.get("url") or _res.get("url") or "")).strip().lower()
+            _title = str((_payload.get("title") or _res.get("title") or "")).strip().lower()
+            _status = str(_res.get("status", "")).lower()
+            if _status == "ok" and ("google.com/search" in _url or "q=" in _url) and ("pesquisa google" in _title or "google search" in _title):
+                return {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "Pesquisa Google confirmada por URL e titulo.", "proximo_passo_sugerido": ""}
+
     resultado_str = str(resultado)[:800] if resultado else "(vazio)"
     try:
         args_str = json.dumps(args, ensure_ascii=False)[:200] if args else "{}"
@@ -155,16 +170,16 @@ def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
     erro_str = str(erro)[:300] if erro else ""
 
     prompt = (
-        "Você é um avaliador de ações de um agente autônomo.\n"
-        "Analise a ação, o resultado e a tela atual. Não assuma que a ação funcionou apenas porque foi executada.\n\n"
+        "VocÃª Ã© um avaliador de aÃ§Ãµes de um agente autÃ´nomo.\n"
+        "Analise a aÃ§Ã£o, o resultado e a tela atual. NÃ£o assuma que a aÃ§Ã£o funcionou apenas porque foi executada.\n\n"
         f"OBJETIVO DA TASK: {objetivo}\n\n"
         f"ACAO EXECUTADA: {ferramenta}({args_str})\n"
         f"RESULTADO: {resultado_str}\n"
         f"ERRO: {erro_str or '(nenhum)'}\n\n"
         "Responda APENAS com JSON puro (nada antes, nada depois, sem markdown):\n"
         '{"sucesso": true/false, "objetivo_atingido": true/false, '
-        '"motivo": "explicação curta em 1 frase", '
-        '"proximo_passo_sugerido": "o que fazer se não atingiu (ou vazio)"}\n\n'
+        '"motivo": "explicaÃ§Ã£o curta em 1 frase", '
+        '"proximo_passo_sugerido": "o que fazer se nÃ£o atingiu (ou vazio)"}\n\n'
         "JSON:"
     )
 
@@ -192,7 +207,7 @@ def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
             "status": "ok",
             "sucesso": None,
             "objetivo_atingido": None,
-            "motivo": str(data.get("motivo", "resposta ambígua do observer"))[:300],
+            "motivo": str(data.get("motivo", "resposta ambÃ­gua do observer"))[:300],
             "proximo_passo_sugerido": str(data.get("proximo_passo_sugerido", ""))[:300],
             "raw": texto[:500],
         }

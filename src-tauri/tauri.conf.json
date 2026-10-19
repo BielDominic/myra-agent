@@ -21,6 +21,22 @@
         "skipTaskbar": true,
         "shadow": false,
         "center": false
+      },
+      {
+        "label": "overlay",
+        "title": "MYRA Visual Overlay",
+        "url": "overlay.html",
+        "width": 1920,
+        "height": 1080,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "fullscreen": true,
+        "focus": false,
+        "visible": false
       }
     ],
     "security": {
