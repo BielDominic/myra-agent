@@ -1,40 +1,202 @@
-﻿# Ambiente virtual Python
+# ============================================
+# AMBIENTE VIRTUAL PYTHON
+# ============================================
 venv/
+.venv/
 
-# Modelos de visão (muito grandes)
+# ============================================
+# MODELOS DE VISAO (muito grandes)
+# ============================================
 llm-eyes/
 
-# Perfis do Chrome (MUITO grandes - milhares de arquivos)
+# ============================================
+# PERFIS DO CHROME (MUITO grandes)
+# ============================================
 chrome_profile/
 chromium_profile/
 
-# Screenshots (muito grandes)
+# ============================================
+# SCREENSHOTS (muito grandes)
+# ============================================
 screenshots/
 
-# Workspace do agente
+# ============================================
+# WORKSPACE DO AGENTE
+# ============================================
 workspace/
 
-# Cache do Python
+# ============================================
+# CACHE DO PYTHON
+# ============================================
 __pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
 
-# Logs
+# ============================================
+# LOGS
+# ============================================
 *.log
 
-# Notas pessoais
+# ============================================
+# NOTAS PESSOAIS
+# ============================================
 notes.txt
 
-# Backups
-agent_backup*.py
+# ============================================
+# BACKUPS
+# ============================================
+backups/
 backup_*/
+agent_backup*.py
+*_backup_*.py
+*_backup.py
+agent.p
 
-# Favicons originais
+# ============================================
+# VARIAVEIS DE AMBIENTE (SEGURANCA!)
+# ============================================
+.env
+.env.local
+*.key
+*.pem
+*_secret.*
+
+# ============================================
+# API KEYS E SEGREDOS (SEGURANCA!)
+# ============================================
+*API KEY*
+*API_KEY*
+*apikey*
+*api-key*
+*token*
+*secret*
+*.secret
+
+# ============================================
+# FAVICONS ORIGINAIS
+# ============================================
 webui-custom/Favicons/MYRALOGO.jpeg
 webui-custom/Favicons/MYRALOGO_transparente.png
 
-# Docker
+# ============================================
+# DOCKER / BANCO DE DADOS
+# ============================================
 *.db
+*.sqlite
 
-# SearXNG
+# ============================================
+# SEARXNG
+# ============================================
 searxng_config/
+searxng/
+
+# ============================================
+# IDE
+# ============================================
+.vscode/
+.idea/
+*.swp
+
+# ============================================
+# SISTEMA OPERACIONAL
+# ============================================
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# ============================================
+# ARQUIVOS TEMPORARIOS
+# ============================================
+# yt-dlp
+*.vtt
+*.srt
+*.ass
+
+# Testes locais
+teste_*
+test_*
+*_test.json
+body.json
+resultado.json
+
+# Sessoes e cookies
+*cookies*
+*.session
+
+# ============================================
+# ARQUIVOS DE CONFIGURACAO LOCAL
+# ============================================
+config_local.*
+*.local.json
+# Tauri / Rust
+widget-tauri/src-tauri/target/
+widget-tauri/src-tauri/gen/
+**/*.rs.bk
+
+# Backups locais
+_backups/
+*.bak_*
+*.backup_*
+*.bak
+*.backup
+`) 
+
+
+# === MYRA: patches temporarios ===
+_patches/
+_*.py
+patch_*.py
+patch_*.ps1
+agent_log.txt
+Get-Content
+PS
+*.pt
+*.onnx
+
+_backups/
+
+# === FASE 26: suite de testes versionada ===
+# As regras test_*/_*.py acima sao para scripts temporarios na raiz; os testes
+# automatizados em tests/ fazem parte do projeto e devem ser versionados.
+!tests/
+!tests/__init__.py
+!tests/test_*.py
+
+
+# Backups locais do widget
+widget-tauri/**/*.bak
+widget-tauri/**/*.bak_*
+widget-tauri/**/*.backup
+widget-tauri/**/*.backup_*
+widget-tauri/**/*.old
+widget-tauri/**/*.old_*
+
+# Arquivos temporarios de contexto
+_contexto_*.txt
+_saida_*.txt
+
+# Backups pontuais do overlay/fix (nao versionar)
+*.before_edgefix_*
+*.bak3_*
+
+
+# Recovery backups - forcar ignore (redundante com regra existente)
+/recovery-backups/
+recovery-backups/**
+
+# Segredos locais
+.env
+*.env
+!.env.example
+
+
+# Segredos locais
+.env
+*.env
+!.env.example
+

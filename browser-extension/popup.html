@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MYRA Browser Bridge</title>
+  <style>
+    body{font:14px system-ui,sans-serif;width:340px;margin:0;padding:16px;background:#0a0a0f;color:#e8eef5}
+    h1{font-size:18px;margin:0 0 8px;color:#06b6d4}p{color:#aab4c0;line-height:1.45}
+    label{display:block;margin:12px 0 5px}input[type=text],input[type=url],input[type=password]{box-sizing:border-box;width:100%;padding:9px;border-radius:7px;border:1px solid #343744;background:#14141d;color:#fff}
+    button{width:100%;padding:9px;margin-top:9px;border:0;border-radius:7px;background:#06b6d4;color:#071014;font-weight:650;cursor:pointer}
+    button.secondary{background:#262936;color:#e8eef5}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#14141d;padding:9px;border-radius:7px;max-height:180px;overflow:auto}
+    .small{font-size:12px}.check{display:flex;align-items:center;gap:8px}.check input{width:auto}
+  </style>
+</head>
+<body>
+  <h1>MYRA Browser Bridge</h1>
+  <p>Conecta o planner local do MYRA à aba ativa do Chrome, sem exportar cookies ou senhas.</p>
+  <label for="api">API local do MYRA</label>
+  <input id="api" type="url" value="http://127.0.0.1:8000">
+  <label for="token">Token local do backend</label>
+  <input id="token" type="password" autocomplete="off" placeholder="Cole o MYRA_BROWSER_BRIDGE_TOKEN">
+  <label class="check"><input id="enabled" type="checkbox"> Habilitar integração automática</label>
+  <button id="save">Salvar e conectar</button>
+  <button id="read" class="secondary">Testar leitura da aba ativa</button>
+  <label for="url">URL para abrir na aba atual</label>
+  <input id="url" type="url" placeholder="https://example.com">
+  <button id="navigate" class="secondary">Navegar na aba atual</button>
+  <label for="text">Texto exato do botão/link</label>
+  <input id="text" type="text" placeholder="Continuar">
+  <button id="click" class="secondary">Clicar por texto</button>
+  <label>Resultado</label>
+  <pre id="result">Pronto.</pre>
+  <p class="small">Use primeiro em páginas não sensíveis. O clique só busca texto exato; CAPTCHA, MFA e bloqueios continuam sob controle do site.</p>
+  <script src="popup.js"></script>
+</body>
+</html>

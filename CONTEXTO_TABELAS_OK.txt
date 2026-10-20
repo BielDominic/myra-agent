@@ -1,0 +1,76 @@
+﻿# MYRA — Estado (11/10/2026)
+
+## Branch: feature/chrome-extension-bridge
+
+## O QUE ESTA FUNCIONANDO (testado end-to-end)
+
+### Widget Tauri
+- SSE em tempo real
+- Pacote Bonito (tema, cor, VRAM, confete, particulas, sons)
+- Pacote Vida (dorme, boceja, humor, cursor tracking)
+- copyResult + repeatTask
+- Settings completo
+
+### Browser Bridge (extensao Chrome MV3 + SQLite)
+- browser_read_active_tab() + url_contains
+- browser_read_page(url) — COM EXTRACAO DE TABELAS
+- browser_navigate_active_tab(url)
+- browser_click_text(text)
+- /read_page migrado (bridge primeiro, Playwright fallback)
+- Extração e sintese de tabelas pelo LLM (validado com Wikipedia BR)
+
+### Arquitetura
+- browser_bridge.py: SQLite persistente
+- Extensao: setInterval (5s) + chrome.alarms (30s backup)
+- Long-polling wait=5s, timeout backend 90s
+- SQLite: C:\Users\Administrator\AppData\Local\MYRA\browser_bridge.sqlite3
+
+## SETUP OBRIGATORIO
+- Chrome: SOMENTE paginas a serem lidas
+- Edge (ou Firefox): PWA do Open WebUI
+- NUNCA abrir Open WebUI no mesmo Chrome do conteudo
+
+## Token
+MYRA_BROWSER_BRIDGE_TOKEN = a936ffb3ea61433407a3e4df8d91529c1a8754e2a1dbb493c35cf5da8428ec7d
+
+## Comandos
+# Terminal 1 (agent)
+Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" | Where-Object { $_.CommandLine -like "*agent.py*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+Start-Sleep 2
+$env:MYRA_BROWSER_BRIDGE_TOKEN = "a936ffb3ea61433407a3e4df8d91529c1a8754e2a1dbb493c35cf5da8428ec7d"
+cd C:\computer-agent
+.\venv\Scripts\python.exe agent.py
+
+# Terminal 2 (widget)
+Stop-Process -Name "myra-widget" -Force -ErrorAction SilentlyContinue
+Start-Sleep 2
+cd C:\computer-agent\widget-tauri
+cargo tauri dev
+
+## Proximas fases (Fase B continua)
+- browser_get_tabs
+- browser_type_text
+- browser_new_tab / browser_close_tab
+- browser_scroll
+- browser_search_google
+- browser_wait
+- Migrar /open_url, /click_element, /type_text, /search_google
+- Desligar Playwright quando 100% migrado
+- cargo tauri build (.exe release)
+
+## Pendencias gerais
+- Pacote Produtivo do widget (historico, atalhos, input)
+- Pacote Sistema do widget (auto-start, tray, notificacao)
+- Merge do branch no main (quando estavel)
+- Limpar pasta widget/ antiga e agent_backup_*.py
+
+## Regras
+- SEMPRE matar myra-widget antes de cargo tauri dev
+- NAO abrir Open WebUI no mesmo Chrome do conteudo
+- Se extensao der ISO-8859-1: chrome.storage.local.clear() no console
+- Se comando trava: verificar chrome.alarms no console do service worker
+
+## Stashes
+- stash@{0}: fixes locais (APLICADO)
+- stash@{1}: patch prompt bridge local
+- stash@{2}: Fixes locais antes do bridge (NAO aplicado)

@@ -1,93 +1,180 @@
-# ============================================================
-# Re-adicionar _get_trash_folder + email_delete_by_search
-# ============================================================
+import os
 
-caminho = r"C:\computer-agent\agent.py"
+pasta = r"C:\computer-agent\computer"
+os.makedirs(pasta, exist_ok=True)
 
-with open(caminho, "r", encoding="utf-8") as f:
-    conteudo = f.read()
+# __init__.py
+with open(os.path.join(pasta, "__init__.py"), "w", encoding="utf-8") as f:
+    f.write("")
 
-# 1. Re-adicionar _get_trash_folder (depois de _conectar_imap)
-if "_get_trash_folder" not in conteudo:
-    print("[INFO] Adicionando _get_trash_folder...")
-    marcador_imap = '''def _conectar_imap():
-    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
-        raise Exception("GMAIL_USER ou GMAIL_APP_PASSWORD nao configurados")
-    mail = imaplib.IMAP4_SSL("imap.gmail.com", 993)
-    mail.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-    return mail'''
+# controller.py
+controller = '''"""
+Computer Controller - controla mouse e teclado via pyautogui.
+"""
+import pyautogui
+import time
 
-    if marcador_imap in conteudo:
-        nova_funcao = marcador_imap + '''
+pyautogui.FAILSAFE = True
+pyautogui.PAUSE = 0.1
 
 
-def _get_trash_folder(mail):
-    """Detecta o nome da pasta Lixeira do Gmail (Trash, Lixeira, Papelera, etc)."""
+def move_mouse(x: int, y: int, duration: float = 0.3) -> dict:
+    """Move o mouse para (x, y) com animacao suave."""
     try:
-        status, pastas = mail.list()
-        if status != "OK":
-            return "[Gmail]/Trash"
-
-        for pasta in pastas:
-            nome = pasta.decode("utf-8", errors="ignore")
-            if "\\\\Trash" in nome:
-                partes = nome.split('"')
-                if len(partes) >= 2:
-                    return partes[-2]
-        return "[Gmail]/Trash"
-    except Exception:
-        return "[Gmail]/Trash"'''
-        conteudo = conteudo.replace(marcador_imap, nova_funcao, 1)
-        print("[OK] _get_trash_folder adicionada")
-    else:
-        print("[ERRO] Marcador _conectar_imap nao encontrado")
-        exit(1)
-else:
-    print("[OK] _get_trash_folder ja existe")
-
-# 2. Verificar se a rota existe
-if "def email_delete_by_search" not in conteudo:
-    print("[INFO] Adicionando rota /email_delete_by_search...")
-    conteudo = conteudo.rstrip() + '''
-
-
-@app.post("/email_delete_by_search")
-def email_delete_by_search(data: EmailDeleteBySearch):
-    print(f"[EMAIL_DELETE_BY_SEARCH] termo={data.termo!r}")
-    try:
-        mail = _conectar_imap()
-        mail.select("INBOX")
-        status, mensagens = mail.search(None, f'(OR SUBJECT "{data.termo}" BODY "{data.termo}")')
-
-        if status != "OK" or not mensagens[0]:
-            mail.logout()
-            return {"status": "ok", "result": f"Nenhum email encontrado com {data.termo!r}"}
-
-        ids = mensagens[0].split()
-        ids_recentes = ids[-200:][::-1]
-        trash = _get_trash_folder(mail)
-
-        apagados = 0
-        for eid in ids_recentes:
-            try:
-                mail.copy(eid, trash)
-                mail.store(eid, "+FLAGS", "\\\\Deleted")
-                apagados += 1
-            except Exception:
-                pass
-
-        mail.expunge()
-        mail.logout()
-        return {"status": "ok", "result": f"{apagados} email(s) com {data.termo!r} movidos para a Lixeira"}
+        pyautogui.moveTo(x, y, duration=duration)
+        return {"status": "ok", "result": f"Mouse movido para ({x}, {y})"}
     except Exception as e:
-        print(f"[EMAIL_DELETE_BY_SEARCH] ERRO: {e}")
-        return {"status": "erro", "result": f"Erro: {type(e).__name__}: {e}"}
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+def click(x: int = None, y: int = None, button: str = "left") -> dict:
+    """Clica em (x, y) ou na posicao atual."""
+    try:
+        if x is not None and y is not None:
+            pyautogui.moveTo(x, y, duration=0.2)
+        pyautogui.click(button=button)
+        return {"status": "ok", "result": f"Clique {button} em ({x}, {y})"}
+    except Exception as e:
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+def double_click(x: int = None, y: int = None) -> dict:
+    """Duplo clique em (x, y)."""
+    try:
+        if x is not None and y is not None:
+            pyautogui.moveTo(x, y, duration=0.2)
+        pyautogui.doubleClick()
+        return {"status": "ok", "result": f"Duplo clique em ({x}, {y})"}
+    except Exception as e:
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+def right_click(x: int = None, y: int = None) -> dict:
+    """Clique direito em (x, y)."""
+    try:
+        if x is not None and y is not None:
+            pyautogui.moveTo(x, y, duration=0.2)
+        pyautogui.rightClick()
+        return {"status": "ok", "result": f"Clique direito em ({x}, {y})"}
+    except Exception as e:
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+def type_text(text: str, interval: float = 0.02) -> dict:
+    """Digita texto."""
+    try:
+        pyautogui.write(text, interval=interval)
+        return {"status": "ok", "result": f"Texto digitado: {text[:50]!r}"}
+    except Exception as e:
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+def press_key(key: str) -> dict:
+    """Pressiona uma tecla (ex: 'enter', 'tab', 'esc')."""
+    try:
+        pyautogui.press(key)
+        return {"status": "ok", "result": f"Tecla pressionada: {key}"}
+    except Exception as e:
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+def hotkey(*keys: str) -> dict:
+    """Pressiona combinacao de teclas (ex: 'ctrl', 'c')."""
+    try:
+        pyautogui.hotkey(*keys)
+        return {"status": "ok", "result": f"Hotkey: {'+'.join(keys)}"}
+    except Exception as e:
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+def scroll(amount: int) -> dict:
+    """Rola a tela (positivo = cima, negativo = baixo)."""
+    try:
+        pyautogui.scroll(amount)
+        return {"status": "ok", "result": f"Scroll: {amount}"}
+    except Exception as e:
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
 '''
-    print("[OK] Rota adicionada")
-else:
-    print("[OK] Rota ja existe")
 
-with open(caminho, "w", encoding="utf-8") as f:
-    f.write(conteudo)
+with open(os.path.join(pasta, "controller.py"), "w", encoding="utf-8") as f:
+    f.write(controller)
 
-print("\n[PRONTO] agent.py atualizado")
+# screen.py
+screen = '''"""
+Screen Capture - tira screenshot via mss.
+"""
+import mss
+import os
+import datetime
+
+
+SCREENSHOTS_DIR = r"C:\\computer-agent\\screenshots"
+
+
+def screenshot(salvar: bool = True) -> dict:
+    """Tira screenshot da tela inteira. Retorna o caminho do arquivo."""
+    try:
+        os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
+        with mss.mss() as sct:
+            monitor = sct.monitors[1]
+            img = sct.grab(monitor)
+
+        if salvar:
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            caminho = os.path.join(SCREENSHOTS_DIR, f"screen_{timestamp}.png")
+            mss.tools.to_png(img.rgb, img.size, output=caminho)
+            return {"status": "ok", "result": f"Screenshot salvo em {caminho}", "path": caminho}
+        else:
+            return {"status": "ok", "result": "Screenshot tirado (nao salvo)"}
+    except Exception as e:
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+'''
+
+with open(os.path.join(pasta, "screen.py"), "w", encoding="utf-8") as f:
+    f.write(screen)
+
+# windows.py
+windows = '''"""
+Windows - lista janelas abertas via pygetwindow.
+"""
+import pygetwindow as gw
+
+
+def get_windows() -> dict:
+    """Retorna lista de janelas abertas (titulo)."""
+    try:
+        titulos = [w.title for w in gw.getAllWindows() if w.title.strip()]
+        return {"status": "ok", "result": titulos}
+    except Exception as e:
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+def get_active_window() -> dict:
+    """Retorna o titulo da janela ativa."""
+    try:
+        w = gw.getActiveWindow()
+        return {"status": "ok", "result": w.title if w else "Nenhuma"}
+    except Exception as e:
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+def focus_window(titulo: str) -> dict:
+    """Foca uma janela pelo titulo (parcial)."""
+    try:
+        janelas = gw.getWindowsWithTitle(titulo)
+        if not janelas:
+            return {"status": "erro", "result": f"Janela nao encontrada: {titulo}"}
+        janelas[0].activate()
+        return {"status": "ok", "result": f"Janela focada: {janelas[0].title}"}
+    except Exception as e:
+        return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+'''
+
+with open(os.path.join(pasta, "windows.py"), "w", encoding="utf-8") as f:
+    f.write(windows)
+
+print("[OK] Pasta computer/ criada com 4 arquivos")
+print("  - computer/__init__.py")
+print("  - computer/controller.py")
+print("  - computer/screen.py")
+print("  - computer/windows.py")

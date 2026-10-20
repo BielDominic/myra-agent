@@ -1,6 +1,41 @@
+# MYRA - dependencias Python (venv Windows, Python 3.14)
+#
+# Instalar:  venv\Scripts\python.exe -m pip install -r requirements.txt
+# Nota: as versoes abaixo sao as verificadas no ambiente atual.
+# torch/ultralytics/opencv sao pesados: instale o grupo "visao" apenas se usar
+# as ferramentas de visao/OCR (llm-eyes + vision_locate + YOLO).
+
+# --- Core (backend, planner, bridge, emails) ---
 fastapi==0.141.1
 uvicorn==0.53.0
 pydantic==2.13.5
 playwright==1.63.0
 requests==2.34.2
 pillow==12.3.0
+psutil==7.2.2
+PyYAML==6.0.3
+Jinja2==3.1.6
+
+# --- YouTube / media ---
+yt-dlp==2026.8.19
+youtube-transcript-api==1.2.4
+
+# --- Visao / OCR ---
+numpy==2.5.4
+opencv-python==5.0.0.93
+onnxruntime==1.31.0
+rapidocr-onnxruntime==1.2.3
+torch==2.14.1
+ultralytics==8.4.175
+
+# --- Controlo de PC / janelas / captura ---
+PyAutoGUI==0.9.54
+PyGetWindow==0.0.9
+mss==10.2.0
+keyboard==0.13.5
+
+# --- Interface (widget opcional) ---
+pywebview==5.4
+
+# Testes: TestClient do Starlette atual requer httpx2.
+httpx2

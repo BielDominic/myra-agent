@@ -1,0 +1,302 @@
+"""
+MYRA Widget — Island flutuante com altura DINAMICA via Win32.
+Contorna o bug do js_api do pywebview 5.x/6.x no Windows.
+Transparencia real via SetWindowRgn (regiao arredondada).
+"""
+import sys
+import json
+import time
+import urllib.request
+import threading
+import ctypes
+from ctypes import wintypes
+import webview
+from pathlib import Path
+
+AGENT_URL = "http://127.0.0.1:8000"
+
+# ============================================================
+# DIMENSOES E POSICAO
+# ============================================================
+
+IDLE_WIDTH = 200
+IDLE_HEIGHT = 44
+
+CARD_WIDTH = 440
+CARD_HEIGHT = 340
+
+TOP_MARGIN = 40
+OFFSET_X = -155  # 0 = centro, negativo = esquerda, positivo = direita
+
+# Raio da janela (o CSS usa border-radius igual)
+WINDOW_RADIUS = 22
+
+WIDGET_DIR = Path(__file__).parent.resolve()
+INDEX_HTML = WIDGET_DIR / "index.html"
+
+
+# ============================================================
+# WIN32 — declaracoes de assinatura (evita truncamento 64-bit)
+# ============================================================
+
+def _declarar_win32():
+    """Declara argtypes/restype das APIs Win32 usadas. Chamar UMA vez no inicio."""
+    user32 = ctypes.windll.user32
+    gdi32 = ctypes.windll.gdi32
+
+    # FindWindowW
+    user32.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
+    user32.FindWindowW.restype = wintypes.HWND
+
+    # SetWindowPos
+    user32.SetWindowPos.argtypes = [
+        wintypes.HWND, wintypes.HWND,
+        ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+        ctypes.c_uint,
+    ]
+    user32.SetWindowPos.restype = wintypes.BOOL
+
+    # GetSystemMetrics
+    user32.GetSystemMetrics.argtypes = [ctypes.c_int]
+    user32.GetSystemMetrics.restype = ctypes.c_int
+
+    # GDI — regiao
+    gdi32.CreateRoundRectRgn.argtypes = [
+        ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+        ctypes.c_int, ctypes.c_int,
+    ]
+    gdi32.CreateRoundRectRgn.restype = wintypes.HRGN
+
+    gdi32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
+    gdi32.DeleteObject.restype = wintypes.BOOL
+
+    user32.SetWindowRgn.argtypes = [wintypes.HWND, wintypes.HRGN, wintypes.BOOL]
+    user32.SetWindowRgn.restype = ctypes.c_int
+
+
+# ============================================================
+# WIN32 — regiao arredondada (transparencia real)
+# ============================================================
+
+def _aplicar_regiao_arredondada(hwnd, width, height, radius=WINDOW_RADIUS):
+    """
+    Define a regiao visivel da janela como um retangulo arredondado.
+    Tudo fora dessa regiao fica 100% invisivel.
+    """
+    if not hwnd:
+        print("[RGN] HWND invalido")
+        return False
+
+    gdi32 = ctypes.windll.gdi32
+    user32 = ctypes.windll.user32
+
+    # CreateRoundRectRgn(x1, y1, x2, y2, ellipse_w, ellipse_h)
+    # x2/y2 sao EXCLUSIVOS (largura/altura direto).
+    # O ultimo par e o DIAMETRO do arco (2 * raio).
+    rgn = gdi32.CreateRoundRectRgn(
+        0, 0, width, height,
+        radius * 2, radius * 2,
+    )
+
+    if not rgn:
+        print("[RGN] CreateRoundRectRgn falhou")
+        return False
+
+    ok = user32.SetWindowRgn(hwnd, rgn, True)
+
+    if ok:
+        print(f"[RGN] regiao aplicada: {width}x{height} raio={radius}")
+    else:
+        print("[RGN] SetWindowRgn falhou")
+        gdi32.DeleteObject(rgn)
+
+    return bool(ok)
+
+
+# ============================================================
+# WIN32 — acha a janela
+# ============================================================
+
+def get_hwnd_from_title(title="MYRA"):
+    """Pega o HWND da janela do widget pelo titulo exato."""
+    user32 = ctypes.windll.user32
+
+    hwnd = user32.FindWindowW(None, title)
+    if hwnd:
+        return hwnd
+
+    found = []
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def enum_proc(hwnd, lparam):
+        length = user32.GetWindowTextLengthW(hwnd)
+        if length > 0:
+            buf = ctypes.create_unicode_buffer(length + 1)
+            user32.GetWindowTextW(hwnd, buf, length + 1)
+            texto = buf.value.strip()
+            if texto == title:
+                found.append(hwnd)
+        return True
+
+    user32.EnumWindows(enum_proc, 0)
+
+    if found:
+        return found[0]
+    return 0
+
+
+def resize_window_win32(hwnd, width, height):
+    """Redimensiona, recentraliza E reaplica a regiao arredondada."""
+    user32 = ctypes.windll.user32
+
+    screen_width, _ = get_screen_size()
+    centro = (screen_width - width) // 2
+    x_pos = centro + OFFSET_X
+
+    # SWP_NOZORDER = 0x0004
+    user32.SetWindowPos(hwnd, 0, x_pos, TOP_MARGIN, width, height, 0x0004)
+
+    # Reaplica regiao pro novo tamanho
+    _aplicar_regiao_arredondada(hwnd, width, height)
+
+
+def _preparar_janela(hwnd):
+    """Aplica regiao arredondada + resize inicial."""
+    resize_window_win32(hwnd, IDLE_WIDTH, IDLE_HEIGHT)
+    print(f"[MONITOR] resize inicial: pilula {IDLE_WIDTH}x{IDLE_HEIGHT}")
+
+
+# ============================================================
+# MONITOR DE STATUS
+# ============================================================
+
+class StatusMonitor(threading.Thread):
+    """Thread que polla o /task_status e redimensiona a janela."""
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self._stop = False
+        self._last_state = None
+        self._hwnd = None
+
+    def stop(self):
+        self._stop = True
+
+    def run(self):
+        # Espera o hwnd ficar disponivel (ate 15s)
+        for _ in range(150):
+            if self._stop:
+                return
+            self._hwnd = get_hwnd_from_title("MYRA")
+            if self._hwnd:
+                break
+            time.sleep(0.1)
+
+        if not self._hwnd:
+            print("[MONITOR] nao achei a janela MYRA")
+            return
+
+        print(f"[MONITOR] HWND encontrado: {self._hwnd}")
+
+        _preparar_janela(self._hwnd)
+
+        while not self._stop:
+            try:
+                req = urllib.request.Request(f"{AGENT_URL}/task_status", method="GET")
+                with urllib.request.urlopen(req, timeout=3) as r:
+                    status = json.loads(r.read().decode("utf-8"))
+
+                state = status.get("state", "idle")
+
+                if state != self._last_state:
+                    print(f"[MONITOR] state: {self._last_state} -> {state}")
+                    self._last_state = state
+
+                    if state == "idle":
+                        resize_window_win32(self._hwnd, IDLE_WIDTH, IDLE_HEIGHT)
+                    else:
+                        resize_window_win32(self._hwnd, CARD_WIDTH, CARD_HEIGHT)
+
+            except Exception:
+                pass
+
+            time.sleep(0.5)
+
+
+# ============================================================
+# DPI + POSICAO
+# ============================================================
+
+def enable_dpi_awareness():
+    try:
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except Exception:
+            try:
+                ctypes.windll.user32.SetProcessDPIAware()
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+def get_screen_size():
+    try:
+        user32 = ctypes.windll.user32
+        return user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+    except Exception:
+        return 1920, 1080
+
+
+def get_center_position(width):
+    screen_width, _ = get_screen_size()
+    centro = (screen_width - width) // 2
+    return centro + OFFSET_X
+
+
+# ============================================================
+# MAIN
+# ============================================================
+
+def main():
+    print("=== MYRA Widget ===")
+    print(f"HTML: {INDEX_HTML}")
+
+    if not INDEX_HTML.exists():
+        print(f"ERRO: {INDEX_HTML} nao existe!")
+        sys.exit(1)
+
+    _declarar_win32()
+    enable_dpi_awareness()
+
+    screen_width, screen_height = get_screen_size()
+    x_pos = get_center_position(IDLE_WIDTH)
+
+    print(f"Tela: {screen_width}x{screen_height}")
+    print(f"Janela inicial: {IDLE_WIDTH}x{IDLE_HEIGHT} em ({x_pos}, {TOP_MARGIN})")
+
+    window = webview.create_window(
+        title="MYRA",
+        url=str(INDEX_HTML),
+        width=IDLE_WIDTH,
+        height=IDLE_HEIGHT,
+        x=x_pos,
+        y=TOP_MARGIN,
+        resizable=False,
+        frameless=True,
+        easy_drag=True,
+        background_color="#0a0a15",
+    )
+
+    monitor = StatusMonitor()
+    monitor.start()
+
+    try:
+        webview.start(debug=False)
+    finally:
+        monitor.stop()
+        print("Widget fechado.")
+
+
+if __name__ == "__main__":
+    main()

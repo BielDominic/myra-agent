@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MYRA</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- ============================================================ -->
+    <!-- ISLAND (a pílula flutuante) -->
+    <!-- ============================================================ -->
+    <div id="island" class="island idle">
+
+        <!-- Estado IDLE (pílula pequena) -->
+        <div class="view view-idle">
+            <div class="mascot idle">
+                <div class="eye left"></div>
+                <div class="eye right"></div>
+            </div>
+            <span class="label">MYRA</span>
+            <span class="status-dot"></span>
+        </div>
+
+        <!-- Estado RUNNING (card expandido) -->
+        <div class="view view-running">
+            <div class="header">
+                <div class="mascot running">
+                    <div class="eye left"></div>
+                    <div class="eye right"></div>
+                </div>
+                <span class="label">MYRA</span>
+                <button class="btn-close" onclick="WidgetAPI.closeWidget()" title="Fechar">×</button>
+            </div>
+
+            <div class="content">
+                <div class="state-row">
+                    <span class="state-icon spinning">⚙️</span>
+                    <span class="state-text">Executando...</span>
+                </div>
+                <div class="tool-row">
+                    <span class="tool-name" id="tool-name">—</span>
+                </div>
+            </div>
+
+            <div class="footer">
+                <span class="meta" id="meta-tempo">⏱ 0s</span>
+                <span class="meta" id="meta-passos">⚙ 0 passos</span>
+                <button class="btn btn-cancel" onclick="WidgetAPI.cancelTask()">Cancelar</button>
+            </div>
+        </div>
+
+        <!-- Estado DONE (resultado) -->
+        <div class="view view-done">
+            <div class="header">
+                <div class="mascot done">
+                    <div class="eye left"></div>
+                    <div class="eye right"></div>
+                </div>
+                <span class="label">MYRA</span>
+                <button class="btn-close" onclick="WidgetAPI.closeWidget()" title="Fechar">×</button>
+            </div>
+
+            <div class="content">
+                <div class="state-row">
+                    <span class="state-icon">✅</span>
+                    <span class="state-text">Concluído</span>
+                </div>
+                <div class="result-text" id="result-text">
+                    (sem resultado)
+                </div>
+            </div>
+
+            <div class="footer">
+                <button class="btn btn-ok" onclick="WidgetAPI.reset()">OK</button>
+            </div>
+        </div>
+
+        <!-- Estado ERROR (erro) -->
+        <div class="view view-error">
+            <div class="header">
+                <div class="mascot error">
+                    <div class="eye left"></div>
+                    <div class="eye right"></div>
+                </div>
+                <span class="label">MYRA</span>
+                <button class="btn-close" onclick="WidgetAPI.closeWidget()" title="Fechar">×</button>
+            </div>
+
+            <div class="content">
+                <div class="state-row">
+                    <span class="state-icon">⚠️</span>
+                    <span class="state-text">Erro</span>
+                </div>
+                <div class="result-text error-text" id="error-text">
+                    (sem mensagem)
+                </div>
+            </div>
+
+            <div class="footer">
+                <button class="btn btn-ok" onclick="WidgetAPI.reset()">Fechar</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

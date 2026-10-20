@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MYRA</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Botão engrenagem (sempre visível) -->
+    <button id="btn-settings" title="Configurações">⚙</button>
+
+    <!-- Painel de configurações (abre com a engrenagem) -->
+    <div id="chrome" data-tauri-drag-region>
+        <span class="drag-handle" data-tauri-drag-region>⋮⋮</span>
+        <span class="chrome-label" data-tauri-drag-region>MYRA</span>
+        <button id="btn-theme" title="Tema claro/escuro">🌙</button>
+        <button id="btn-sound" title="Sons on/off">🔊</button>
+        <button id="btn-dnd" title="Não perturbe">🔕</button>
+        <button id="btn-top" title="Sempre no topo">📌</button>
+        <input type="range" id="opacity" min="30" max="100" value="95" title="Opacidade">
+        <input type="color" id="mascot-color" value="#6366f1" title="Cor do mascote">
+        <button id="btn-close" title="Fechar">✕</button>
+    </div>
+
+    <div id="island" class="island idle">
+
+        <div class="view view-idle active">
+            <div class="mascot idle" id="mascot">
+                <div class="eye left"></div>
+                <div class="eye right"></div>
+                <div class="mouth"></div>
+                <div class="zzz">zZz</div>
+                <div class="speech" id="speech"></div>
+            </div>
+            <span class="label">MYRA</span>
+            <span class="status-dot"></span>
+        </div>
+
+        <div class="view view-running">
+            <div class="header">
+                <div class="mascot running" id="mascot-running">
+                    <div class="eye left"></div>
+                    <div class="eye right"></div>
+                    <div class="mouth"></div>
+                    <div class="speech"></div>
+                </div>
+                <span class="label">MYRA</span>
+                <button class="btn-close" onclick="closeWidget()" title="Fechar">×</button>
+            </div>
+            <div class="content">
+                <div class="state-row">
+                    <span class="state-icon spinning">⚙️</span>
+                    <span class="state-text">Executando...</span>
+                </div>
+                <div class="tool-row">
+                    <span class="tool-name" id="tool-name">—</span>
+                </div>
+                <div class="quick-actions" id="quick-actions-running">
+                    <button class="qa" onclick="cancelTask()">Cancelar</button>
+                </div>
+            </div>
+            <div class="footer">
+                <span class="meta" id="meta-tempo">⏱ 0s</span>
+                <span class="meta" id="meta-passos">⚙ 0 passos</span>
+                <button class="btn btn-cancel" onclick="cancelTask()">Cancelar</button>
+            </div>
+        </div>
+
+        <div class="view view-done">
+            <div class="header">
+                <div class="mascot done" id="mascot-done">
+                    <div class="eye left"></div>
+                    <div class="eye right"></div>
+                    <div class="mouth"></div>
+                    <div class="speech"></div>
+                </div>
+                <span class="label">MYRA</span>
+                <button class="btn-close" onclick="closeWidget()" title="Fechar">×</button>
+            </div>
+            <div class="content">
+                <div class="state-row">
+                    <span class="state-icon">✅</span>
+                    <span class="state-text">Concluído</span>
+                </div>
+                <div class="result-text" id="result-text">(sem resultado)</div>
+                <div class="quick-actions">
+                    <button class="qa" onclick="copyResult()" title="Copiar">📋 Copiar</button>
+                    <button class="qa" onclick="repeatTask()" title="Repetir">🔁 Repetir</button>
+                </div>
+            </div>
+            <div class="footer">
+                <button class="btn btn-ok" onclick="resetWidget()">OK</button>
+            </div>
+        </div>
+
+        <div class="view view-error">
+            <div class="header">
+                <div class="mascot error" id="mascot-error">
+                    <div class="eye left"></div>
+                    <div class="eye right"></div>
+                    <div class="mouth"></div>
+                    <div class="speech"></div>
+                </div>
+                <span class="label">MYRA</span>
+                <button class="btn-close" onclick="closeWidget()" title="Fechar">×</button>
+            </div>
+            <div class="content">
+                <div class="state-row">
+                    <span class="state-icon">⚠️</span>
+                    <span class="state-text">Erro</span>
+                </div>
+                <div class="result-text error-text" id="error-text">(sem mensagem)</div>
+            </div>
+            <div class="footer">
+                <button class="btn btn-ok" onclick="resetWidget()">Fechar</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="main.js"></script>
+    <script src="features.js"></script>
+</body>
+</html>

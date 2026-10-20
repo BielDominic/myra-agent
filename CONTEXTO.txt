@@ -1,0 +1,32 @@
+ÚLTIMA ATUALIZAÇÃO: 04/10/2026
+
+CONCLUÍDO HOJE:
+- FASE 20.1: detecção automática de idioma no YouTube
+- FASE 22-light: task_simple com planner + retry
+- FASE 24.1: loop de autonomia adaptativo (LLM decide passo a passo)
+- FASE 24.2: ferramentas estruturadas (6 novas)
+- README.md atualizado
+- ROADMAP.md criado (~230 itens)
+- .gitignore robusto
+
+TESTES QUE PASSARAM:
+- "que horas são" → get_current_time → resposta OK
+- "pesquise cursos IA em Dublin" → web_search → resposta OK
+- "resuma vídeo do Post Malone" → youtube_transcript → resposta OK
+- "ache o último vídeo do Post Malone" → youtube_channel_latest → resposta OK
+
+PRÓXIMAS FASES:
+- FASE 22.5: polir o responder
+- FASE 34.1: bot do Telegram
+- FASE 24.3: recuperação de erros
+- FASE 24.5: persistência SQLite
+
+PENDÊNCIAS DE SEGURANÇA:
+- Revogar API KEY antiga (foi commitada antes)
+- Criar nova key no Open WebUI
+- Atualizar OPENWEBUI_API_KEY
+
+ESTADO DO GIT:
+- HEAD em 8605f1f
+- Working tree limpo
+- Tudo pushado pro GitHub
