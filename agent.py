@@ -15,6 +15,7 @@ import time
 import threading
 from tasks.cancel_state import marcar_cancelada, marcar_pausada, resetar, resetar_pausa
 import json
+import hashlib
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -1864,44 +1865,91 @@ def get_weather(data: GetWeather):
         cidade = _detectar_cidade_por_ip()
     print(f"[GET_WEATHER] cidade={cidade}")
     try:
-        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(cidade)}&count=1&language=pt&format=json"
+        # Prioriza o país explicitado para evitar resolver "Roscommon" em outro país.
+        nome_busca = cidade
+        country_code = ""
+        if "irlanda" in cidade.lower() or "ireland" in cidade.lower():
+            nome_busca = _re.sub(r"[, ]*(irlanda|ireland)\s*$", "", cidade, flags=_re.IGNORECASE).strip()
+            country_code = "&countryCode=IE"
+        geo_url = (
+            "https://geocoding-api.open-meteo.com/v1/search"
+            f"?name={urllib.parse.quote(nome_busca)}&count=5&language=pt&format=json{country_code}"
+        )
         with urllib.request.urlopen(geo_url, timeout=10) as r:
             geo = json.loads(r.read().decode())
 
-        if not geo.get("results"):
+        resultados_geo = geo.get("results") or []
+        if not resultados_geo:
             return {"status": "erro", "result": f"Cidade '{cidade}' nao encontrada"}
 
-        lat = geo["results"][0]["latitude"]
-        lon = geo["results"][0]["longitude"]
-        nome = geo["results"][0]["name"]
-        pais = geo["results"][0].get("country", "")
+        # Quando o usuário informa um país, escolhe o resultado correspondente.
+        local = resultados_geo[0]
+        if country_code:
+            local = next(
+                (item for item in resultados_geo if item.get("country_code") == "IE"),
+                local,
+            )
+        lat = local["latitude"]
+        lon = local["longitude"]
+        nome = local["name"]
+        pais = local.get("country", "")
 
-        clima_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=auto"
+        clima_url = (
+            "https://api.open-meteo.com/v1/forecast"
+            f"?latitude={lat}&longitude={lon}"
+            "&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m"
+            "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+            "&forecast_days=7&timezone=auto"
+        )
         with urllib.request.urlopen(clima_url, timeout=10) as r:
             clima = json.loads(r.read().decode())
 
-        atual = clima["current"]
-        temp = atual["temperature_2m"]
-        umid = atual["relative_humidity_2m"]
-        vento = atual["wind_speed_10m"]
-        codigo = atual["weather_code"]
-
         codigos = {
-            0: "ceu limpo", 1: "poucas nuvens", 2: "parcialmente nublado", 3: "nublado",
+            0: "ceu limpo", 1: "principalmente limpo", 2: "parcialmente nublado", 3: "nublado",
             45: "nevoeiro", 48: "nevoeiro com geada",
             51: "chuvisco leve", 53: "chuvisco moderado", 55: "chuvisco denso",
+            56: "chuvisco congelante leve", 57: "chuvisco congelante intenso",
             61: "chuva leve", 63: "chuva moderada", 65: "chuva forte",
-            71: "neve leve", 73: "neve moderada", 75: "neve forte",
-            80: "pancadas de chuva leve", 81: "pancadas de chuva moderada", 82: "pancadas de chuva forte",
+            66: "chuva congelante leve", 67: "chuva congelante forte",
+            71: "neve leve", 73: "neve moderada", 75: "neve forte", 77: "graos de neve",
+            80: "pancadas de chuva leves", 81: "pancadas de chuva moderadas", 82: "pancadas de chuva fortes",
+            85: "pancadas de neve leves", 86: "pancadas de neve fortes",
             95: "trovoada", 96: "trovoada com granizo leve", 99: "trovoada com granizo forte",
         }
-        descricao = codigos.get(codigo, f"codigo {codigo}")
 
-        resultado = f"{nome}, {pais}: {temp}C, {descricao}, umidade {umid}%, vento {vento} km/h"
+        atual = clima.get("current") or {}
+        descricao_atual = codigos.get(atual.get("weather_code"), "condicao indisponivel")
+        resultado = (
+            f"Clima atual em {nome}, {pais}: {atual.get('temperature_2m', 'N/D')}°C, "
+            f"{descricao_atual}, umidade {atual.get('relative_humidity_2m', 'N/D')}%, "
+            f"vento {atual.get('wind_speed_10m', 'N/D')} km/h.\n"
+            "Previsao para os proximos 7 dias:"
+        )
+
+        diaria = clima.get("daily") or {}
+        datas = diaria.get("time") or []
+        maximas = diaria.get("temperature_2m_max") or []
+        minimas = diaria.get("temperature_2m_min") or []
+        codigos_diarios = diaria.get("weather_code") or []
+        chuva = diaria.get("precipitation_probability_max") or []
+        linhas = []
+        for i, data_dia in enumerate(datas[:7]):
+            codigo_dia = codigos_diarios[i] if i < len(codigos_diarios) else None
+            desc_dia = codigos.get(codigo_dia, "condicao indisponivel")
+            minima = minimas[i] if i < len(minimas) else "N/D"
+            maxima = maximas[i] if i < len(maximas) else "N/D"
+            prob_chuva = chuva[i] if i < len(chuva) and chuva[i] is not None else "N/D"
+            linhas.append(
+                f"{data_dia}: {desc_dia}; minima {minima}°C, maxima {maxima}°C; "
+                f"probabilidade maxima de chuva {prob_chuva}%"
+            )
+        if not linhas:
+            return {"status": "erro", "result": "A fonte meteorologica nao retornou previsao diaria."}
+        resultado += "\n" + "\n".join(linhas)
         return {"status": "ok", "result": resultado}
     except Exception as e:
         print(f"[GET_WEATHER] ERRO: {e}")
-        return {"status": "erro", "result": f"Erro: {type(e).__name__}: {e}"}
+        return {"status": "erro", "result": f"Erro ao consultar a previsao meteorologica: {type(e).__name__}: {e}"}
 
 
 @app.post("/run_python")
@@ -2092,7 +2140,9 @@ def see(data: SeeImage):
         if resultado.get("status") != "ok":
             return {"status": "erro", "result": f"Falha ao capturar tela: {resultado.get('result')}"}
 
-        arquivo = resultado.get("path")
+        # O helper de screenshot pode devolver o caminho como "arquivo" (contrato legado)
+        # ou "path" (contrato novo); aceite ambos para não abortar a análise visual.
+        arquivo = resultado.get("path") or resultado.get("arquivo")
         if not arquivo or not os.path.exists(arquivo):
             return {"status": "erro", "result": "Screenshot nao foi salvo corretamente"}
 
@@ -3313,6 +3363,184 @@ registrar_ferramenta(
 st.registrar_todas(registrar_ferramenta)
 browser_bridge.registrar_ferramentas(registrar_ferramenta)
 
+# Mantém os 12 nomes de ferramentas de navegador já publicados, mas liga-os
+# ao Playwright isolado do agent.py. A extensão/Browser Bridge continua com suas
+# rotas próprias, porém o planner não controla a sessão real do Chrome.
+# Helpers internos de Playwright. Não são entradas extras no registro:
+# os nomes públicos browser_* permanecem exatamente os mesmos.
+def _t_playwright_open_url(url: str):
+    try:
+        return _t_open_url(url)
+    except Exception as exc:
+        return {"status": "erro", "result": f"Playwright open_url: {type(exc).__name__}: {exc}"}
+
+def _t_playwright_search_google(query: str):
+    try:
+        return _t_search_google(query)
+    except Exception as exc:
+        return {"status": "erro", "result": f"Playwright search_google: {type(exc).__name__}: {exc}"}
+
+def _t_playwright_search_in_page(query: str):
+    try:
+        return search_in_page(SearchGoogle(query=query))
+    except Exception as exc:
+        return {"status": "erro", "result": f"Playwright search_in_page: {type(exc).__name__}: {exc}"}
+
+def _t_playwright_click_element(text: str = "", selector: str = ""):
+    try:
+        return click_element(ClickElement(text=text or None, selector=selector or None))
+    except Exception as exc:
+        return {"status": "erro", "result": f"Playwright click: {type(exc).__name__}: {exc}"}
+
+def _t_playwright_type_text(text: str, field_text: str = "", selector: str = ""):
+    try:
+        return type_text(TypeText(text=text, field_text=field_text or None, selector=selector or None))
+    except Exception as exc:
+        return {"status": "erro", "result": f"Playwright type_text: {type(exc).__name__}: {exc}"}
+
+def _t_playwright_press_key(key: str):
+    try:
+        return press_key(PressKey(key=key))
+    except Exception as exc:
+        return {"status": "erro", "result": f"Playwright press_key: {type(exc).__name__}: {exc}"}
+
+def _t_playwright_go_back():
+    try:
+        return go_back()
+    except Exception as exc:
+        return {"status": "erro", "result": f"Playwright go_back: {type(exc).__name__}: {exc}"}
+
+def _t_playwright_wait(seconds: float = 1):
+    try:
+        return wait(Wait(seconds=seconds))
+    except Exception as exc:
+        return {"status": "erro", "result": f"Playwright wait: {type(exc).__name__}: {exc}"}
+
+def _t_playwright_read_page():
+    try:
+        start_browser()
+        titulo = page.title()
+        url = page.url
+        texto = page.locator("body").inner_text(timeout=10000)[:5000]
+        links = page.locator("a").evaluate_all(
+            "(els) => els.slice(0, 25).map(a => ({text: (a.innerText || '').trim(), href: a.href}))"
+        )
+        linhas = [f"Title: {titulo}", f"URL: {url}", f"Texto visivel:\n{texto}"]
+        linhas.extend(f"LINK {x.get('text', '')} -> {x.get('href', '')}" for x in links if x.get("text"))
+        return {"status": "ok", "result": "\n".join(linhas), "title": titulo, "url": url, "text": texto, "links": links}
+    except Exception as exc:
+        return {"status": "erro", "result": f"Playwright read_page: {type(exc).__name__}: {exc}"}
+
+def _t_playwright_scroll(direcao: str = "down", quantidade: int = 500):
+    try:
+        start_browser()
+        if direcao == "top":
+            page.evaluate("window.scrollTo(0, 0)")
+        elif direcao == "bottom":
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        else:
+            page.mouse.wheel(0, -abs(quantidade) if direcao == "up" else abs(quantidade))
+        page.wait_for_timeout(300)
+        return {"status": "ok", "result": f"Scroll {direcao} executado em {page.url}"}
+    except Exception as exc:
+        return {"status": "erro", "result": f"Playwright scroll: {type(exc).__name__}: {exc}"}
+
+def _t_browser_get_tabs():
+    try:
+        start_browser()
+        tabs = []
+        for idx, tab in enumerate(context.pages):
+            try:
+                tabs.append({"id": idx, "title": tab.title(), "url": tab.url, "active": tab is page})
+            except Exception:
+                continue
+        return {"status": "ok", "result": tabs, "tabs": tabs}
+    except Exception as exc:
+        return {"status": "erro", "result": f"Playwright get_tabs: {type(exc).__name__}: {exc}"}
+
+def _t_browser_read_active_tab(url_contains: str = ""):
+    try:
+        start_browser()
+        if url_contains and url_contains.lower() not in page.url.lower():
+            return {"status": "erro", "result": f"A página Playwright atual ({page.url}) não corresponde a {url_contains!r}."}
+        return _t_playwright_read_page()
+    except Exception as exc:
+        return {"status": "erro", "result": f"Playwright read_active_tab: {type(exc).__name__}: {exc}"}
+
+def _t_browser_read_page(url: str = ""):
+    try:
+        start_browser()
+        if url:
+            page.goto(url, timeout=15000)
+        return _t_playwright_read_page()
+    except Exception as exc:
+        return {"status": "erro", "result": f"Playwright read_page: {type(exc).__name__}: {exc}"}
+
+def _t_browser_navigate_active_tab(url: str):
+    return _t_playwright_open_url(url)
+
+def _t_browser_new_tab(url: str):
+    global page
+    try:
+        start_browser()
+        page = context.new_page()
+        page.goto(url, timeout=15000)
+        return {"status": "ok", "result": f"Abri {url} em uma nova página Playwright.", "url": page.url, "title": page.title()}
+    except Exception as exc:
+        return {"status": "erro", "result": f"Playwright new_tab: {type(exc).__name__}: {exc}"}
+
+def _t_browser_close_tab(tab_id: int = None):
+    global page
+    try:
+        start_browser()
+        pages = list(context.pages)
+        if not pages:
+            page = context.new_page()
+            return {"status": "ok", "result": "Criei uma nova página Playwright."}
+        idx = tab_id if isinstance(tab_id, int) and not isinstance(tab_id, bool) else len(pages) - 1
+        if idx < 0 or idx >= len(pages):
+            return {"status": "erro", "result": f"ID de página Playwright inválido: {tab_id}"}
+        pages[idx].close()
+        remaining = list(context.pages)
+        page = remaining[-1] if remaining else context.new_page()
+        return {"status": "ok", "result": "Página Playwright fechada.", "url": page.url}
+    except Exception as exc:
+        return {"status": "erro", "result": f"Playwright close_tab: {type(exc).__name__}: {exc}"}
+
+def _t_browser_type_text(campo: str, texto: str):
+    return _t_playwright_type_text(text=texto, field_text=campo)
+
+def _t_browser_click_text(text: str):
+    return _t_playwright_click_element(text=text)
+
+def _t_browser_scroll(direcao: str = "down", quantidade: int = 500):
+    return _t_playwright_scroll(direcao=direcao, quantidade=quantidade)
+
+def _t_browser_search_google(termo: str):
+    return _t_playwright_search_google(query=termo)
+
+def _t_browser_search_google_visivel(termo: str, delay_typing_ms: int = 150, scroll_suave: bool = False):
+    return _t_playwright_search_google(query=termo)
+
+def _t_browser_wait(ms: int = 1000):
+    return _t_playwright_wait(seconds=max(0, min(int(ms), 30000)) / 1000)
+
+for _name, _fn, _description in (
+    ("browser_get_tabs", _t_browser_get_tabs, "Lista páginas do navegador Playwright isolado da MYRA; não acessa abas reais do Chrome."),
+    ("browser_read_active_tab", _t_browser_read_active_tab, "Lê a página atual do Playwright isolado. Opcional: url_contains para validar a URL atual."),
+    ("browser_read_page", _t_browser_read_page, "Lê título, URL, texto e links usando Playwright; opcionalmente navega para url antes de ler."),
+    ("browser_navigate_active_tab", _t_browser_navigate_active_tab, "Navega a página Playwright atual para uma URL HTTP/HTTPS."),
+    ("browser_new_tab", _t_browser_new_tab, "Abre URL numa nova página Playwright isolada da MYRA; não usa a sessão real do Chrome."),
+    ("browser_close_tab", _t_browser_close_tab, "Fecha uma página Playwright por índice opcional tab_id; cria uma página em branco se necessário."),
+    ("browser_type_text", _t_browser_type_text, "Preenche um campo da página Playwright; campos: campo e texto."),
+    ("browser_click_text", _t_browser_click_text, "Clica por texto visível na página Playwright."),
+    ("browser_scroll", _t_browser_scroll, "Rola a página Playwright; direcao up/down/top/bottom e quantidade em pixels."),
+    ("browser_search_google_visivel", _t_browser_search_google_visivel, "Pesquisa no Google com Playwright local e mantém a página aberta; não usa extensão Chrome."),
+    ("browser_search_google", _t_browser_search_google, "Pesquisa no Google com Playwright local e retorna resultado."),
+    ("browser_wait", _t_browser_wait, "Aguarda milissegundos sem bloquear o Chrome real; usa a página Playwright local."),
+):
+    registrar_ferramenta(_name, _fn, _description)
+
 # Ferramentas de sistema (arquivos, codigo, email, PC, utilitarias)
 import tasks.system_tools as _system_tools
 _system_tools.registrar_todas(registrar_ferramenta)
@@ -3556,6 +3784,7 @@ async def openai_chat_completions(request: Request):
     except Exception:
         data = {}
 
+    data = _myra_apply_identity_headers(data, request.headers)
     messages = data.get("messages", [])
     model = data.get("model", "myra-agent")
 
@@ -3615,57 +3844,7 @@ async def openai_chat_completions(request: Request):
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         })
 
-    _widget_set(
-        state="running",
-        computer_activity=False,
-        task_id=str(int(time.time())),
-        objetivo=user_msg,
-        passo_atual=None,
-        passo_num=0,
-        passo_total=0,
-        iniciado_em=time.time(),
-        terminado_em=None,
-        resultado=None,
-        erro=None,
-        historico=[],
-    )
-
-    import asyncio
-    import concurrent.futures
-
-    resetar()  # limpa flag ANTES de comecar
-    resetar_pausa()
-
-    try:
-        # Roda executar_task em thread separada (libera o FastAPI pra servir /task_status)
-        loop = asyncio.get_event_loop()
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            resultado = await loop.run_in_executor(
-                pool, lambda: executar_task(user_msg, max_passos=15)
-            )
-        if resultado.get("status") == "ok":
-            resposta_texto = resultado.get("resultado_final") or "(sem resultado)"
-            _widget_set(state="done", terminado_em=time.time(), resultado=resposta_texto, erro=None)
-        elif resultado.get("status") == "cancelado":
-            resposta_texto = "Task cancelada pelo usuario."
-            _widget_set(state="idle", terminado_em=time.time(), resultado=None, erro=None)
-            print("[TASK] finalizada como cancelada - resposta limpa ao chat")
-        elif resultado.get("status") == "pausado":
-            # FASE 26 - pausa: preserva o contexto e informa como retomar.
-            tid = resultado.get("task_id")
-            resposta_texto = (
-                f"Task pausada no passo {len(resultado.get('historico') or [])}. "
-                f"Retome com POST /task_resume (task_id={tid})."
-            )
-            _widget_set(state="running", passo_atual="PAUSADO (retome com /task_resume)")
-            print(f"[TASK] pausada - task_id={tid}")
-        else:
-            resposta_texto = f"Erro: {resultado.get('erro') or resultado.get('result') or 'desconhecido'}"
-            _widget_set(state="error", terminado_em=time.time(), erro=resposta_texto)
-    except Exception as e:
-        resposta_texto = f"Erro interno: {type(e).__name__}: {e}"
-        print(f"[OPENAI] ERRO: {e}")
-        _widget_set(state="error", terminado_em=time.time(), erro=resposta_texto)
+    resposta_texto = await _myra_route_message(data, messages, user_msg, model)
 
     return JSONResponse({
         "id": f"chatcmpl-myra-{int(time.time())}",
@@ -3675,6 +3854,286 @@ async def openai_chat_completions(request: Request):
         "choices": [{"index": 0, "message": {"role": "assistant", "content": resposta_texto}, "finish_reason": "stop"}],
         "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     })
+
+
+# FASE 29 — roteamento central do chat MYRA (substitui o Pipe removido)
+_MYRA_CHAT_MEMORY_PATH = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "MYRA" / "myra_openwebui_chat_memory.json"
+_MYRA_CHAT_MEMORY_LOCK = threading.RLock()
+_MYRA_CHAT_MAX_TURNS = 12
+_MYRA_CHAT_MODEL = os.environ.get("MYRA_CHAT_MODEL", "qwen2.5:3b-instruct-q5_K_M")
+
+
+def _myra_message_text(content):
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        return "\n".join(str(part.get("text", "")) for part in content
+                         if isinstance(part, dict) and isinstance(part.get("text"), str)).strip()
+    return ""
+
+
+def _myra_apply_identity_headers(data, headers):
+    """Incorpora IDs de conversa/usuário quando um cliente os envia em headers."""
+    if not isinstance(data, dict):
+        data = {}
+    metadata = data.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {}
+    else:
+        metadata = dict(metadata)
+
+    chat_id = (
+        metadata.get("chat_id") or metadata.get("conversation_id")
+        or data.get("chat_id") or data.get("conversation_id")
+    )
+    user_id = metadata.get("user_id") or metadata.get("user") or data.get("user")
+    if not chat_id:
+        chat_id = (
+            headers.get("x-openwebui-chat-id")
+            or headers.get("x-chat-id")
+            or headers.get("x-conversation-id")
+        )
+        if chat_id:
+            metadata["chat_id"] = str(chat_id)[:256]
+    if not user_id:
+        user_id = headers.get("x-openwebui-user-id") or headers.get("x-user-id")
+        if user_id:
+            metadata["user_id"] = str(user_id)[:256]
+    if metadata:
+        data["metadata"] = metadata
+    return data
+
+
+def _myra_chat_key(data, messages=None):
+    """Retorna uma chave de memória estável mesmo quando o provedor omite chat_id."""
+    metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
+    chat_id = (
+        metadata.get("chat_id")
+        or metadata.get("conversation_id")
+        or data.get("chat_id")
+        or data.get("conversation_id")
+    )
+    user_id = metadata.get("user_id") or metadata.get("user") or data.get("user") or "local-user"
+    if isinstance(user_id, dict):
+        user_id = user_id.get("id") or user_id.get("email") or "local-user"
+    if chat_id:
+        return f"{user_id}:{chat_id}"
+
+    # A API OpenAI-compatible do Open WebUI pode omitir o ID da conversa.
+    # Nesse caso, ancoramos a chave na primeira mensagem do usuário, que permanece
+    # no histórico enviado em turnos posteriores. Não usamos a última mensagem,
+    # pois ela muda a cada turno. Conversas com a mesma abertura podem colidir;
+    # quando o provedor fornece um ID explícito, ele sempre tem prioridade.
+    first_user = next(
+        (
+            _myra_message_text(item.get("content"))
+            for item in (messages or [])
+            if isinstance(item, dict) and item.get("role") == "user"
+            and _myra_message_text(item.get("content"))
+        ),
+        "",
+    )
+    if not first_user:
+        return None
+    fingerprint = hashlib.sha256(first_user.casefold().encode("utf-8")).hexdigest()[:20]
+    return f"{user_id}:derived-{fingerprint}"
+
+
+def _myra_memory_read():
+    try:
+        payload = json.loads(_MYRA_CHAT_MEMORY_PATH.read_text(encoding="utf-8"))
+        return payload if isinstance(payload, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _myra_memory_turn(key, role, content):
+    if not key or role not in {"user", "assistant"} or not str(content or "").strip():
+        return
+    with _MYRA_CHAT_MEMORY_LOCK:
+        memory = _myra_memory_read()
+        turns = memory.get(key, [])
+        if not isinstance(turns, list):
+            turns = []
+        turns.append({"role": role, "content": str(content)[:3900], "ts": int(time.time())})
+        memory[key] = turns[-(_MYRA_CHAT_MAX_TURNS * 2):]
+        try:
+            _MYRA_CHAT_MEMORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+            temp = _MYRA_CHAT_MEMORY_PATH.with_suffix(".tmp")
+            temp.write_text(json.dumps(memory, ensure_ascii=False, indent=2), encoding="utf-8")
+            temp.replace(_MYRA_CHAT_MEMORY_PATH)
+        except OSError as exc:
+            print(f"[CHAT-MEMORY] nao foi possivel salvar historico: {type(exc).__name__}")
+
+
+def _myra_explicit_action(text):
+    value = str(text or "").strip().lower()
+    if value.endswith("?") or _re.match(
+        r"^(como|o que|quem|qual|quais|por que|porque|quando|onde|how|what|who|which|why|when|where|can you explain|could you explain)\b",
+        value,
+    ):
+        return False
+    patterns = (
+        r"^(por favor,?\s*)?(abra|abrir|abre|acessa|acesse|acessar|entre no|entra no|vai para|vá para|visite|navegue para|clique|clica|clicar|digite|digita|pesquise no google|pesquisa no google|pesquisar no google|pesquise (?:no )?youtube|pesquisa (?:no )?youtube|pesquisar (?:no )?youtube|busque (?:no )?youtube|buscar (?:no )?youtube|pesquise na web|pesquisa na web|pesquisar na web|procure no google|procura no google|procure na internet|busque na web|busca na web)\b",
+        r"^(please\s+)?(open|launch|visit|go to|navigate to|click|type into|search google for|search the web for|look this up online)\b",
+    )
+    return any(_re.search(pattern, value) for pattern in patterns)
+
+
+def _myra_control_intent(text):
+    value = str(text or "").strip().lower()
+    if _re.search(r"\b(status|estado)\b.*\b(tarefa|myra)\b|\b(como está|como esta|how is)\b.*\b(tarefa|task)\b", value):
+        return "status"
+    if _re.match(r"^(por favor,?\s*)?(cancele|cancelar|cancela|cancel|stop)\b.*\b(tarefa|task|execução|execucao|running)\b", value):
+        return "cancel"
+    if _re.match(r"^(por favor,?\s*)?(pause|pausar|pausa|suspenda|suspender)\b.*\b(tarefa|task|execução|execucao)\b", value):
+        return "pause"
+    if _re.match(r"^(por favor,?\s*)?(retome|retomar|resume|continue a tarefa|retomar tarefa)\b", value):
+        match = _re.search(r"\b([A-Za-z0-9_.:-]{6,160})\b$", str(text).strip())
+        return "resume:" + match.group(1) if match else "resume"
+    return None
+
+
+def _myra_http_json(path, payload=None, timeout=30):
+    url = "http://127.0.0.1:8000" + path
+    body = None if payload is None else json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"},
+                                 method="GET" if payload is None else "POST")
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        result = json.loads(response.read().decode("utf-8"))
+    return result if isinstance(result, dict) else {"result": result}
+
+
+def _myra_ollama_call(request):
+    with urllib.request.urlopen(request, timeout=90) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+async def _myra_route_message(data, messages, user_msg, model):
+    key = _myra_chat_key(data, messages)
+    incoming = []
+    for item in messages[-24:]:
+        if not isinstance(item, dict) or item.get("role") not in {"user", "assistant", "system"}:
+            continue
+        content = _myra_message_text(item.get("content"))
+        if content:
+            incoming.append({"role": item["role"], "content": content[:3900]})
+    conversation = [m for m in incoming if m["role"] in {"user", "assistant"}]
+    persisted = _myra_memory_read().get(key, []) if key else []
+    if len(conversation) > 1:
+        history = conversation[-(_MYRA_CHAT_MAX_TURNS * 2):]
+    else:
+        history = [{"role": m.get("role"), "content": m.get("content", "")}
+                   for m in persisted if isinstance(m, dict) and m.get("role") in {"user", "assistant"}]
+        if conversation and (not history or history[-1] != conversation[-1]):
+            history.append(conversation[-1])
+        history = history[-(_MYRA_CHAT_MAX_TURNS * 2):]
+
+    answer = ""
+    control = _myra_control_intent(user_msg)
+    time_query = _re.search(
+        r"\b(que horas (?:são|sao)|qual (?:é o )?horário|horário atual|hora atual|me diga as horas|what time is it|what's the time|current time|tell me the time)\b",
+        user_msg.strip().lower(),
+    )
+
+    if control:
+        try:
+            if control == "status":
+                result = await asyncio.to_thread(_myra_http_json, "/task_status")
+                answer = "\n".join([
+                    f"Estado: {result.get('state', 'desconhecido')}",
+                    f"Objetivo: {result.get('objetivo') or '—'}",
+                    f"Passo: {result.get('passo_atual') or '—'}",
+                    *([f"Erro: {result['erro']}"] if result.get("erro") else []),
+                    *([f"Resultado: {result['resultado']}"] if result.get("resultado") else []),
+                ])
+            elif control == "cancel":
+                result = await asyncio.to_thread(_myra_http_json, "/task_cancel", {})
+                answer = str(result.get("result") or result.get("message") or "Cancelamento solicitado.")
+            elif control == "pause":
+                result = await asyncio.to_thread(_myra_http_json, "/task_pause", {})
+                answer = str(result.get("result") or result.get("message") or "Pausa solicitada.")
+            else:
+                task_id = control.partition(":")[2]
+                if not task_id or task_id.lower() in {"tarefa", "task", "retome", "retomar", "resume"}:
+                    answer = "Para retomar uma tarefa pausada, informe também o ID da tarefa."
+                elif not _re.fullmatch(r"[A-Za-z0-9_.:-]{1,160}", task_id):
+                    answer = "O ID da tarefa contém caracteres inválidos."
+                else:
+                    result = await asyncio.to_thread(_myra_http_json, "/task_resume", {"task_id": task_id, "max_passos": 30})
+                    answer = str(result.get("result") or result.get("message") or f"Retomada solicitada para {task_id}.")
+        except Exception as exc:
+            answer = f"Não consegui controlar a tarefa no backend local ({type(exc).__name__})."
+    elif time_query:
+        try:
+            result = await asyncio.to_thread(_myra_http_json, "/get_current_time", {})
+            answer = str(result.get("result") or result.get("hora") or "A ferramenta de horário não retornou um resultado.")
+        except Exception as exc:
+            answer = f"Não consegui consultar o horário atual ({type(exc).__name__})."
+    elif _myra_explicit_action(user_msg):
+        try:
+            current = await asyncio.to_thread(_myra_http_json, "/task_status")
+            if current.get("state") == "running":
+                answer = "Já existe uma tarefa em execução. " + str(current.get("objetivo") or "Consulte o status da tarefa atual.")
+            else:
+                # Mantém o pedido atual como objetivo; contexto só é anexado para referências curtas.
+                contextual = _re.search(r"\b(isso|esse|essa|ele|ela|dessa|desse|agora|continue|do that|that|it)\b", user_msg.lower())
+                objective = user_msg[:1200]
+                if contextual:
+                    previous = [m for m in history[:-1] if m.get("content")]
+                    if previous:
+                        compact = "\n".join(f"{m['role']}: {m['content'][:500]}" for m in previous[-4:])
+                        objective = f"CONTEXTO RECENTE DA CONVERSA:\n{compact}\n\nPEDIDO ATUAL:\n{objective}"
+                # Usa a rota central já existente para manter um único ciclo de task,
+                # estado, cancelamento, histórico e eventos do widget.
+                result = await asyncio.to_thread(
+                    _myra_http_json, "/task_simple", {"objetivo": objective, "max_passos": 15}, 1800
+                )
+                status = result.get("status", "desconhecido")
+                if status == "ok":
+                    answer = str(result.get("resultado_final") or "Tarefa concluída sem texto de resultado.")
+                elif status == "pausado":
+                    answer = f"Tarefa pausada. ID: {result.get('task_id') or 'não informado'}"
+                elif status == "cancelado":
+                    answer = "Tarefa cancelada."
+                else:
+                    answer = f"Tarefa {status}: {result.get('erro') or result.get('result') or 'sem detalhes'}"
+        except Exception as exc:
+            answer = f"Falha ao executar a ação ({type(exc).__name__}: {str(exc)[:300]})."
+            _widget_set(state="error", terminado_em=time.time(), erro=answer)
+    else:
+        system = (
+            "Você é MYRA, assistente pessoal local. Responda no idioma do usuário, de forma direta e natural. "
+            "Use o histórico recente para entender referências como 'isso', 'continue' e perguntas de acompanhamento. "
+            "Não afirme que executou ações sem confirmação real. Não invente fatos."
+        )
+        prompt_messages = [{"role": "system", "content": system}] + history[-24:]
+        payload = {
+            "model": _MYRA_CHAT_MODEL,
+            "messages": prompt_messages,
+            "stream": False,
+            "options": {"temperature": 0.2, "num_ctx": 4096, "num_predict": 700},
+        }
+        request = urllib.request.Request(
+            "http://127.0.0.1:11434/api/chat",
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            llm_result = await asyncio.to_thread(_myra_ollama_call, request)
+            answer = str((llm_result.get("message") or {}).get("content") or "").strip()
+            if not answer:
+                answer = "O modelo local retornou uma resposta vazia."
+        except Exception as exc:
+            answer = f"Não consegui consultar o modelo local {_MYRA_CHAT_MODEL} ({type(exc).__name__})."
+
+    if key:
+        # Persiste somente o turno atual, sem duplicar o histórico que o cliente enviou.
+        _myra_memory_turn(key, "user", user_msg)
+        _myra_memory_turn(key, "assistant", answer)
+    return answer
+
 
 
 @app.get("/v1/models")

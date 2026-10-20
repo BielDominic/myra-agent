@@ -10,6 +10,9 @@ const SETTINGS_W = 380, SETTINGS_H = 550;
 
 let lastState = null;
 let resetting = false;
+// Impede consultas assíncronas sobrepostas: uma resposta antiga "running"
+// não pode chegar depois de "done" e reabrir o estado de execução.
+let pollInFlight = false;
 
 async function setWindowSize(state) {
     const compact = document.body.dataset.compact === "on";
@@ -157,10 +160,12 @@ async function cancelTask() {
 }
 
 async function pollStatus() {
-    if (resetting) return;
+    if (resetting || pollInFlight) return;
+    pollInFlight = true;
     try {
         const status = await invoke('get_task_status');
-        if (!status) return;
+        // Um reset/cancelamento pode acontecer enquanto a consulta nativa aguarda.
+        if (resetting || !status) return;
         const state = status.state || "idle";
         window.__ultimoStatus = status;
         if (status.objetivo) window.__ultimoObjetivo = status.objetivo;
@@ -215,6 +220,7 @@ async function pollStatus() {
             }
         }
     } catch (e) { /* offline */ }
+    finally { pollInFlight = false; }
 }
 
 

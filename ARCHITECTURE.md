@@ -99,12 +99,16 @@ These are documented defaults, not a guarantee that every service is running or 
 1. The user sends a message through Open WebUI or another configured MYRA interface.
 2. Open WebUI calls the FastAPI-compatible endpoint or invokes registered tools.
 3. `agent.py` passes a task to `tasks/simple_task.py`, which selects a tool and parses its result.
-4. For a browser action, `tasks/browser_bridge.py` validates the action and arguments, writes a command to SQLite, and waits for the extension's completion.
-5. The Chrome extension polls the bridge, executes the allowed action in Chrome, then posts the result; the bridge returns it to the planner.
+4. Planner browser actions keep the published browser_* tool names but execute through Playwright wrappers in agent.py, isolated from the user's real Chrome session.
+5. The separate Browser Bridge routes remain available to clients that explicitly use them; in that flow, the Chrome extension polls the bridge, executes the allowed action in Chrome, and posts the result.
 6. For visual interaction, `computer/vision_locate.py` captures/analyses the screen using its OCR/fuzzy-match/LLM pipeline, returns coordinates, and can invoke click/type actions.
 7. For local reasoning, the configured LLM is called through Ollama on port 11434. Vision inference is served separately through llm-eyes on port 8081.
 8. The planner uses the tool result to decide the next step until it finishes, fails, or reaches the step limit. Task state/events can update the widget.
 9. After each state-changing action, `computer/observer.py` judges the outcome and `tasks/autonomy.py` verifies the goal; failures produce a recovery directive, blocked actions, or an explicit failure reason. Progress is persisted by `tasks/task_store.py`, so a task can be paused (`/task_pause`) and resumed (`/task_resume`) without losing context — including after a crash.
+
+### OpenAI-compatible chat routing
+
+POST /v1/chat/completions is the single chat entry point for the myra-agent model; the Open WebUI Pipe is not required. Ordinary questions use the configured local Ollama chat model, while explicit computer actions go through the existing POST /task_simple route so task state, cancellation, persistence, and widget events remain centralized. The planner keeps the existing browser_* tool names, but their registered implementations use the isolated Playwright browser; the Chrome extension/Browser Bridge remains available through its own routes and is not invoked by planner browser actions. Task status/control and current-time requests reuse existing backend routes. A short local chat history is stored per stable user_id/chat_id under %LOCALAPPDATA%\MYRA\myra_openwebui_chat_memory.json; explicit IDs are read from request metadata/body or headers `X-OpenWebUI-Chat-Id` / `X-OpenWebUI-User-Id`. If the provider omits IDs, MYRA falls back to a fingerprint of the first user message in the supplied history. When the client sends a full conversation, that incoming history takes precedence. Important limitation: if the provider sends only the latest message and omits all conversation IDs, reliable per-chat persistence is impossible; callers should forward a stable chat ID rather than using shared per-user history, which could mix conversations.
 
 ## Databases and persistence
 

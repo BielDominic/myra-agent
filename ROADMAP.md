@@ -978,3 +978,10 @@
 ---
 
 **Last updated:** 2026-10-16
+
+
+## FASE FUTURA - Cloud Deployment (24/7)
+- [ ] **Objetivo:** Migrar o backend (FastAPI + Telegram Bot) para um VPS (Virtual Private Server).
+- [ ] **Motivo:** Permitir que o cérebro do MYRA e o bot do Telegram fiquem online 24/7, independentemente do PC local estar ligado ou desligado.
+- [ ] **Arquitetura:** O PC local continuará sendo o 'worker' que executa as ações no navegador (Chrome + Extensão). O VPS receberá os comandos e os enfileirará. Quando o PC ligar, ele puxa a fila e executa.
+- [ ] **Status:** Aguardando conclusão das fases locais e validação total do app iOS/API Remota.

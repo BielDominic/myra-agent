@@ -5,6 +5,7 @@ needed. All computer-control commands are restricted to configured chat IDs.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import threading
@@ -20,8 +21,13 @@ DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
 DEFAULT_CHAT_MODEL = "qwen2.5:3b-instruct-q5_K_M"
 DEFAULT_OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
 CHAT_MODEL_STATE_FILE = Path(__file__).with_name(".telegram_chat_model")
+CHAT_MEMORY_FILE = Path(__file__).with_name(".telegram_chat_memory.json")
+CHAT_FIRST_MESSAGE_FILE = Path(__file__).with_name(".telegram_chat_first_messages.json")
 MAX_MESSAGE_LENGTH = 3900
+MAX_CHAT_HISTORY_TURNS = 12
 MAX_TASK_LENGTH = 1200
+FAST_CHAT_MODEL = "qwen2.5:3b-instruct-q5_K_M"
+MAX_CHAT_TOKENS = 350
 
 
 class TelegramBot:
@@ -44,9 +50,90 @@ class TelegramBot:
         self._task_lock = threading.Lock()
         self._task_running = False
         self._last_error: str | None = None
+        # Histórico curto por chat para permitir conversas com contexto sem misturar usuários.
+        self._chat_history_lock = threading.RLock()
+        self._chat_history: dict[str, list[dict[str, str]]] = self._load_persistent_chat_history()
+        self._first_user_message: dict[str, str] = self._load_first_user_messages()
         # Seletor exclusivo do Telegram: nunca altera o modelo padrão do Ollama,
         # do planner ou da interface principal da MYRA.
         self.chat_model = self._load_chat_model()
+
+    def _load_persistent_chat_history(self) -> dict[str, list[dict[str, str]]]:
+        """Restaura o contexto local do Telegram após reiniciar o backend."""
+        try:
+            payload = json.loads(CHAT_MEMORY_FILE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        if not isinstance(payload, dict):
+            return {}
+        restored: dict[str, list[dict[str, str]]] = {}
+        for chat_id, turns in payload.items():
+            if not isinstance(turns, list):
+                continue
+            valid = []
+            for turn in turns[-MAX_CHAT_HISTORY_TURNS:]:
+                if not isinstance(turn, dict) or turn.get("role") not in {"user", "assistant"}:
+                    continue
+                content = turn.get("content")
+                if isinstance(content, str) and content.strip():
+                    valid.append({"role": turn["role"], "content": content[:MAX_MESSAGE_LENGTH]})
+            if valid:
+                restored[str(chat_id)] = valid
+        return restored
+
+    def _load_first_user_messages(self) -> dict[str, str]:
+        """Carrega o primeiro texto de usuário de cada conversa, sem o limite do histórico curto."""
+        try:
+            payload = json.loads(CHAT_FIRST_MESSAGE_FILE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        if not isinstance(payload, dict):
+            return {}
+        return {
+            str(chat_id): str(message)[:MAX_MESSAGE_LENGTH]
+            for chat_id, message in payload.items()
+            if isinstance(message, str) and message.strip()
+        }
+
+    def _persist_first_user_messages_locked(self) -> None:
+        temporary = CHAT_FIRST_MESSAGE_FILE.with_suffix(".json.tmp")
+        try:
+            CHAT_FIRST_MESSAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            temporary.write_text(
+                json.dumps(self._first_user_message, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            temporary.replace(CHAT_FIRST_MESSAGE_FILE)
+        except OSError as exc:
+            self._last_error = f"first_message_save: {type(exc).__name__}"
+
+    def _persist_chat_history_locked(self) -> None:
+        """Persiste somente o histórico curto e separado por chat em arquivo local."""
+        temporary = CHAT_MEMORY_FILE.with_suffix(".json.tmp")
+        try:
+            CHAT_MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+            temporary.write_text(
+                json.dumps(self._chat_history, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            temporary.replace(CHAT_MEMORY_FILE)
+        except OSError as exc:
+            self._last_error = f"chat_memory_save: {type(exc).__name__}"
+
+    def _remember_chat_turn(self, chat_id: str | int, role: str, content: str) -> None:
+        """Guarda mensagens e resultados de tarefas para perguntas de acompanhamento."""
+        clean_content = str(content or "").strip()[:MAX_MESSAGE_LENGTH]
+        if role not in {"user", "assistant"} or not clean_content:
+            return
+        key = str(chat_id)
+        with self._chat_history_lock:
+            if role == "user" and not clean_content.startswith("/") and key not in self._first_user_message:
+                self._first_user_message[key] = clean_content
+                self._persist_first_user_messages_locked()
+            history = self._chat_history.setdefault(key, [])
+            history.append({"role": role, "content": clean_content})
+            self._chat_history[key] = history[-MAX_CHAT_HISTORY_TURNS:]
+            self._persist_chat_history_locked()
 
     @classmethod
     def from_env(cls) -> "TelegramBot":
@@ -113,10 +200,13 @@ class TelegramBot:
             raise RuntimeError("Telegram API recusou a operacao.")
         return payload
 
-    def _send_message(self, chat_id: str | int, text: str) -> bool:
+    def _send_message(self, chat_id: str | int, text: str, *, reply_markup: dict | None = None) -> bool:
         content = str(text or "Sem resposta.")[:MAX_MESSAGE_LENGTH]
+        payload = {"chat_id": str(chat_id), "text": content}
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
         try:
-            self._telegram("sendMessage", data={"chat_id": str(chat_id), "text": content})
+            self._telegram("sendMessage", data=payload)
             return True
         except Exception as exc:
             self._last_error = f"sendMessage: {type(exc).__name__}"
@@ -161,6 +251,22 @@ class TelegramBot:
         models = payload.get("models", []) if isinstance(payload, dict) else []
         return [item for item in models if isinstance(item, dict) and item.get("name")]
 
+    def _model_keyboard(self, models: list[dict] | None = None) -> dict | None:
+        """Cria botões inline para selecionar um modelo instalado no Ollama."""
+        try:
+            available = models if models is not None else self._ollama_models()
+        except Exception:
+            return None
+        rows = []
+        for item in available[:60]:
+            name = str(item.get("name", ""))
+            # O Telegram limita callback_data a 64 bytes.
+            if not name or len(("model:" + name).encode("utf-8")) > 64:
+                continue
+            label = ("✓ " if name == self.chat_model else "") + name
+            rows.append([{"text": label[:60], "callback_data": "model:" + name}])
+        return {"inline_keyboard": rows} if rows else None
+
     def _set_chat_model(self, model_name: str) -> tuple[bool, str]:
         """Troca e persiste o modelo de conversa deste bot, validando-o no Ollama."""
         requested = model_name.strip()
@@ -192,7 +298,7 @@ class TelegramBot:
                 "prompt": prompt,
                 "system": system,
                 "stream": False,
-                "options": {"temperature": 0.2, "num_ctx": 4096, "num_predict": num_predict},
+                "options": {"temperature": 0.2, "num_ctx": 3072, "num_predict": num_predict},
             },
             timeout=timeout,
         )
@@ -229,26 +335,242 @@ class TelegramBot:
             self._last_error = f"intent_router: {type(exc).__name__}"
             return "CHAT"
 
-    def _chat(self, user_text: str) -> str:
-        """Gera resposta conversacional usando somente o Ollama local."""
-        return self._ollama_generate(
-            user_text[:MAX_TASK_LENGTH],
-            system=(
-                "Você é MYRA, uma assistente pessoal local. Responda de forma natural, útil e concisa "
-                "no idioma do usuário. Esta mensagem é conversa; não afirme que executou ações no computador."
-            ),
-            timeout=120,
-            num_predict=700,
-            model=self.chat_model,
+    def _chat(self, user_text: str, chat_id: str | None = None) -> str:
+        """Conversa com o Ollama local mantendo contexto recente separado por chat."""
+        key = str(chat_id or "__default__")
+        clean_text = user_text[:MAX_TASK_LENGTH]
+        # Serializa a geração para manter a ordem do histórico quando chegam mensagens seguidas.
+        with self._chat_history_lock:
+            history = self._chat_history.get(key, [])
+
+            # Perguntas sobre o início da conversa devem ser respondidas pelo registro,
+            # nunca pela memória gerada livremente pelo modelo.
+            asks_first = re.search(
+                r"\b(primeira pergunta|primeira mensagem|o que eu perguntei primeiro|"
+                r"qual foi minha primeira|what was my first question|my first message)\b",
+                clean_text,
+                re.IGNORECASE,
+            )
+            if asks_first:
+                first_user_message = self._first_user_message.get(key) or next(
+                    (
+                        str(turn.get("content", "")).strip()
+                        for turn in history
+                        if turn.get("role") == "user"
+                        and str(turn.get("content", "")).strip()
+                        and not str(turn.get("content", "")).strip().startswith("/")
+                    ),
+                    None,
+                )
+                if first_user_message:
+                    if key not in self._first_user_message:
+                        self._first_user_message[key] = first_user_message[:MAX_MESSAGE_LENGTH]
+                        self._persist_first_user_messages_locked()
+                    answer = (
+                        "A primeira mensagem de usuário que consta no histórico salvo desta conversa é: "
+                        f"“{first_user_message}”. Se você apagou mensagens manualmente no Telegram, "
+                        "isso não limpa automaticamente a memória local; use /newchat para começar "
+                        "um histórico novo."
+                    )
+                else:
+                    answer = (
+                        "Não há uma pergunta anterior registrada neste histórico, então não vou adivinhar. "
+                        "Use /newchat para iniciar uma conversa com histórico limpo."
+                    )
+                updated = history + [
+                    {"role": "user", "content": clean_text},
+                    {"role": "assistant", "content": answer[:MAX_MESSAGE_LENGTH]},
+                ]
+                self._chat_history[key] = updated[-MAX_CHAT_HISTORY_TURNS:]
+                self._persist_chat_history_locked()
+                return answer
+
+            if clean_text.strip() and not clean_text.strip().startswith("/") and key not in self._first_user_message:
+                self._first_user_message[key] = clean_text.strip()[:MAX_MESSAGE_LENGTH]
+                self._persist_first_user_messages_locked()
+
+            transcript = []
+            for turn in history[-12:]:
+                role = "Usuário" if turn["role"] == "user" else "MYRA"
+                transcript.append(f"{role}: {turn['content']}")
+            transcript.append(f"Usuário: {clean_text}")
+            prompt = (
+                "Você está no meio de uma conversa contínua. Considere o histórico inteiro, incluindo "
+                "respostas anteriores e resultados de pesquisas/tarefas já executadas. Mensagens curtas como "
+                "'quero um passo a passo', 'detalhe', 'continue' ou 'me explica melhor' normalmente se referem "
+                "ao assunto anterior: resolva essa referência usando o contexto, sem pedir o tema novamente "
+                "quando ele estiver disponível. Não inicie pesquisas nem ações no computador, a menos que o "
+                "usuário peça explicitamente uma nova ação. Responda somente à última mensagem.\n\n"
+                + "\n".join(transcript)
+                + "\nMYRA:"
+            )
+            answer = self._ollama_generate(
+                prompt,
+                system=(
+                    "Você é MYRA, uma assistente pessoal local. Responda de forma direta, natural e útil, "
+                    "no idioma do usuário, respeitando o estilo do modelo selecionado. Evite moralizar, dar sermões, "
+                    "recusar por padrão, ou repetir avisos genéricos e ressalvas desnecessárias. Trate temas controversos, "
+                    "sensíveis, políticos e adultos com neutralidade e sem censura artificial; responda ao pedido concreto "
+                    "sempre que possível. Se houver incerteza, diga isso objetivamente e sem exagerar. Não invente fatos "
+                    "nem afirme que executou ações no computador sem confirmação real."
+                ),
+                timeout=90,
+                num_predict=MAX_CHAT_TOKENS,
+                model=self.chat_model,
+            )
+            updated = history + [
+                {"role": "user", "content": clean_text},
+                {"role": "assistant", "content": answer[:MAX_MESSAGE_LENGTH]},
+            ]
+            self._chat_history[key] = updated[-MAX_CHAT_HISTORY_TURNS:]
+            self._persist_chat_history_locked()
+            return answer
+
+    @staticmethod
+    def _is_explicit_computer_action(user_text: str) -> bool:
+        """Só encaminha ao computador pedidos formulados explicitamente como comandos."""
+        text = user_text.strip().lower()
+        # Perguntas informativas nunca devem abrir o navegador por decisão do classificador.
+        if text.endswith("?") or re.match(
+            r"^(como|o que|o que é|quem|qual|quais|por que|porque|quando|onde|"
+            r"how|what|who|which|why|when|where|can you explain|could you explain)\b",
+            text,
+        ):
+            return False
+        patterns = (
+            r"^(por favor,?\s*)?(abra|abrir|abre|acessa|acesse|acessar|entre no|entra no|"
+            r"vai para|vá para|visite|navegue para|clique|clica|clicar|digite|digita|"
+            r"pesquise no google|pesquisa no google|pesquisar no google|"
+            r"pesquise na web|pesquisa na web|pesquisar na web|"
+            r"procure no google|procura no google|procure na internet|"
+            r"busque na web|busca na web)\b",
+            r"^(please\s+)?(open|launch|visit|go to|navigate to|click|type into|"
+            r"search google for|search the web for|look this up online)\b",
         )
+        return any(re.search(pattern, text) for pattern in patterns)
+
+    @staticmethod
+    def _direct_open_target(user_text: str) -> str | None:
+        """Resolve pedidos simples de abrir um site sem chamar o planner de tarefas."""
+        text = user_text.strip().lower().strip(" .!?")
+        patterns = (
+            r"^(?:por favor,?\s*)?(?:abra|abrir|abre|acesse|acessa|acessar|visite|visitar|"
+            r"entre no|entra no|vai para|vá para|navegue para)\s+(?:o\s+)?(.+)$",
+            r"^(?:please\s+)?(?:open|launch|visit|go to|navigate to)\s+(.+)$",
+        )
+        target = None
+        for pattern in patterns:
+            match = re.match(pattern, text)
+            if match:
+                target = match.group(1).strip().strip(" .!?")
+                break
+        if not target:
+            return None
+        aliases = {
+            "google": "https://www.google.com", "google.com": "https://www.google.com",
+            "o google": "https://www.google.com", "youtube": "https://www.youtube.com",
+            "youtube.com": "https://www.youtube.com", "gmail": "https://mail.google.com",
+            "google maps": "https://maps.google.com", "google drive": "https://drive.google.com",
+            "chatgpt": "https://chatgpt.com", "github": "https://github.com",
+            "facebook": "https://www.facebook.com", "instagram": "https://www.instagram.com",
+        }
+        if target in aliases:
+            return aliases[target]
+        if re.fullmatch(r"(?:https?://)?(?:[a-z0-9-]+\\.)+[a-z]{2,}(?:/[^\\s]*)?", target):
+            return target if target.startswith(("http://", "https://")) else "https://" + target
+        return None
+
+    @staticmethod
+    def _extract_weather_city(user_text: str) -> str | None:
+        """Reconhece pedidos de clima/previsao para roteá-los à ferramenta real da MYRA."""
+        text = user_text.strip()
+        weather_pattern = r"\b(tempo|clima|previs[aã]o|forecast|weather|temperature|temperatura)\b"
+        if not re.search(weather_pattern, text, re.IGNORECASE):
+            return None
+        # Explicações conceituais sobre meteorologia não devem disparar uma consulta ao clima.
+        if re.search(r"\b(como funciona|explique|explica|what is|how does|explain)\b", text, re.IGNORECASE):
+            return None
+        # Extrai o local depois de uma preposição comum, removendo o horizonte temporal.
+        match = re.search(r"\b(?:em|no|na|nos|nas|in|at|for)\s+(.+)$", text, re.IGNORECASE)
+        if not match:
+            return ""
+        city = match.group(1).strip(" .?!,;:")
+        city = re.split(
+            r"\b(?:pela?\s+pr[oó]xima|pr[oó]xima|esta|essa|na\s+pr[oó]xima|"
+            r"para\s+os\s+pr[oó]ximos|nos\s+pr[oó]ximos|para\s+amanh[ãa]|"
+            r"amanh[ãa]|hoje|next\s+week|next\s+7\s+days|for\s+the\s+next|"
+            r"tomorrow|today|this\s+week)\b",
+            city,
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )[0].strip(" .?!,;:")
+        return city
 
     def _route_text_message(self, chat_id: str, user_text: str) -> None:
-        intent = self._classify_intent(user_text)
-        if intent == "ACAO":
+        # Pedido comum de VPN é informativo e deve receber uma opção concreta, não uma recusa.
+        lower_text = user_text.casefold()
+        if (
+            re.search(r"\bvpn\b", lower_text)
+            and re.search(r"\b(brasileir[oa]|brasil|brazil|brazilian)\b", lower_text)
+            and re.search(r"\b(gr[aá]tis|gratuito|gratuita|free|tempor[aá]rio|temporary)\b", lower_text)
+        ):
+            answer = (
+                "Uma opção para testar é o PrivadoVPN Free: o provedor anuncia 10 GB por mês e "
+                "inclui o Brasil entre as localizações gratuitas. Depois de criar a conta, abra a lista "
+                "de servidores e confirme que “Brazil / São Paulo” aparece como opção gratuita antes "
+                "de conectar.\n\n"
+                "Site oficial: https://www.privadovpn.com/pt/freevpn/\n\n"
+                "Se você só precisa de uma VPN grátis sem limite de dados, o Proton VPN Free é outra "
+                "opção, mas não oferece servidor brasileiro no plano gratuito. Evite apps desconhecidos "
+                "que prometem VPN grátis ilimitada e pedem para compartilhar senhas."
+            )
+            self._remember_chat_turn(chat_id, "user", user_text)
+            self._remember_chat_turn(chat_id, "assistant", answer)
+            self._send_message(chat_id, answer)
+            return
+
+        # Perguntas meteorológicas precisam consultar a fonte real, não o modelo de conversa.
+        weather_city = self._extract_weather_city(user_text)
+        if weather_city is not None:
+            self._remember_chat_turn(chat_id, "user", user_text)
+            try:
+                result = self._agent_request(
+                    "POST", "/get_weather", {"cidade": weather_city}, timeout=25
+                )
+                answer = self._short_result(
+                    result,
+                    "Não consegui obter a previsão meteorológica agora.",
+                )
+                self._remember_chat_turn(chat_id, "assistant", answer)
+                self._send_message(chat_id, answer)
+            except Exception as exc:
+                self._last_error = f"weather: {type(exc).__name__}"
+                self._send_message(
+                    chat_id,
+                    "Não consegui consultar a previsão meteorológica no backend da MYRA. "
+                    "Verifique se o serviço local está disponível.",
+                )
+            return
+        # Navegação simples é uma chamada direta; não deve virar uma pesquisa por suas próprias palavras.
+        direct_url = self._direct_open_target(user_text)
+        if direct_url:
+            self._remember_chat_turn(chat_id, "user", user_text)
+            try:
+                result = self._agent_request("POST", "/open_url", {"url": direct_url}, timeout=20)
+                answer = self._short_result(result, f"Abri {direct_url}.")
+                self._remember_chat_turn(chat_id, "assistant", answer)
+                self._send_message(chat_id, answer)
+            except Exception as exc:
+                self._send_message(chat_id, f"Não consegui abrir {direct_url}: {type(exc).__name__}.")
+            return
+        # Não deixe um modelo classificador transformar perguntas em ações no computador.
+        # O executor só é acionado por pedidos de ação explícitos; o restante é conversa local.
+        if self._is_explicit_computer_action(user_text):
+            self._remember_chat_turn(chat_id, "user", user_text)
             self._start_routed_task(chat_id, user_text)
             return
         try:
-            self._send_message(chat_id, self._chat(user_text))
+            self._send_message(chat_id, self._chat(user_text, chat_id=chat_id))
         except Exception as exc:
             self._last_error = f"chat: {type(exc).__name__}"
             self._send_message(
@@ -283,6 +605,28 @@ class TelegramBot:
         ).start()
 
     def handle_update(self, update: dict) -> None:
+        callback = update.get("callback_query")
+        if isinstance(callback, dict):
+            message = callback.get("message") or {}
+            chat = message.get("chat") or {}
+            chat_id = str(chat.get("id", ""))
+            callback_id = str(callback.get("id", ""))
+            data = str(callback.get("data") or "")
+            if not chat_id or chat_id not in self.allowed_chat_ids:
+                return
+            if data.startswith("model:"):
+                model_name = data[len("model:"):]
+                ok, result = self._set_chat_model(model_name)
+                try:
+                    self._telegram("answerCallbackQuery", data={
+                        "callback_query_id": callback_id,
+                        "text": ("Modelo selecionado." if ok else result[:180]),
+                    })
+                except Exception:
+                    pass
+                self._send_message(chat_id, result)
+            return
+
         message = update.get("message") or update.get("edited_message")
         if not isinstance(message, dict):
             return
@@ -315,6 +659,7 @@ class TelegramBot:
                 chat_id,
                 "MYRA local — lista de comandos:\n"
                 "/help ou /commands — mostrar esta lista\n"
+                "/newchat — limpar o histórico conversacional deste chat e começar do zero\n"
                 "Conversa livre — responder pelo modelo de chat do Telegram ou executar uma ação\n"
                 "/task <objetivo> — executar uma tarefa diretamente\n"
                 "/status — estado da tarefa atual\n"
@@ -330,26 +675,46 @@ class TelegramBot:
                 "/model — ver o modelo de chat atual\n"
                 "/model <nome> — trocar o modelo de chat somente neste bot",
             )
+        elif command in {"newchat", "resetchat"}:
+            with self._chat_history_lock:
+                self._chat_history.pop(chat_id, None)
+                self._first_user_message.pop(chat_id, None)
+                self._persist_chat_history_locked()
+                self._persist_first_user_messages_locked()
+            self._send_message(
+                chat_id,
+                "Histórico conversacional deste chat apagado. Vamos começar do zero. "
+                "Isso não apaga arquivos nem outras memórias persistentes da MYRA."
+            )
         elif command == "models":
             try:
                 models = self._ollama_models()
                 if not models:
                     self._send_message(chat_id, "Nenhum modelo foi listado pelo Ollama. Verifique se ele está iniciado e use ollama list.")
                     return
-                lines = ["Modelos instalados no Ollama:"]
+                lines = ["Escolha o modelo de conversa do Telegram tocando em um botão."]
                 for item in models[:60]:
                     name = str(item.get("name", ""))
                     size = item.get("size")
                     size_text = f" — {size / (1024 ** 3):.1f} GB" if isinstance(size, (int, float)) and size > 0 else ""
-                    current = " (modelo atual do bot)" if name == self.chat_model else ""
+                    current = " ✓ atual" if name == self.chat_model else ""
                     lines.append(f"• {name}{size_text}{current}")
-                lines.append("Para trocar: /model nome-exato-do-modelo")
-                self._send_message(chat_id, "\n".join(lines))
+                keyboard = self._model_keyboard(models)
+                self._send_message(chat_id, "\n".join(lines), reply_markup=keyboard)
             except Exception as exc:
                 self._send_message(chat_id, f"Falha ao listar modelos do Ollama: {type(exc).__name__}.")
         elif command == "model":
             if not argument:
-                self._send_message(chat_id, f"Modelo de chat do Telegram: {self.chat_model}\nUse /models para listar opções ou /model <nome> para trocar. A MYRA principal não é alterada.")
+                try:
+                    models = self._ollama_models()
+                    keyboard = self._model_keyboard(models)
+                    self._send_message(
+                        chat_id,
+                        f"Modelo atual do Telegram: {self.chat_model}\nToque em um botão para trocar. A MYRA principal não será alterada.",
+                        reply_markup=keyboard,
+                    )
+                except Exception as exc:
+                    self._send_message(chat_id, f"Falha ao listar modelos do Ollama: {type(exc).__name__}.")
             else:
                 ok, message = self._set_chat_model(argument)
                 self._send_message(chat_id, message)
@@ -445,6 +810,7 @@ class TelegramBot:
                     self._send_message(chat_id, "Ja existe um comando /task em andamento.")
                     return
                 self._task_running = True
+            self._remember_chat_turn(chat_id, "user", f"/task {argument}")
             self._send_message(chat_id, "Tarefa recebida. MYRA vai executa-la; use /status para acompanhar.")
             threading.Thread(
                 target=self._run_task,
@@ -492,6 +858,8 @@ class TelegramBot:
             )
             state = result.get("status", "concluida")
             text = self._short_result(result, "Tarefa finalizada.")
+            task_summary = f"Resultado da tarefa '{objective}': estado {state}. {text}"
+            self._remember_chat_turn(chat_id, "assistant", task_summary)
             self._send_message(chat_id, f"Tarefa {state}.\n{text}")
         except Exception as exc:
             self._send_message(chat_id, f"A tarefa terminou com erro de comunicacao: {type(exc).__name__}.")
@@ -525,7 +893,7 @@ class TelegramBot:
             try:
                 payload = self._telegram(
                     "getUpdates",
-                    params={"offset": self._offset, "timeout": 25, "allowed_updates": '["message"]'},
+                    params={"offset": self._offset, "timeout": 25, "allowed_updates": '["message","callback_query"]'},
                     timeout=35,
                 )
                 for update in payload.get("result", []):
@@ -534,6 +902,17 @@ class TelegramBot:
                     except Exception as exc:
                         self._last_error = f"update: {type(exc).__name__}"
                     self._offset = max(self._offset, int(update.get("update_id", 0)) + 1)
+            except requests.exceptions.HTTPError as exc:
+                response = exc.response
+                status = getattr(response, "status_code", "unknown")
+                try:
+                    payload = response.json() if response is not None else {}
+                    detail = str(payload.get("description", ""))[:120] if isinstance(payload, dict) else ""
+                except Exception:
+                    detail = ""
+                suffix = f" {detail}" if detail else ""
+                self._last_error = f"polling: HTTP {status}{suffix}"[:180]
+                self._stop_event.wait(3)
             except Exception as exc:
                 self._last_error = f"polling: {type(exc).__name__}"
                 self._stop_event.wait(3)

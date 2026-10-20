@@ -233,6 +233,10 @@ def _formatar_historico(historico: list) -> str:
             if isinstance(res, dict):
                 if "tables" in res or "text" in res:
                     res_str = _formatar_resultado(res)
+                elif any(chave not in {"status", "result"} for chave in res):
+                    # Preserva metadados estruturados (ex.: title, url, count e results)
+                    # para que a síntese não ignore evidências devolvidas pela ferramenta.
+                    res_str = json.dumps(res, ensure_ascii=False)
                 else:
                     res_str = res.get("result", json.dumps(res, ensure_ascii=False))
             else:
@@ -252,7 +256,7 @@ def _decidir_proximo_passo(
     diretriz_recuperacao: str = "",
     acoes_bloqueadas: list | None = None,
 ) -> dict:
-    # Em pedidos de navegação, priorize operar no navegador visível do usuário.
+    # Em pedidos de navegação, priorize o navegador Playwright local isolado.
     # Mantemos as ferramentas de pesquisa disponíveis para outros tipos de objetivo.
     objetivo_lower = objetivo.lower()
     termos_navegacao = ("abre", "abra", "abrir", "navega", "visita", "acesse", "acessa", "vai para", "entre no site", "entre em", "no navegador", "chrome", "pesquise")
@@ -296,6 +300,7 @@ def _decidir_proximo_passo(
     system = (
         "Voce e um agente autonomo que decide UM passo por vez. "
         "Olhe o objetivo e o historico, e escolha a MELHOR proxima acao. "
+        "As ferramentas browser_* do registro MYRA operam no Playwright local isolado, nunca na sessão real do Chrome. "
         "Responda SEMPRE com JSON puro, sem texto antes ou depois."
     )
 
@@ -392,9 +397,8 @@ OUTRAS REGRAS:
 - So finalize com EVIDENCIA observavel nos resultados; se as OBSERVACOES/VERIFICACOES mostrarem falha, tente outra estrategia antes de finalizar.
 - Se houver DIRETRIZ DE RECUPERACAO, siga-a e nunca repita uma ACAO BLOQUEADA.
 - Se o observer indicar "objetivo_atingido: true" e "sucesso: true", pode finalizar.
-- Se o usuario pedir para preencher ou digitar em campo de pagina aberta, use browser_type_text com campo e texto; leia a pagina primeiro se nao estiver claro.
-- Se o usuario mencionar site, dominio ou trecho de URL, use browser_read_active_tab com url_contains correspondente.
-- Para "leia o que esta aberto no Chrome" sem indicar site, use browser_read_active_tab sem url_contains.
+- Se o usuario pedir para preencher ou digitar em campo de pagina aberta, use browser_type_text; leia a pagina primeiro se nao estiver claro.
+- Para ler a pagina atual, use browser_read_active_tab ou browser_read_page.
 - Se um passo devolveu links/URLs, use browser_new_tab para abrir ou browser_read_page para ler.
 - DIFERENCA CRITICA: read_page_structured le o DOM/HTML. vision_locate/vision_click/vision_type olham os PIXELS. Use vision_* para CLICAR em algo visual.
 

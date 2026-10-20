@@ -4,6 +4,16 @@ Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
+### Added
+- Roteamento central do myra-agent em /v1/chat/completions; o Pipe MYRA Local foi removido do Open WebUI.
+- Memória curta por conversa, separada por user_id/chat_id, armazenada localmente em %LOCALAPPDATA%\\MYRA\\myra_openwebui_chat_memory.json.
+- Testes de roteamento, separação de memória, IDs explícitos e encaminhamento de identidade por headers.
+
+### Changed
+- Ações explícitas chamam a rota existente /task_simple em thread, mantendo um único ciclo de task, persistência, cancelamento e atualização do widget.
+- Os 12 nomes browser_* existentes foram preservados, mas suas implementações no registro do planner agora usam Playwright isolado; a extensão/Browser Bridge continua disponível pelas rotas próprias, fora do fluxo do modelo.
+- Chamadas internas ao backend e ao Ollama não bloqueiam o event loop.
+
 ### Fixed
 - **Segurança — path traversal nas rotas de ficheiros:** o guard usava `os.path.abspath(destino).startswith(os.path.abspath(WORKSPACE_DIR))`, que aceita prefixos irmãos (`..\workspace_evil\x`) e permitia ler, escrever, mover e apagar ficheiros fora do workspace. Substituído por `agent.caminho_no_workspace()`, que usa `os.path.commonpath` (7 pontos de uso: list_dir, read_file, write_file, delete_file, create_dir, move_file, code_run_file).
 - **Robustez — unicode no stdout:** imprimir um emoji (ex.: nome de ficheiro vindo do planner) levantava `UnicodeEncodeError` com a consola cp1252 e derrubava a rota com HTTP 500. `stdout`/`stderr` passam a ser reconfigurados para UTF-8 com `errors="replace"` no arranque do `agent.py`.

@@ -159,17 +159,59 @@ def test_free_text_chat_uses_local_ollama_and_sends_answer():
     assert not any(call[1].endswith("/task_simple") for call in http.calls)
 
 
-def test_free_text_action_routes_to_task_simple_path():
+def test_chat_keeps_recent_context_per_chat():
     http = FakeHTTP()
-    http.intent_response = "ACAO"
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+
+    bot._chat("Meu nome é Gabriel.", chat_id="123")
+    bot._chat("Qual é o meu nome?", chat_id="123")
+    bot._chat("Qual é o meu nome?", chat_id="456")
+
+    calls = [call for call in http.calls if "127.0.0.1:11434/api/generate" in call[1]]
+    assert "Usuário: Meu nome é Gabriel." in calls[1][2]["prompt"]
+    assert "Usuário: Qual é o meu nome?" in calls[1][2]["prompt"]
+    assert "Meu nome é Gabriel." not in calls[2][2]["prompt"]
+
+
+def test_open_google_routes_directly_not_through_generic_task():
+    http = FakeHTTP()
     bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
     routed = []
     bot._start_routed_task = lambda chat_id, objective: routed.append((chat_id, objective))
 
     bot._route_text_message("123", "Abra o Google")
 
-    assert routed == [("123", "Abra o Google")]
+    opened = [call for call in http.calls if call[1].endswith("/open_url")]
+    assert len(opened) == 1
+    assert opened[0][2] == {"url": "https://www.google.com"}
+    assert routed == []
+    assert not any("127.0.0.1:11434/api/generate" in call[1] for call in http.calls)
+
+
+def test_information_question_never_routes_to_computer_even_if_classifier_would():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    routed = []
+    bot._start_routed_task = lambda chat_id, objective: routed.append((chat_id, objective))
+    bot._classify_intent = lambda text: "ACAO"
+
+    bot._route_text_message("123", "Como plantar tomates em vasos?")
+
+    sent = [call for call in http.calls if "/sendMessage" in call[1]]
+    assert "Python é uma linguagem de programação." in sent[-1][2]["text"]
+    assert routed == []
     assert not any(call[1].endswith("/task_simple") for call in http.calls)
+
+
+def test_explicit_web_search_command_routes_to_computer():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    routed = []
+    bot._start_routed_task = lambda chat_id, objective: routed.append((chat_id, objective))
+
+    bot._route_text_message("123", "Pesquise na web como plantar tomates")
+
+    assert routed == [("123", "Pesquise na web como plantar tomates")]
 
 
 def test_uncertain_intent_defaults_to_chat_not_computer_action():
@@ -183,10 +225,36 @@ def test_uncertain_intent_defaults_to_chat_not_computer_action():
 def test_models_command_lists_local_models_and_current_selection():
     http = FakeHTTP()
     bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    bot.chat_model = "qwen2.5:3b-instruct-q5_K_M"
     bot.handle_update(update(123, "/models"))
     sent = [call for call in http.calls if "/sendMessage" in call[1]]
     assert "llama3.2:3b" in sent[-1][2]["text"]
     assert bot.chat_model in sent[-1][2]["text"]
+    keyboard = sent[-1][2]["reply_markup"]["inline_keyboard"]
+    assert any(button["callback_data"] == "model:llama3.2:3b" for row in keyboard for button in row)
+
+
+def test_model_button_changes_only_telegram_chat_model(monkeypatch, tmp_path):
+    import tasks.telegram_bot as telegram_module
+
+    state_file = tmp_path / ".telegram_chat_model"
+    monkeypatch.setattr(telegram_module, "CHAT_MODEL_STATE_FILE", state_file)
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    bot.handle_update({
+        "update_id": 8,
+        "callback_query": {
+            "id": "callback-1",
+            "data": "model:llama3.2:3b",
+            "message": {"chat": {"id": 123}},
+        },
+    })
+
+    assert bot.chat_model == "llama3.2:3b"
+    assert state_file.read_text(encoding="utf-8") == "llama3.2:3b"
+    assert any("/answerCallbackQuery" in call[1] for call in http.calls)
+    sent = [call for call in http.calls if "/sendMessage" in call[1]]
+    assert "A MYRA principal não foi alterada" in sent[-1][2]["text"]
 
 
 def test_model_command_changes_only_telegram_chat_model(monkeypatch, tmp_path):
@@ -264,3 +332,52 @@ def test_task_command_still_bypasses_intent_router():
     assert done.wait(1)
     assert called == [("123", "abra o Google")]
     assert not any("127.0.0.1:11434/api/generate" in call[1] for call in http.calls)
+
+
+def test_task_result_and_followup_context_persist_across_restart(monkeypatch, tmp_path):
+    import tasks.telegram_bot as telegram_module
+
+    memory_file = tmp_path / ".telegram_chat_memory.json"
+    monkeypatch.setattr(telegram_module, "CHAT_MEMORY_FILE", memory_file)
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+
+    bot._remember_chat_turn("123", "user", "Pesquise como plantar tomates")
+    bot._run_task("123", "Pesquise como plantar tomates")
+
+    # Simula reiniciar o bot/backend: o contexto deve voltar do arquivo local.
+    restarted_bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    assert "Pesquise como plantar tomates" in str(restarted_bot._chat_history["123"])
+    assert "Tarefa concluida" in str(restarted_bot._chat_history["123"])
+
+    restarted_bot._chat("Quero um passo a passo", chat_id="123")
+    generate_calls = [
+        call for call in http.calls
+        if "127.0.0.1:11434/api/generate" in call[1]
+    ]
+    prompt = generate_calls[-1][2]["prompt"]
+    assert "Pesquise como plantar tomates" in prompt
+    assert "Tarefa concluida" in prompt
+    assert "Quero um passo a passo" in prompt
+
+
+def test_open_google_uses_direct_open_url_not_search_or_generic_task():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    routed = []
+    bot._start_routed_task = lambda chat_id, objective: routed.append((chat_id, objective))
+
+    bot._route_text_message("123", "Abra o Google")
+
+    opened = [call for call in http.calls if call[1].endswith("/open_url")]
+    assert len(opened) == 1
+    assert opened[0][2] == {"url": "https://www.google.com"}
+    assert routed == []
+    assert not any(call[1].endswith("/search_google") or call[1].endswith("/task_simple") for call in http.calls)
+
+
+def test_direct_open_target_resolves_common_sites():
+    assert TelegramBot._direct_open_target("Abra o Google") == "https://www.google.com"
+    assert TelegramBot._direct_open_target("Abra o YouTube") == "https://www.youtube.com"
+    assert TelegramBot._direct_open_target("Open GitHub") == "https://github.com"
+    assert TelegramBot._direct_open_target("Pesquise no Google por tomates") is None
