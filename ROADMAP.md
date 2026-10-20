@@ -1,9 +1,9 @@
 # MYRA - Roadmap
 
-[![Progress](https://img.shields.io/badge/Progress-72%25-orange?style=flat-square)]()
+[![Progress](https://img.shields.io/badge/Progress-32%25-orange?style=flat-square)]()
 [![Active Phase](https://img.shields.io/badge/Active_Phase-26-blue?style=flat-square)]()
 [![Phases](https://img.shields.io/badge/Phases-31-purple?style=flat-square)]()
-[![Updated](https://img.shields.io/badge/Updated-2026-10-16-lightgrey?style=flat-square)]()
+[![Updated](https://img.shields.io/badge/Updated-2026-10-20-lightgrey?style=flat-square)]()
 [![Language](https://img.shields.io/badge/Language-PT--BR_%7C_EN-green?style=flat-square)]()
 
 **Documentacao disponivel em:** [Portugues](#portugues) | [English](#english)
@@ -138,9 +138,11 @@
 - [x] Testes do ciclo: `tests/` com 43 testes (`python -m unittest discover -s tests -t .`) cobrindo verificacao, recuperacao, pausa/retomada, retomada apos crash, erros e rotas HTTP.
 - [x] Validacao end-to-end com Ollama real (`qwen2.5:7b`): criacao de arquivo concluida por evidencia do observer, falha com motivo explicito e pausa/retomada com contexto preservado (executada em 2026-10-15).
 - [x] Observacao com screenshot dedicado no observer, fallback textual se captura/modelo visual falhar.
+- [ ] Corrigir Unicode/encoding no `computer/vision_locate.py` quando executado fora do `agent.py` (ex.: U+2463 em console cp1252).
+- [ ] Corrigir falso sucesso de `vision_locate`/`vision_click`/`vision_type` quando o alvo nao e encontrado; o planner deve tratar como falha recuperavel.
 
 #### FASE 27 - Overlay Visual TARS
-![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
+![Concluida](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)
 
 **Meta:** ver o cursor animado, highlight, borda ativa
 
@@ -459,8 +461,8 @@
 | Autonomia (FASE 22.x + 24.x) | 18 | ![80%](https://img.shields.io/badge/-80%25-brightgreen?style=flat-square) |
 | Visao com coordenadas (FASE 25) | 6 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
 | Ciclo autonomo (FASE 26) | 5 | ![80%](https://img.shields.io/badge/-80%25-yellow?style=flat-square) |
-| Overlay TARS (FASE 27) | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
-| Mobile (FASE 28) | 17 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Overlay TARS (FASE 27) | 7 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
+| Mobile (FASE 28) | 19 | ![58%](https://img.shields.io/badge/-58%25-yellow?style=flat-square) |
 | CarPlay (FASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Distribuicao (FASE 30) | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
 | Interface propria (FASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |
@@ -485,19 +487,24 @@
 | Documentacao | 6 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
 | Meta / Estrategico | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
-**Total: ~244 itens**
-**Progresso geral: ~72%**
+**Checklist PT-BR: 241 itens rastreados**
+**Progresso do checklist PT-BR: 32% (76 de 241 itens marcados).**
+
+*Este percentual é a contagem simples dos checkboxes da seção em português; não pondera complexidade nem significa prontidão para produção.*
 
 ---
 
 ## Proxima acao
 
-**Ordem definida em 2026-10-15:**
+**Ordem revisada em 2026-10-20**, com base no codigo, checklist e execucao da suite completa:
 
-1. **Testes severos de todas as ferramentas** (frente Testes/Qualidade + base de confianca para o resto): contratos, argumentos invalidos, erros, limites, unicode e path traversal, em 3 camadas (offline puro / mock HTTP + TestClient / integracao opt-in).
-2. **Terminar a FASE 26**: observacao com screenshot no observer e validacao com o navegador real.
-3. **FASE 27 - Overlay Visual TARS** (proxima fase nomeada).
-4. FASE 27.5 (REA), FASE 22.5+ (polimento), FASE 14 (voz), FASE 30 (distribuicao) conforme prioridade.
+1. **Corrigir os dois problemas conhecidos da visao**: Unicode/encoding no `vision_locate` quando executado fora do `agent.py`; e impedir que `vision_locate`/`vision_click`/`vision_type` indiquem sucesso quando o alvo nao foi encontrado.
+2. **Concluir a validacao real da FASE 26 no navegador**: confirmar observacao, evidencia de sucesso, recuperacao e pausa/retomada no fluxo atual do roteador central.
+3. **Validar FASE 27.5 (REA)** com um app JavaScript autorizado e raizes configuradas.
+4. **Fechar FASE 28 (controle mobile)**: testar comandos no Telegram real, configurar Tailscale e validar a API remota protegida.
+5. **FASE 30 (distribuicao)**: gerar e testar o instalador Windows; depois priorizar voz/interface propria conforme o objetivo do produto.
+
+**Ultima validacao automatizada (2026-10-20):** `pytest -q` — 997 passed, 9 skipped, 60 xfailed, 79 warnings e 2.905 subtests aprovados. Os `xfail` sao falhas esperadas/documentadas e ainda merecem triagem; a suite verde nao substitui os testes reais de navegador, Telegram, Tailscale ou iOS.
 
 **Nota:** a FASE 25 (`vision_locate`) esta concluida e a FASE 24.5 foi concluida pela FASE 26.
 
@@ -633,7 +640,7 @@
 - [x] Dedicated screenshot observation in the observer, with text fallback if capture/vision inference fails.
 
 #### PHASE 27 - TARS Visual Overlay
-![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square)
+![Completed](https://img.shields.io/badge/-COMPLETED-brightgreen?style=flat-square)
 
 **Goal:** see animated cursor, highlight, active border
 
@@ -959,8 +966,10 @@
 | Documentation | 6 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
 | Strategic / Meta | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
-**Total: ~244 items**
-**Overall progress: ~72%**
+**PT-BR checklist: 241 tracked items**
+**PT-BR checklist progress: 32% (76 of 241 items checked).**
+
+*This is a simple count of checkboxes in the Portuguese section; it does not weight complexity or imply production readiness.*
 
 ---
 

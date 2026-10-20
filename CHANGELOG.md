@@ -4,6 +4,13 @@ Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
+### Roadmap e validacao (2026-10-20)
+- Auditoria do `ROADMAP.md`: progresso atualizado para 32% por contagem simples dos checkboxes em portugues (76/241); o valor anterior de 72% nao correspondia ao checklist verificavel.
+- FASE 27 (Overlay Visual TARS) marcada como concluida no roadmap, com base nos sete itens implementados e nos testes de contrato/integração existentes.
+- FASE 26 permanece em progresso: adicionados como pendentes os dois problemas de visao/encoding identificados nos testes.
+- Suite completa executada: `pytest -q` — 997 passed, 9 skipped, 60 xfailed, 79 warnings e 2.905 subtests aprovados. Os testes xfailed continuam precisando de triagem; teste automatizado nao substitui validacao real no navegador, Telegram, Tailscale e iOS.
+
+
 ### Added
 - Roteamento central do myra-agent em /v1/chat/completions; o Pipe MYRA Local foi removido do Open WebUI.
 - Memória curta por conversa, separada por user_id/chat_id, armazenada localmente em %LOCALAPPDATA%\\MYRA\\myra_openwebui_chat_memory.json.
