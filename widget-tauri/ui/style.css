@@ -352,6 +352,7 @@ body[data-compact="on"] .view-idle .status-dot { display: none; }
 
 /* ---------- Speech bubble ---------- */
 .speech {
+    display: none !important;
     position: absolute;
     top: -30px;
     left: 50%;
