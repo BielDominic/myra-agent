@@ -461,6 +461,7 @@ FERRAMENTAS_OBSERVAVEIS = {
     # Browser
     "browser_click_text", "browser_type_text",
     "browser_navigate_active_tab", "browser_new_tab",
+    "browser_read_active_tab", "browser_read_page",
     "browser_search_google", "browser_search_google_visivel",
     # Email
     "email_send", "email_reply", "email_delete_by_search",

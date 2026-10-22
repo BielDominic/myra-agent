@@ -140,6 +140,7 @@
 - [x] Observacao com screenshot dedicado no observer, fallback textual se captura/modelo visual falhar.
 - [x] Corrigir Unicode/encoding no `computer/vision_locate.py` standalone: a saida de stdout/stderr usa `backslashreplace` para caracteres fora da code page ativa.
 - [x] Corrigir falso sucesso de `vision_locate`/`vision_click`/`vision_type`: alvo ausente, resposta incompleta ou coordenadas ausentes retornam `status: erro` e nao executam clique/digitacao.
+- [x] Verificacao deterministica de objetivos web: navegar nao satisfaz pedido de leitura, ler nao satisfaz pedido de clique, e extracao exige texto do corpo da pagina.
 
 #### FASE 27 - Overlay Visual TARS
 ![Concluida](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)
@@ -487,8 +488,8 @@
 | Documentacao | 6 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
 | Meta / Estrategico | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
-**Checklist PT-BR: 241 itens rastreados**
-**Progresso do checklist PT-BR: 32% (78 de 241 itens marcados).**
+**Checklist PT-BR: 242 itens rastreados**
+**Progresso do checklist PT-BR: 33% (79 de 242 itens marcados).**
 
 *Este percentual é a contagem simples dos checkboxes da seção em português; não pondera complexidade nem significa prontidão para produção.*
 
@@ -498,14 +499,14 @@
 
 **Ordem revisada em 2026-10-22**, apos corrigir os dois bloqueadores da visao:
 
-1. **Concluir a validacao real da FASE 26 no navegador**: o smoke test `/task_simple` abriu `https://example.com` e o observer confirmou `Example Domain` com evidencia de sucesso. Ainda falta validar recuperacao e pausa/retomada no fluxo atual do roteador central.
+1. **Concluir a validacao real da FASE 26 no navegador**: uma task real de dois passos abriu `https://example.com`, leu o corpo via `browser_read_active_tab` e extraiu o titulo `Example Domain` e o primeiro paragrafo. O verificador bloqueou o sucesso prematuro apos a navegacao. Ainda falta validar recuperacao e pausa/retomada reais.
 2. **Validar FASE 27.5 (REA)** com um app JavaScript autorizado e raizes configuradas.
 3. **Fechar FASE 28 (controle mobile)**: testar comandos no Telegram real, configurar Tailscale e validar a API remota protegida.
 4. **FASE 30 (distribuicao)**: gerar e testar o instalador Windows; depois priorizar voz/interface propria conforme o objetivo do produto.
 
-**Ultima validacao automatizada (2026-10-22):** `pytest -q` — 1.001 passed, 9 skipped, 57 xfailed, 79 warnings e 2.905 subtests aprovados. Os `xfail` sao falhas esperadas/documentadas e ainda merecem triagem.
+**Ultima validacao automatizada (2026-10-22):** `pytest -q` — 1.008 passed, 9 skipped, 57 xfailed, 79 warnings e 2.907 subtests aprovados. Os `xfail` sao falhas esperadas/documentadas e ainda merecem triagem.
 
-**Validacao real parcial (2026-10-22):** 9 testes opt-in de integracao passaram com Ollama, servico de visao, backend e Browser Bridge ativos. Uma task real de um passo abriu `https://example.com`; o observer confirmou o titulo `Example Domain` e a verificacao final marcou o objetivo como atingido. Recuperacao e pausa/retomada reais continuam pendentes.
+**Validacao real parcial (2026-10-22):** 9 testes opt-in de integracao passaram com Ollama, servico de visao, backend e Browser Bridge ativos. Uma task real de dois passos abriu `https://example.com`, leu o corpo via `browser_read_active_tab` e extraiu o titulo `Example Domain` e o primeiro paragrafo. O verificador deterministico impediu sucesso prematuro apos a navegacao. Recuperacao real e pausa/retomada no navegador continuam pendentes.
 
 **Nota:** a FASE 25 (`vision_locate`) esta concluida e a FASE 24.5 foi concluida pela FASE 26.
 
@@ -969,8 +970,8 @@
 | Documentation | 6 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
 | Strategic / Meta | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
-**PT-BR checklist: 241 tracked items**
-**PT-BR checklist progress: 32% (78 of 241 items checked).**
+**PT-BR checklist: 242 tracked items**
+**PT-BR checklist progress: 33% (79 of 242 items checked).**
 
 *This is a simple count of checkboxes in the Portuguese section; it does not weight complexity or imply production readiness.*
 
@@ -980,7 +981,7 @@
 
 **Order revised on 2026-10-22:**
 
-1. **Finish PHASE 26 real-browser validation**: a `/task_simple` smoke test opened `https://example.com` and the observer verified `Example Domain`; real recovery and pause/resume through the central router remain pending.
+1. **Finish PHASE 26 real-browser validation**: a real two-step task opened `https://example.com`, read the body with `browser_read_active_tab`, and extracted `Example Domain` plus the first paragraph. The verifier blocked premature completion after navigation; real recovery and pause/resume remain pending.
 2. **PHASE 27.5 (REA)**: configure authorized roots and validate against an explicitly authorized JavaScript app.
 3. **PHASE 28 mobile control**: validate real Telegram commands, Tailscale, and the protected remote API.
 4. **PHASE 30 distribution**: build and test the Windows installer before prioritizing the native UI and voice.

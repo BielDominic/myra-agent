@@ -30,6 +30,64 @@ class VerificarTestCase(unittest.TestCase):
         self.assertEqual(v["confianca"], "alta")
         self.assertIn("aba aberta", v["motivo"])
 
+    def test_navegacao_nao_satisfaz_objetivo_que_exige_leitura_de_pagina(self):
+        obs = {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "pagina aberta"}
+        resultado = {"status": "ok", "url": "https://example.com/", "title": "Example Domain"}
+        historico = [passo(1, "browser_new_tab", {"url": "https://example.com"}, True,
+                           observacao=obs, resultado=resultado)]
+        v = autonomy.verificar(
+            "Abra https://example.com, leia o conteudo principal da pagina e informe o primeiro paragrafo.",
+            historico,
+            obs,
+        )
+        self.assertFalse(v["atingido"])
+        self.assertEqual(v["confianca"], "alta")
+        self.assertIn("browser_read_page", v["motivo"])
+
+    def test_navegacao_pode_satisfazer_objetivo_simples_de_abrir_pagina(self):
+        obs = {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "pagina aberta"}
+        historico = [passo(1, "browser_new_tab", {"url": "https://example.com"}, True,
+                           observacao=obs, resultado={"status": "ok", "url": "https://example.com/", "title": "Example Domain"})]
+        v = autonomy.verificar("abra example.com", historico, obs)
+        self.assertTrue(v["atingido"])
+
+    def test_navegacao_nao_satisfaz_objetivo_que_exige_clique(self):
+        obs = {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "pagina aberta"}
+        resultado = {"status": "ok", "url": "https://example.com/", "title": "Example Domain"}
+        historico = [passo(1, "browser_new_tab", {"url": "https://example.com"}, True,
+                           observacao=obs, resultado=resultado)]
+        v = autonomy.verificar("Abra example.com e clique no link Learn more", historico, obs)
+        self.assertFalse(v["atingido"])
+        self.assertEqual(v["confianca"], "alta")
+        self.assertIn("interacao solicitada", v["motivo"])
+
+    def test_leitura_nao_satisfaz_objetivo_que_exige_clique(self):
+        obs = {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "pagina lida"}
+        resultado = {"status": "ok", "url": "https://example.com/", "title": "Example Domain",
+                     "text": "Learn more"}
+        historico = [passo(1, "browser_read_active_tab", {}, True, observacao=obs, resultado=resultado)]
+        v = autonomy.verificar("Abra example.com e clique no link Learn more", historico, obs)
+        self.assertFalse(v["atingido"])
+        self.assertEqual(v["confianca"], "alta")
+        self.assertIn("interacao solicitada", v["motivo"])
+
+    def test_leitura_de_pagina_satisfaz_objetivo_de_extracao(self):
+        obs = {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "titulo e paragrafo extraidos"}
+        resultado = {"status": "ok", "url": "https://example.com/", "title": "Example Domain",
+                     "text": "This domain is for use in documentation examples."}
+        historico = [passo(1, "browser_read_page", {}, True, observacao=obs, resultado=resultado)]
+        v = autonomy.verificar("leia o conteudo da pagina e informe o primeiro paragrafo", historico, obs)
+        self.assertTrue(v["atingido"])
+
+    def test_leitura_sem_texto_nao_satisfaz_objetivo_de_extracao(self):
+        obs = {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "pagina lida"}
+        resultado = {"status": "ok", "url": "https://example.com/", "title": "Example Domain", "text": ""}
+        historico = [passo(1, "browser_read_active_tab", {}, True, observacao=obs, resultado=resultado)]
+        v = autonomy.verificar("leia o conteudo da pagina e informe o primeiro paragrafo", historico, obs)
+        self.assertFalse(v["atingido"])
+        self.assertEqual(v["confianca"], "alta")
+        self.assertIn("nao retornou texto", v["motivo"])
+
     def test_observer_confirma_falha_da_acao(self):
         obs = {"status": "ok", "sucesso": False, "objetivo_atingido": False, "motivo": "botao inexistente"}
         v = autonomy.verificar("clicar em entrar", [passo(1, "browser_click_text", {}, True, observacao=obs)], obs)

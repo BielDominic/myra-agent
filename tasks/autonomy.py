@@ -15,6 +15,7 @@ Duas responsabilidades, ambas deterministicas (nao chamam LLM):
 from __future__ import annotations
 
 import json
+import unicodedata
 
 # Limites de recuperacao
 MAX_TENTATIVAS_POR_ACAO = 2      # falhas da MESMA acao antes de bloquear
@@ -116,6 +117,49 @@ def contar_falhas(historico: list, assinatura: str) -> int:
 # VERIFICACAO
 # ------------------------------------------------------------
 
+def _objetivo_exige_leitura_pagina(objetivo: str) -> bool:
+    """Detecta pedidos explicitos para ler/extrair conteudo de uma pagina."""
+    texto = unicodedata.normalize("NFKD", str(objetivo or "").casefold())
+    texto = "".join(caractere for caractere in texto if not unicodedata.combining(caractere))
+    marcadores = (
+        "leia a pagina", "ler a pagina", "leia o conteudo", "ler o conteudo",
+        "conteudo da pagina", "texto da pagina", "texto principal da pagina",
+        "primeiro paragrafo", "paragrafo da pagina", "extraia o texto",
+        "read the page", "read page content", "page content", "first paragraph",
+        "extract the text", "read the main text",
+    )
+    return any(marcador in texto for marcador in marcadores)
+
+
+def _objetivo_exige_interacao_pagina(objetivo: str) -> bool:
+    """Detecta pedidos explicitos de clique, digitacao, selecao ou envio."""
+    texto = unicodedata.normalize("NFKD", str(objetivo or "").casefold())
+    texto = "".join(caractere for caractere in texto if not unicodedata.combining(caractere))
+    marcadores = (
+        "clique em", "clique no", "clique na", "clicar em", "clicar no",
+        "clicar na", "pressione a tecla", "digite no campo", "digite no",
+        "preencha o campo", "preencher o campo", "envie o formulario",
+        "enviar o formulario", "selecione a opcao", "selecionar a opcao",
+        "click the", "click on", "type into", "fill in", "submit the",
+        "press the key", "select the option",
+    )
+    return any(marcador in texto for marcador in marcadores)
+
+
+def _resultado_contem_conteudo_pagina(resultado) -> bool:
+    """Retorna True apenas se a ferramenta trouxe texto de corpo, nao so URL/titulo."""
+    if not isinstance(resultado, dict):
+        return False
+    texto = resultado.get("text")
+    if isinstance(texto, str) and texto.strip():
+        return True
+    detalhe = resultado.get("result")
+    if isinstance(detalhe, str):
+        normalizado = detalhe.casefold()
+        return "texto visivel:" in normalizado or "visible text:" in normalizado
+    return False
+
+
 def verificar(objetivo: str, historico: list, observacao: dict | None = None) -> dict:
     """Verifica se o objetivo foi atingido, sempre com base em evidencia.
 
@@ -165,6 +209,63 @@ def verificar(objetivo: str, historico: list, observacao: dict | None = None) ->
             "evidencia": f"{ultimo.get('ferramenta')}: {str(detalhe)[:200]}",
         }
 
+    # 2.25) Navegar nao satisfaz um pedido explicito de leitura do corpo da pagina.
+    #       O observer pode ser otimista ao ver a URL/titulo; exige evidencia de
+    #       texto antes de aceitar sucesso para objetivos que pedem conteudo.
+    ferramenta = ultimo.get("ferramenta", "")
+    ferramentas_navegacao_leitura = {
+        "browser_new_tab", "browser_navigate_active_tab",
+        "browser_read_page", "browser_read_active_tab", "browser_get_tabs",
+        "get_current_url",
+    }
+    exige_leitura = _objetivo_exige_leitura_pagina(objetivo)
+    exige_interacao = _objetivo_exige_interacao_pagina(objetivo)
+    if ferramenta in ferramentas_navegacao_leitura and exige_interacao:
+        return {
+            "atingido": False,
+            "confianca": "alta",
+            "motivo": "navegar/ler a pagina nao executa a interacao solicitada; continue com a ferramenta de clique ou digitacao adequada",
+            "evidencia": str((resultado or {}).get("url", "") if isinstance(resultado, dict) else "")[:200],
+        }
+    if (
+        ferramenta in {"browser_new_tab", "browser_navigate_active_tab"}
+        and isinstance(resultado, dict)
+        and resultado.get("status") == "ok"
+        and exige_leitura
+        and not _resultado_contem_conteudo_pagina(resultado)
+    ):
+        return {
+            "atingido": False,
+            "confianca": "alta",
+            "motivo": "a navegacao foi concluida, mas o objetivo exige ler o conteudo da pagina; use browser_read_page ou browser_read_active_tab",
+            "evidencia": str((resultado or {}).get("url", "") if isinstance(resultado, dict) else "")[:200],
+        }
+    if (
+        ferramenta in {"browser_read_page", "browser_read_active_tab"}
+        and isinstance(resultado, dict)
+        and resultado.get("status") == "ok"
+        and exige_leitura
+        and not _resultado_contem_conteudo_pagina(resultado)
+    ):
+        return {
+            "atingido": False,
+            "confianca": "alta",
+            "motivo": "a ferramenta de leitura nao retornou texto do corpo da pagina; nao confirme a extracao",
+            "evidencia": str((resultado or {}).get("url", "") if isinstance(resultado, dict) else "")[:200],
+        }
+
+    if (
+        ferramenta in {"browser_read_page", "browser_read_active_tab"}
+        and exige_leitura
+        and _resultado_contem_conteudo_pagina(resultado)
+    ):
+        return {
+            "atingido": True,
+            "confianca": "alta",
+            "motivo": "a ferramenta retornou texto do corpo da pagina para o objetivo de leitura",
+            "evidencia": str((resultado or {}).get("text") or (resultado or {}).get("result") or "")[:200],
+        }
+
     # 2.5) Ferramentas de LEITURA SIMPLES: sucesso ja e prova suficiente.
     #      get_current_time, get_weather, etc retornam status=ok. Nao ha
     #      "observacao visual" possivel. Sem isto, o verifier cai no caso 4
@@ -172,7 +273,7 @@ def verificar(objetivo: str, historico: list, observacao: dict | None = None) ->
     FERRAMENTAS_AUTO_CONFIRM = {
         "get_current_time", "get_weather", "read_notes", "list_dir",
         "read_file", "email_list", "email_read", "get_current_url",
-        "browser_get_tabs", "browser_read_active_tab", "read_page_structured",
+        "browser_get_tabs", "read_page_structured",
         "save_note", "search_google_structured", "web_search_structured",
         "youtube_search", "youtube_channel_latest",
     }

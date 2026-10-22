@@ -115,7 +115,7 @@ OBSERVAVEIS_NAO_REGISTADOS_DOCUMENTADOS = frozenset({
     "email_move",
 })
 
-TOTAL_OBSERVAVEIS = 27
+TOTAL_OBSERVAVEIS = 29
 
 # Nomes das ferramentas renderizados no prompt: "- nome: descricao".
 _RE_LINHA_FERRAMENTA = re.compile(r"^- ([A-Za-z0-9_]+):", re.M)

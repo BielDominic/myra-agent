@@ -749,8 +749,8 @@ class DeveObservarTestCase(CasoOffline):
 
     def test_ferramentas_de_leitura_nao_sao_observaveis(self):
         nao_observaveis = [
-            "read_file", "list_dir", "browser_read_page", "browser_read_active_tab",
-            "browser_get_tabs", "web_search", "youtube_search", "vision_locate_errado",
+            "read_file", "list_dir", "browser_get_tabs",
+            "web_search", "youtube_search", "vision_locate_errado",
         ]
         with sem_rede():
             for nome in nao_observaveis:
@@ -772,6 +772,17 @@ class ObservarSimpleTaskTestCase(CasoOffline):
             resultado = st._observar("objetivo", "read_file", {"caminho": "a"}, "conteudo", None)
         self.assertIsNone(resultado)
         falso.assert_not_called()
+
+    def test_leituras_browser_sao_observadas(self):
+        observado = {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "titulo confirmado"}
+        for ferramenta in ("browser_read_page", "browser_read_active_tab"):
+            with self.subTest(ferramenta=ferramenta), \
+                 mock.patch("computer.observer.observar", return_value=observado) as falso, sem_rede():
+                resultado = st._observar(
+                    "ler titulo", ferramenta, {}, {"status": "ok", "title": "Example Domain"}, None
+                )
+            self.assertEqual(resultado, observado)
+            falso.assert_called_once()
 
     def test_payload_enviado_ao_observer(self):
         observado = {"status": "ok", "sucesso": True, "objetivo_atingido": False, "motivo": "m"}
