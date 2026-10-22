@@ -1,5 +1,5 @@
 import asyncio
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from playwright.sync_api import sync_playwright
@@ -1149,8 +1149,11 @@ def task_pause():
 
 
 @app.get("/task_pendentes")
-def task_pendentes(limite: int = 20):
+def task_pendentes(limite: int = Query(default=20, ge=0)):
     """Lista tasks pausadas/interrompidas/em execucao que podem ser retomadas."""
+    # SQLite LIMIT usa inteiro signed de 64 bits. Valores maiores sao seguros
+    # de tratar como o maior limite suportado, sem perder resultados.
+    limite = min(limite, 2**63 - 1)
     return {
         "status": "ok",
         "tasks": _simple_task_module.listar_tasks_pendentes(limite=limite),

@@ -3,7 +3,7 @@
 [![Progress](https://img.shields.io/badge/Progress-32%25-orange?style=flat-square)]()
 [![Active Phase](https://img.shields.io/badge/Active_Phase-26-blue?style=flat-square)]()
 [![Phases](https://img.shields.io/badge/Phases-31-purple?style=flat-square)]()
-[![Updated](https://img.shields.io/badge/Updated-2026-10-20-lightgrey?style=flat-square)]()
+[![Updated](https://img.shields.io/badge/Updated-2026-10-22-lightgrey?style=flat-square)]()
 [![Language](https://img.shields.io/badge/Language-PT--BR_%7C_EN-green?style=flat-square)]()
 
 **Documentacao disponivel em:** [Portugues](#portugues) | [English](#english)
@@ -143,6 +143,7 @@
 - [x] Validar limites das coordenadas visuais antes de acionar o mouse, inclusive respostas antigas sem metadados de resolucao.
 - [x] Rejeitar tipos invalidos em descricao e caminho do screenshot com erros estruturados, sem excecoes de tipo escaparem para o executor.
 - [x] Verificacao deterministica de objetivos web: navegar nao satisfaz pedido de leitura, ler nao satisfaz pedido de clique, e extracao exige texto do corpo da pagina.
+- [x] Validacao de `GET /task_pendentes`: rejeita limites negativos com HTTP 422 e normaliza inteiros acima de int64 sem perder tasks.
 
 #### FASE 27 - Overlay Visual TARS
 ![Concluida](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)

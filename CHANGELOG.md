@@ -4,6 +4,10 @@ Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
+### Robustez da retomada de tasks (2026-10-22)
+- `GET /task_pendentes` rejeita `limite` negativo com HTTP 422 e limita valores maiores que int64 ao maximo suportado pelo SQLite, evitando lista vazia por erro interno.
+- Os dois casos de regressao passaram de `expectedFailure` para testes obrigatorios; os seis testes direcionados de limites passaram.
+
 ### Correcoes de visao (2026-10-22)
 - `computer/vision_locate.py` configura stdout/stderr no uso standalone com `errors="backslashreplace"`, evitando que caracteres OCR fora da code page do Windows interrompam o diagnostico.
 - `vision_locate` retorna `status="erro"` quando o OCR nao detecta texto ou nenhum candidato corresponde, impedindo o planner de contabilizar alvo ausente como acao bem-sucedida.
@@ -12,7 +16,7 @@ Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.
 - `vision_locate()` rejeita tipos invalidos para descricao e caminho do screenshot com erro estruturado, em vez de deixar `AttributeError`/`TypeError` escapar do executor.
 - `tasks/simple_task.py` agora observa `browser_read_page` e `browser_read_active_tab`; `tasks/autonomy.py` impede sucesso prematuro quando navegar nao cumpre pedido de leitura, quando ler nao cumpre pedido de clique/digitacao, ou quando uma extracao nao traz texto do corpo da pagina. A sintese final `responder` nao apaga evidencia de falha da ultima acao real.
 - `browser_wait` aguarda com `time.sleep` limitado a 30s sem reabrir/recriar o perfil persistente do navegador.
-- Suite completa: `pytest -q` — 1.015 passed, 9 skipped, 54 xfailed, 79 warnings e 2.907 subtests aprovados (173,49s). A correção dos limites visuais e dos tipos de entrada converteu tres `xfail` antigos em testes aprovados.
+- Suite completa atualizada apos as correcoes de limites e regressao: `pytest -q` — 1.017 passed, 9 skipped, 52 xfailed, 79 warnings e 2.907 subtests aprovados (148,87s).
 - Integracao opt-in: 9 testes passaram com backend, Ollama, servidor de visao e Browser Bridge ativos. Uma task real de dois passos via `/task_simple` abriu `https://example.com`, leu o corpo da pagina e extraiu `Example Domain` e o primeiro paragrafo. O verificador deterministico impediu sucesso prematuro apos a navegacao; recuperacao e pausa/retomada reais continuam pendentes.
 
 ### Roadmap e validacao (2026-10-20)

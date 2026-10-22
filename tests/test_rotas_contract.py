@@ -367,39 +367,24 @@ class TaskPendentesTestCase(BaseRotas):
         corpo = self.client.get("/task_pendentes?limite=9223372036854775807").json()
         self.assertEqual(corpo["status"], "ok")
         self.assertEqual(len(corpo["tasks"]), len(ids))
-        # Acima disso o backend nao pode rebentar (ver BUG no teste seguinte).
+        # Acima disso o limite e normalizado e todas as tasks existentes continuam visiveis.
         r = self.client.get("/task_pendentes?limite=9223372036854775808")
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()["status"], "ok")
 
-    @unittest.expectedFailure
     def test_limite_maior_que_int64_devolve_as_tasks(self):
-        """BUG: /task_pendentes?limite=2**63 devolve {"tasks": []} mesmo existindo tasks.
-
-        task_store.tasks_retomaveis faz ``int(limite)`` e o sqlite3 recusa valores
-        fora de int64 ("Python int too large to convert to SQLite INTEGER");
-        listar_tasks_pendentes engole a excepcao e devolve [] -- perda silenciosa
-        de dados para quem pede um limite enorme. Evidencia no log do backend:
-        "[STORE] erro ao listar tasks: Python int too large to convert to SQLite INTEGER".
-        """
+        """Limites acima de int64 sao normalizados sem perder tasks existentes."""
         self._criar_pendentes(3)
         corpo = self.client.get("/task_pendentes?limite=9223372036854775808").json()
-        self.assertEqual(len(corpo["tasks"]), 3, "limite enorme devolveu lista vazia (BUG)")
+        self.assertEqual(len(corpo["tasks"]), 3, "limite enorme perdeu tasks existentes")
 
-    @unittest.expectedFailure
     def test_limite_negativo_e_rejeitado(self):
-        """BUG: /task_pendentes?limite=-1 devolve TODAS as tasks.
-
-        Em SQLite, ``LIMIT -1`` significa "sem limite": um valor negativo passa a
-        validacao do FastAPI (int) e ignora por completo o tecto pedido, apesar de
-        a rota expor ``limite`` como o maximo de resultados. Deveria ser 422
-        (Field ge=0) ou o valor ser normalizado.
-        """
+        """Valores negativos devem ser rejeitados pelo contrato HTTP (422)."""
         self._criar_pendentes(3)
         self.assertEqual(len(self.client.get("/task_pendentes?limite=1").json()["tasks"]), 1)
         r = self.client.get("/task_pendentes?limite=-1")
-        self.assertEqual(r.status_code, 422, "limite negativo foi aceite (BUG)")
-        self.assertEqual(len(r.json()["tasks"]), 0)
+        self.assertEqual(r.status_code, 422, "limite negativo deveria ser rejeitado")
+        self.assertIn("detail", r.json())
 
 
 # ============================================================
