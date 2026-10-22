@@ -9,6 +9,7 @@ Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.
 - `vision_locate` retorna `status="erro"` quando o OCR nao detecta texto ou nenhum candidato corresponde, impedindo o planner de contabilizar alvo ausente como acao bem-sucedida.
 - `vision_click` e `vision_type` validam respostas incompletas/legadas e rejeitam alvo ou coordenadas ausentes antes de agir. Foram adicionados testes de regressao e tres antigos `xfail` passaram a testes normais aprovados.
 - Suite completa: `pytest -q` — 1.001 passed, 9 skipped, 57 xfailed, 79 warnings e 2.905 subtests aprovados (116,90s). Testes focados de visao: 159 passed, 3 xfailed.
+- Integracao opt-in: 9 testes passaram com backend, Ollama, servidor de visao e Browser Bridge ativos. Uma task real via `/task_simple` abriu `https://example.com`; o observer confirmou o titulo `Example Domain` com evidencia alta. Isso valida o caminho de navegador de um passo, nao ainda recuperacao ou pausa/retomada.
 
 ### Roadmap e validacao (2026-10-20)
 - Auditoria do `ROADMAP.md`: progresso atualizado para 32% por contagem simples dos checkboxes em portugues (76/241); o valor anterior de 72% nao correspondia ao checklist verificavel.

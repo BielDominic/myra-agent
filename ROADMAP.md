@@ -498,12 +498,14 @@
 
 **Ordem revisada em 2026-10-22**, apos corrigir os dois bloqueadores da visao:
 
-1. **Concluir a validacao real da FASE 26 no navegador**: confirmar observacao, evidencia de sucesso, recuperacao e pausa/retomada no fluxo atual do roteador central.
+1. **Concluir a validacao real da FASE 26 no navegador**: o smoke test `/task_simple` abriu `https://example.com` e o observer confirmou `Example Domain` com evidencia de sucesso. Ainda falta validar recuperacao e pausa/retomada no fluxo atual do roteador central.
 2. **Validar FASE 27.5 (REA)** com um app JavaScript autorizado e raizes configuradas.
 3. **Fechar FASE 28 (controle mobile)**: testar comandos no Telegram real, configurar Tailscale e validar a API remota protegida.
 4. **FASE 30 (distribuicao)**: gerar e testar o instalador Windows; depois priorizar voz/interface propria conforme o objetivo do produto.
 
-**Ultima validacao automatizada (2026-10-22):** `pytest -q` — 1.001 passed, 9 skipped, 57 xfailed, 79 warnings e 2.905 subtests aprovados. Os `xfail` sao falhas esperadas/documentadas e ainda merecem triagem; a suite verde nao substitui os testes reais de navegador, Telegram, Tailscale ou iOS.
+**Ultima validacao automatizada (2026-10-22):** `pytest -q` — 1.001 passed, 9 skipped, 57 xfailed, 79 warnings e 2.905 subtests aprovados. Os `xfail` sao falhas esperadas/documentadas e ainda merecem triagem.
+
+**Validacao real parcial (2026-10-22):** 9 testes opt-in de integracao passaram com Ollama, servico de visao, backend e Browser Bridge ativos. Uma task real de um passo abriu `https://example.com`; o observer confirmou o titulo `Example Domain` e a verificacao final marcou o objetivo como atingido. Recuperacao e pausa/retomada reais continuam pendentes.
 
 **Nota:** a FASE 25 (`vision_locate`) esta concluida e a FASE 24.5 foi concluida pela FASE 26.
 
@@ -978,7 +980,7 @@
 
 **Order revised on 2026-10-22:**
 
-1. **Finish PHASE 26 real-browser validation**: observer evidence, recovery, and pause/resume through the current central router.
+1. **Finish PHASE 26 real-browser validation**: a `/task_simple` smoke test opened `https://example.com` and the observer verified `Example Domain`; real recovery and pause/resume through the central router remain pending.
 2. **PHASE 27.5 (REA)**: configure authorized roots and validate against an explicitly authorized JavaScript app.
 3. **PHASE 28 mobile control**: validate real Telegram commands, Tailscale, and the protected remote API.
 4. **PHASE 30 distribution**: build and test the Windows installer before prioritizing the native UI and voice.
