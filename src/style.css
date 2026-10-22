@@ -367,8 +367,10 @@ body[data-compact="on"] .view-idle .status-dot { display: none; }
 
 /* ---------- Speech bubble ---------- */
 .speech {
+    display: none !important;
     position: absolute;
-    top: -30px;
+    /* O balao fica abaixo da pilula, dentro da area nativa expandida. */
+    top: 40px;
     left: 50%;
     transform: translateX(-50%) scale(0);
     background: var(--myra-accent);
