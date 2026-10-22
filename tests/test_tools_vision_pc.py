@@ -641,19 +641,11 @@ class VisionLocateTestCase(helpers.CasoBase):
             self.assertEqual(r["status"], "ok")
             self.assertTrue(r["encontrado"])
 
-    @unittest.expectedFailure
-    def test_BUG_screenshot_path_tipo_errado_levanta_TypeError(self):
-        """BUG: ``screenshot_path`` nao-string (float/lista/dict) levanta TypeError.
-
-        ``os.path.exists(3.14)`` explode dentro de ``vision_locate``; a rota
-        /vision_locate (que valida o tipo via pydantic) converte isso em
-        {'status':'erro'}, mas a chamada directa do executor do planner
-        (``vision_locate(descricao, 3.14)``) levanta excecao.
-        """
+    def test_screenshot_path_tipo_errado_retorna_erro_estruturado(self):
         for valor in [3.14, [], {}]:
             r = helpers.sem_excecao(vl.vision_locate, "New Chat", valor)
-            self.assertIsInstance(r, dict)
-            self.assertIn(r["status"], ("ok", "erro"))
+            self.assertTrue(helpers.eh_erro_estruturado(r), repr(valor))
+            self.assertIn("screenshot", r["result"].lower())
 
     # -- caminho ambiguo / LLM ---------------------------------------------
     def test_zona_ambigua_chama_llm_e_usa_resultado(self):
@@ -779,18 +771,11 @@ class VisionLocateTestCase(helpers.CasoBase):
             self.assertTrue(helpers.eh_erro_estruturado(r), repr(valor))
             self.assertIn("Descricao vazia", r["result"])
 
-    @unittest.expectedFailure
-    def test_BUG_descricao_nao_string_levanta_AttributeError(self):
-        """BUG: descricao nao-string (int/bool) escapa como AttributeError.
-
-        ``vision_locate`` so checa ``not descricao or not descricao.strip()``;
-        um inteiro truthy passa o guard e rebenta em ``.strip()``. A rota
-        /vision_locate so nao devolve 500 porque a rota tem try/except, mas a
-        ferramenta chamada directamente pelo executor do planner levanta.
-        """
-        for valor in [0, 3.14, [], {}, True, 1]:
+    def test_descricao_nao_string_retorna_erro_estruturado(self):
+        for valor in [0, 3.14, [], {}, True, 1, None]:
             r = helpers.sem_excecao(vl.vision_locate, valor)
             self.assertTrue(helpers.eh_erro_estruturado(r), f"{valor!r} nao devolveu erro")
+            self.assertIn("Descricao", r["result"])
 
     def test_descricao_vazia_nao_toca_em_screenshot_nem_ocr(self):
         ss = mock.MagicMock()

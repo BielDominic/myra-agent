@@ -212,8 +212,15 @@ def vision_locate(descricao: str, screenshot_path: str = None) -> dict:
             "metodo": "fuzzy" | "llm" | "none"
         }
     """
-    if not descricao or not descricao.strip():
+    if not isinstance(descricao, str):
+        return {"status": "erro", "result": "Descricao deve ser texto"}
+    if not descricao.strip():
         return {"status": "erro", "result": "Descricao vazia"}
+
+    if screenshot_path is not None:
+        if not isinstance(screenshot_path, (str, os.PathLike)):
+            return {"status": "erro", "result": "Caminho de screenshot invalido"}
+        screenshot_path = os.fspath(screenshot_path)
 
     descricao = descricao.strip()
     _configurar_saida_console()

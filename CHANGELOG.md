@@ -9,9 +9,10 @@ Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.
 - `vision_locate` retorna `status="erro"` quando o OCR nao detecta texto ou nenhum candidato corresponde, impedindo o planner de contabilizar alvo ausente como acao bem-sucedida.
 - `vision_click` e `vision_type` validam respostas incompletas/legadas e rejeitam alvo ou coordenadas ausentes antes de agir. Foram adicionados testes de regressao e tres antigos `xfail` passaram a testes normais aprovados.
 - `_coordenadas_para_mouse()` agora valida limites da tela antes de clicar ou digitar, inclusive quando uma resposta antiga nao traz dimensoes do screenshot; coordenadas negativas, fora da tela ou absurdas falham de forma estruturada sem chamar o mouse.
+- `vision_locate()` rejeita tipos invalidos para descricao e caminho do screenshot com erro estruturado, em vez de deixar `AttributeError`/`TypeError` escapar do executor.
 - `tasks/simple_task.py` agora observa `browser_read_page` e `browser_read_active_tab`; `tasks/autonomy.py` impede sucesso prematuro quando navegar nao cumpre pedido de leitura, quando ler nao cumpre pedido de clique/digitacao, ou quando uma extracao nao traz texto do corpo da pagina. A sintese final `responder` nao apaga evidencia de falha da ultima acao real.
 - `browser_wait` aguarda com `time.sleep` limitado a 30s sem reabrir/recriar o perfil persistente do navegador.
-- Suite completa: `pytest -q` — 1.013 passed, 9 skipped, 56 xfailed, 79 warnings e 2.907 subtests aprovados (176,34s). A correção de limites da visão converteu um `xfail` antigo em teste aprovado.
+- Suite completa: `pytest -q` — 1.015 passed, 9 skipped, 54 xfailed, 79 warnings e 2.907 subtests aprovados (173,49s). A correção dos limites visuais e dos tipos de entrada converteu tres `xfail` antigos em testes aprovados.
 - Integracao opt-in: 9 testes passaram com backend, Ollama, servidor de visao e Browser Bridge ativos. Uma task real de dois passos via `/task_simple` abriu `https://example.com`, leu o corpo da pagina e extraiu `Example Domain` e o primeiro paragrafo. O verificador deterministico impediu sucesso prematuro apos a navegacao; recuperacao e pausa/retomada reais continuam pendentes.
 
 ### Roadmap e validacao (2026-10-20)
