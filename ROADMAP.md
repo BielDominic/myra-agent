@@ -138,8 +138,8 @@
 - [x] Testes do ciclo: `tests/` com 43 testes (`python -m unittest discover -s tests -t .`) cobrindo verificacao, recuperacao, pausa/retomada, retomada apos crash, erros e rotas HTTP.
 - [x] Validacao end-to-end com Ollama real (`qwen2.5:7b`): criacao de arquivo concluida por evidencia do observer, falha com motivo explicito e pausa/retomada com contexto preservado (executada em 2026-10-15).
 - [x] Observacao com screenshot dedicado no observer, fallback textual se captura/modelo visual falhar.
-- [ ] Corrigir Unicode/encoding no `computer/vision_locate.py` quando executado fora do `agent.py` (ex.: U+2463 em console cp1252).
-- [ ] Corrigir falso sucesso de `vision_locate`/`vision_click`/`vision_type` quando o alvo nao e encontrado; o planner deve tratar como falha recuperavel.
+- [x] Corrigir Unicode/encoding no `computer/vision_locate.py` standalone: a saida de stdout/stderr usa `backslashreplace` para caracteres fora da code page ativa.
+- [x] Corrigir falso sucesso de `vision_locate`/`vision_click`/`vision_type`: alvo ausente, resposta incompleta ou coordenadas ausentes retornam `status: erro` e nao executam clique/digitacao.
 
 #### FASE 27 - Overlay Visual TARS
 ![Concluida](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)
@@ -488,7 +488,7 @@
 | Meta / Estrategico | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
 **Checklist PT-BR: 241 itens rastreados**
-**Progresso do checklist PT-BR: 32% (76 de 241 itens marcados).**
+**Progresso do checklist PT-BR: 32% (78 de 241 itens marcados).**
 
 *Este percentual é a contagem simples dos checkboxes da seção em português; não pondera complexidade nem significa prontidão para produção.*
 
@@ -496,15 +496,14 @@
 
 ## Proxima acao
 
-**Ordem revisada em 2026-10-20**, com base no codigo, checklist e execucao da suite completa:
+**Ordem revisada em 2026-10-22**, apos corrigir os dois bloqueadores da visao:
 
-1. **Corrigir os dois problemas conhecidos da visao**: Unicode/encoding no `vision_locate` quando executado fora do `agent.py`; e impedir que `vision_locate`/`vision_click`/`vision_type` indiquem sucesso quando o alvo nao foi encontrado.
-2. **Concluir a validacao real da FASE 26 no navegador**: confirmar observacao, evidencia de sucesso, recuperacao e pausa/retomada no fluxo atual do roteador central.
-3. **Validar FASE 27.5 (REA)** com um app JavaScript autorizado e raizes configuradas.
-4. **Fechar FASE 28 (controle mobile)**: testar comandos no Telegram real, configurar Tailscale e validar a API remota protegida.
-5. **FASE 30 (distribuicao)**: gerar e testar o instalador Windows; depois priorizar voz/interface propria conforme o objetivo do produto.
+1. **Concluir a validacao real da FASE 26 no navegador**: confirmar observacao, evidencia de sucesso, recuperacao e pausa/retomada no fluxo atual do roteador central.
+2. **Validar FASE 27.5 (REA)** com um app JavaScript autorizado e raizes configuradas.
+3. **Fechar FASE 28 (controle mobile)**: testar comandos no Telegram real, configurar Tailscale e validar a API remota protegida.
+4. **FASE 30 (distribuicao)**: gerar e testar o instalador Windows; depois priorizar voz/interface propria conforme o objetivo do produto.
 
-**Ultima validacao automatizada (2026-10-20):** `pytest -q` — 997 passed, 9 skipped, 60 xfailed, 79 warnings e 2.905 subtests aprovados. Os `xfail` sao falhas esperadas/documentadas e ainda merecem triagem; a suite verde nao substitui os testes reais de navegador, Telegram, Tailscale ou iOS.
+**Ultima validacao automatizada (2026-10-22):** `pytest -q` — 1.001 passed, 9 skipped, 57 xfailed, 79 warnings e 2.905 subtests aprovados. Os `xfail` sao falhas esperadas/documentadas e ainda merecem triagem; a suite verde nao substitui os testes reais de navegador, Telegram, Tailscale ou iOS.
 
 **Nota:** a FASE 25 (`vision_locate`) esta concluida e a FASE 24.5 foi concluida pela FASE 26.
 
@@ -638,6 +637,8 @@
 - [x] Loop tests: `tests/` with 43 tests (`python -m unittest discover -s tests -t .`).
 - [x] End-to-end validation with real Ollama (`qwen2.5:7b`): file creation concluded by observer evidence, failure with explicit reason, and pause/resume with preserved context (run on 2026-10-15).
 - [x] Dedicated screenshot observation in the observer, with text fallback if capture/vision inference fails.
+- [x] Standalone Unicode-safe console output in `computer/vision_locate.py`; unencodable OCR characters are escaped rather than crashing on legacy Windows code pages.
+- [x] Vision tools return explicit errors when no target is found or coordinates are missing; click/type do not execute without a validated target.
 
 #### PHASE 27 - TARS Visual Overlay
 ![Completed](https://img.shields.io/badge/-COMPLETED-brightgreen?style=flat-square)
@@ -967,7 +968,7 @@
 | Strategic / Meta | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
 **PT-BR checklist: 241 tracked items**
-**PT-BR checklist progress: 32% (76 of 241 items checked).**
+**PT-BR checklist progress: 32% (78 of 241 items checked).**
 
 *This is a simple count of checkboxes in the Portuguese section; it does not weight complexity or imply production readiness.*
 
@@ -975,18 +976,18 @@
 
 ## Next action
 
-**Order set on 2026-10-15:**
+**Order revised on 2026-10-22:**
 
-1. **Severe tests for all tools** (Testing/Quality track + confidence base for everything else): contracts, invalid arguments, errors, limits, unicode and path traversal, in 3 layers (pure offline / HTTP mock + TestClient / opt-in integration).
-2. **Finish PHASE 26**: screenshot observation in the observer and real-browser validation.
-3. **PHASE 27 - TARS Visual Overlay** (next named phase).
-4. PHASE 27.5 (REA), PHASE 22.5+ (polish), PHASE 14 (voice), PHASE 30 (distribution) as prioritised.
+1. **Finish PHASE 26 real-browser validation**: observer evidence, recovery, and pause/resume through the current central router.
+2. **PHASE 27.5 (REA)**: configure authorized roots and validate against an explicitly authorized JavaScript app.
+3. **PHASE 28 mobile control**: validate real Telegram commands, Tailscale, and the protected remote API.
+4. **PHASE 30 distribution**: build and test the Windows installer before prioritizing the native UI and voice.
 
 **Note:** PHASE 25 (`vision_locate`) is complete and PHASE 24.5 was completed by PHASE 26.
 
 ---
 
-**Last updated:** 2026-10-16
+**Last updated:** 2026-10-22
 
 
 ## FASE FUTURA - Cloud Deployment (24/7)

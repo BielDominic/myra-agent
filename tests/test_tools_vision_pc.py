@@ -531,6 +531,20 @@ class VisionLocateTestCase(helpers.CasoBase):
         Path(self.ss_path).write_bytes(b"\x89PNG\r\n\x1a\n")
 
     # -- helpers ------------------------------------------------------------
+    def test_saida_standalone_escapa_unicode_nao_representavel(self):
+        class StreamFake:
+            def __init__(self):
+                self.config = None
+
+            def reconfigure(self, **kwargs):
+                self.config = kwargs
+
+        stdout, stderr = StreamFake(), StreamFake()
+        with mock.patch("sys.stdout", stdout), mock.patch("sys.stderr", stderr):
+            vl._configurar_saida_console()
+        self.assertEqual(stdout.config, {"errors": "backslashreplace"})
+        self.assertEqual(stderr.config, {"errors": "backslashreplace"})
+
     def _locate(self, descricao, elementos, screenshot_path=None, llm=None):
         """Chama vision_locate com _screenshot/_ocr e (opcional) LLM mockados."""
         patches = [
@@ -690,7 +704,7 @@ class VisionLocateTestCase(helpers.CasoBase):
     def test_llm_devolve_none_cai_para_nao_encontrado(self):
         elementos = [{"label": "Entrar agora", "bbox": [0, 0, 10, 10], "conf": 0.9}]
         r = self._locate("Entrar", elementos, llm=lambda d, c: None)
-        self.assertEqual(r["status"], "ok")
+        self.assertEqual(r["status"], "erro")
         self.assertFalse(r["encontrado"])
         self.assertEqual(r["metodo"], "none")
         self.assertIn("Entrar", r["result"])
@@ -716,7 +730,7 @@ class VisionLocateTestCase(helpers.CasoBase):
     # -- caminho "alvo nao encontrado" --------------------------------------
     def test_sem_textos_na_tela_devolve_nao_encontrado(self):
         r = self._locate("New Chat", [])
-        self.assertEqual(r["status"], "ok")
+        self.assertEqual(r["status"], "erro")
         self.assertFalse(r["encontrado"])
         self.assertEqual(r["metodo"], "none")
         self.assertIn("Nenhum texto", r["result"])
@@ -730,16 +744,8 @@ class VisionLocateTestCase(helpers.CasoBase):
         self.assertIn("result", r)
         self.assertIn("metodo", r)
 
-    @unittest.expectedFailure
-    def test_BUG_alvo_nao_encontrado_deveria_ser_status_erro(self):
-        """BUG: alvo nao encontrado volta {'status': 'ok', 'encontrado': False}.
-
-        ``tasks/simple_task.py::_executar_passo`` considera sucesso qualquer
-        resultado com ``status != 'erro'`` (linha 391) e ``tasks/autonomy.py``
-        (linha 159) so detecta erro explicito pelo campo ``status``. Logo um
-        alvo NAO encontrado e contabilizado como SUCESSO pelo executor do
-        planner, que segue em frente como se tivesse clicado.
-        """
+    def test_alvo_nao_encontrado_deveria_ser_status_erro(self):
+        """O planner precisa receber erro explicito quando o alvo nao existe."""
         r = self._locate("botao que nao existe", [{"label": "abc", "bbox": [0, 0, 1, 1], "conf": 1.0}])
         self.assertEqual(r["status"], "erro", f"alvo nao encontrado deveria ser erro, veio: {r}")
 
@@ -860,13 +866,8 @@ class VisionClickTestCase(helpers.CasoBase):
         self.assertEqual(r["status"], "erro")
         self.assertEqual(fake.chamadas, [])
 
-    @unittest.expectedFailure
-    def test_BUG_click_alvo_nao_encontrado_deveria_reportar_erro(self):
-        """BUG: vision_click propaga {'status': 'ok', 'encontrado': False}.
-
-        O executor do planner (tasks/simple_task.py:391) trata isso como
-        sucesso. Reproduz o bug conhecido de vision_locate no caminho click.
-        """
+    def test_click_alvo_nao_encontrado_deveria_reportar_erro(self):
+        """Um locate legado/incompleto nao pode fazer o clique parecer sucesso."""
         fake = PyAutoGUIFalso()
         loc = {"status": "ok", "encontrado": False, "result": "Nenhum elemento", "metodo": "none"}
         r = self._click(loc, fake)
@@ -1005,9 +1006,8 @@ class VisionTypeTestCase(helpers.CasoBase):
         self.assertFalse(r.get("encontrado"))
         self.assertEqual(fake.chamadas, [], "nao pode digitar sem alvo")
 
-    @unittest.expectedFailure
-    def test_BUG_type_alvo_nao_encontrado_deveria_reportar_erro(self):
-        """BUG: vision_type tambem propaga {'status':'ok','encontrado':False}."""
+    def test_type_alvo_nao_encontrado_deveria_reportar_erro(self):
+        """Um campo nao encontrado nao pode fazer a digitacao parecer sucesso."""
         loc = {"status": "ok", "encontrado": False, "result": "nada", "metodo": "none"}
         r, _fake = self._type(loc, "texto")
         self.assertEqual(r["status"], "erro", f"esperado erro, veio {r}")
@@ -1745,7 +1745,7 @@ class RotasVisionTestCase(helpers.CasoBase):
              mock.patch.object(vl, "_ocr", return_value=[]):
             r = self.client.post("/vision_locate", json={"descricao": "qualquer"})
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json()["status"], "ok")
+        self.assertEqual(r.json()["status"], "erro")
         self.assertFalse(r.json()["encontrado"])
 
 
@@ -1770,7 +1770,7 @@ class SemEfeitosColateraisTestCase(helpers.CasoBase):
                                return_value={"path": "C:/tmp/a.png", "width": 1, "height": 1}), \
              mock.patch.object(vl, "_ocr", return_value=elementos):
             r = helpers.sem_excecao(vl.vision_locate, "Entrar")
-        self.assertEqual(r["status"], "ok")
+        self.assertEqual(r["status"], "erro")
         self.assertFalse(r["encontrado"])
         self.assertEqual(r["metodo"], "none")
 

@@ -4,6 +4,12 @@ Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
+### Correcoes de visao (2026-10-22)
+- `computer/vision_locate.py` configura stdout/stderr no uso standalone com `errors="backslashreplace"`, evitando que caracteres OCR fora da code page do Windows interrompam o diagnostico.
+- `vision_locate` retorna `status="erro"` quando o OCR nao detecta texto ou nenhum candidato corresponde, impedindo o planner de contabilizar alvo ausente como acao bem-sucedida.
+- `vision_click` e `vision_type` validam respostas incompletas/legadas e rejeitam alvo ou coordenadas ausentes antes de agir. Foram adicionados testes de regressao e tres antigos `xfail` passaram a testes normais aprovados.
+- Suite completa: `pytest -q` — 1.001 passed, 9 skipped, 57 xfailed, 79 warnings e 2.905 subtests aprovados (116,90s). Testes focados de visao: 159 passed, 3 xfailed.
+
 ### Roadmap e validacao (2026-10-20)
 - Auditoria do `ROADMAP.md`: progresso atualizado para 32% por contagem simples dos checkboxes em portugues (76/241); o valor anterior de 72% nao correspondia ao checklist verificavel.
 - FASE 27 (Overlay Visual TARS) marcada como concluida no roadmap, com base nos sete itens implementados e nos testes de contrato/integração existentes.
@@ -31,9 +37,7 @@ Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.
 - `tests/test_integracao_optin.py` — camada 3 de testes reais, desligada por omissão (`MYRA_TEST_INTEGRATION=1`); valida Ollama, backend, serviço de visão, bridge (token) e ferramentas de leitura, sem efeitos destrutivos.
 - `requirements.txt` passa a declarar todas as dependências realmente usadas (youtube, visão/OCR, controlo de PC, widget), agrupadas por área.
 
-### Known issues (encontrados pelos testes severos, a corrigir)
-- `computer/vision_locate.py` imprime texto do OCR: um caracter fora de cp1252 (ex.: `①`, U+2463) levanta `UnicodeEncodeError` quando o módulo é usado fora do `agent.py` (que já reconfigura o stdout). Correção planeada: reconfiguração partilhada do stdout (módulo comum) importada pelos módulos que imprimem texto não controlado.
-- `vision_locate`/`vision_click` devolvem `{"status": "ok", "encontrado": False}` quando não acham o alvo, e o executor do planner trata isso como sucesso — o ciclo pode declarar objetivo cumprido sem nenhuma ação efetiva.
+
 
 ## [2026-10-15]
 

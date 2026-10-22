@@ -209,6 +209,7 @@ def vision_locate(descricao: str, screenshot_path: str = None) -> dict:
         return {"status": "erro", "result": "Descricao vazia"}
 
     descricao = descricao.strip()
+    _configurar_saida_console()
 
     # 1. Screenshot
     if screenshot_path and os.path.exists(screenshot_path):
@@ -227,8 +228,8 @@ def vision_locate(descricao: str, screenshot_path: str = None) -> dict:
 
     if not elementos:
         return {
-            "status": "ok",
-            "result": "Nenhum texto detectado na tela",
+            "status": "erro",
+            "result": "Nenhum texto detectado na tela; alvo nao encontrado",
             "encontrado": False,
             "screenshot": ss["path"],
             "metodo": "none",
@@ -259,7 +260,7 @@ def vision_locate(descricao: str, screenshot_path: str = None) -> dict:
 
     if not escolhido:
         return {
-            "status": "ok",
+            "status": "erro",
             "result": f"Nenhum elemento corresponde a '{descricao}'",
             "encontrado": False,
             "screenshot": ss["path"],
@@ -289,10 +290,29 @@ def vision_locate(descricao: str, screenshot_path: str = None) -> dict:
     }
 
 
+def _validar_alvo_localizado(loc: dict) -> dict:
+    """Impede que um locate incompleto seja interpretado como sucesso."""
+    if not isinstance(loc, dict):
+        return {"status": "erro", "result": "Resposta invalida de vision_locate"}
+    if loc.get("status") != "ok":
+        return loc
+    if loc.get("encontrado") is not True:
+        resultado = str(loc.get("result") or "Alvo nao encontrado")
+        return {**loc, "status": "erro", "result": resultado}
+    if loc.get("x") is None or loc.get("y") is None:
+        sem_coordenadas = {chave: valor for chave, valor in loc.items() if chave not in ("x", "y")}
+        sem_coordenadas.update({
+            "status": "erro",
+            "result": str(loc.get("result") or "Alvo localizado sem coordenadas validas"),
+        })
+        return sem_coordenadas
+    return loc
+
+
 def vision_click(descricao: str) -> dict:
     """Localiza um elemento e clica no centro dele."""
-    loc = vision_locate(descricao)
-    if loc.get("status") != "ok" or not loc.get("encontrado"):
+    loc = _validar_alvo_localizado(vision_locate(descricao))
+    if loc.get("status") != "ok":
         return loc
 
     try:
@@ -320,8 +340,8 @@ def vision_click(descricao: str) -> dict:
 
 def vision_type(descricao: str, texto: str, limpar: bool = True) -> dict:
     """Localiza um campo, clica nele e digita."""
-    loc = vision_locate(descricao)
-    if loc.get("status") != "ok" or not loc.get("encontrado"):
+    loc = _validar_alvo_localizado(vision_locate(descricao))
+    if loc.get("status") != "ok":
         return loc
 
     try:
@@ -351,11 +371,30 @@ def vision_type(descricao: str, texto: str, limpar: bool = True) -> dict:
         return {"status": "erro", "result": f"Erro ao digitar: {e}"}
 
 
+def _configurar_saida_console() -> None:
+    """Evita UnicodeEncodeError em consoles Windows com code page legado.
+
+    Caracteres sem representacao na codificacao atual sao escapados em vez de
+    interromper o diagnostico standalone. O encoding configurado pelo terminal
+    e preservado para nao produzir bytes UTF-8 incompatíveis com o console.
+    """
+    import sys
+
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(errors="backslashreplace")
+            except (OSError, ValueError):
+                pass
+
+
 # ============================================================
 # Auto-teste (roda quando chamado direto)
 # ============================================================
 if __name__ == "__main__":
     import sys
+    _configurar_saida_console()
     if len(sys.argv) > 1:
         descricao = " ".join(sys.argv[1:])
     else:
