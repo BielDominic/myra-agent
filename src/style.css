@@ -116,6 +116,19 @@ body {
     min-height: 0;
 }
 
+/* Os baloes do mascote precisam ultrapassar a view sem serem recortados.
+   O recorte volta automaticamente quando o balao desaparece. */
+.island .view:has(.speech.show) {
+    overflow: visible;
+}
+
+/* Eleva o mascote inteiro acima dos controles da pilula; o z-index do
+   balao sozinho nao vence a camada de composicao criada pela animacao. */
+.mascot:has(.speech.show) {
+    z-index: 101;
+}
+
+
 .island.idle      { width: 200px; height: 44px; }
 .island.settings  { width: 340px; height: 400px; }
 .island.running,
@@ -368,7 +381,7 @@ body[data-compact="on"] .view-idle .status-dot { display: none; }
     opacity: 0;
     transition: opacity 200ms ease, transform 200ms ease;
     pointer-events: none;
-    z-index: 100;
+    z-index: 102;
 }
 .speech::after {
     content: '';
