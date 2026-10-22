@@ -849,3 +849,110 @@ body[data-running-mode="pill"] .view-running .btn-toggle-mode {
 
 #gpu-badge[hidden] { display: none !important; }
 \n.error-actions { margin-top: 10px; }\n.error-actions .qa { flex: 1; min-width: 0; }\n
+/* ---------- MYRA Orb: esfera viva 3D, sem rosto ---------- */
+:root {
+    --myra-accent: #45e7ff;
+    --myra-accent-2: #397bff;
+}
+body[data-theme="dark"] {
+    --bg-island: #080f1b;
+    --border-accent: rgba(69, 231, 255, .42);
+    --border-accent-soft: rgba(69, 231, 255, .19);
+    --text-accent: #8cf3ff;
+}
+.island {
+    border-radius: 24px;
+    background: linear-gradient(145deg, rgba(10, 23, 39, .98), rgba(4, 10, 20, .98));
+    border-color: rgba(69, 231, 255, .28);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.07),
+                inset 0 0 18px rgba(45, 164, 255, .07),
+                0 0 14px rgba(28, 190, 255, .06);
+}
+.view-idle { gap: 9px; padding-left: 10px; padding-right: 10px; }
+.view-idle .label { letter-spacing: 1.7px; font-size: 12px; font-weight: 700; }
+.view-idle .status-dot { background: #60f5ff; box-shadow: 0 0 9px #39dfff; }
+#btn-open-settings {
+    color: #9cefff;
+    background: rgba(69,231,255,.06);
+    border-color: rgba(69,231,255,.2);
+}
+.mascot {
+    --orb-x: 0px;
+    --orb-y: 0px;
+    --orb-tilt-x: 0deg;
+    --orb-tilt-y: 0deg;
+    width: 32px; height: 32px; min-width: 32px;
+    border-radius: 50%;
+    position: relative;
+    isolation: isolate;
+    overflow: visible;
+    background:
+      radial-gradient(circle at 31% 24%, rgba(255,255,255,.98) 0 2%, rgba(168,250,255,.95) 4%, transparent 17%),
+      radial-gradient(circle at 35% 30%, #a5fbff 0%, #3de5ff 17%, #1688ef 43%, #102a65 72%, #030a19 100%);
+    border: 1px solid rgba(185,250,255,.86);
+    box-shadow: inset -4px -5px 9px rgba(0,0,0,.72),
+                inset 3px 3px 6px rgba(255,255,255,.48),
+                0 0 9px rgba(40,208,255,.75),
+                0 0 19px rgba(36,124,255,.24);
+    transform-style: preserve-3d;
+    transition: box-shadow 180ms ease, filter 180ms ease;
+    animation: orb-float 4s ease-in-out infinite;
+}
+.mascot::before {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 32% 22%, rgba(255,255,255,.9), transparent 19%),
+      conic-gradient(from 35deg at 52% 50%, transparent 0 18%, rgba(105,246,255,.65) 24%, transparent 31% 58%, rgba(75,155,255,.55) 67%, transparent 75% 100%);
+    opacity: .82;
+    filter: blur(.25px);
+    transform: translate(var(--orb-x), var(--orb-y)) rotateX(var(--orb-tilt-y)) rotateY(var(--orb-tilt-x));
+    transition: transform 90ms ease-out, opacity 180ms ease;
+}
+.mascot::after {
+    content: "";
+    position: absolute;
+    width: 9px; height: 9px;
+    left: 11px; top: 11px;
+    border-radius: 50%;
+    pointer-events: none;
+    background: radial-gradient(circle at 35% 30%, #fff 0%, #c9ffff 15%, #52f3ff 38%, rgba(21,145,255,.2) 72%, transparent 100%);
+    box-shadow: 0 0 6px #6ff7ff, 0 0 12px rgba(44,215,255,.85);
+    transform: translate(calc(var(--orb-x) * .45), calc(var(--orb-y) * .45)) scale(var(--orb-core-scale, 1));
+    transition: transform 120ms ease-out;
+}
+.mascot .eye, .mascot .mouth, .mascot .zzz, .mascot .speech { display: none !important; }
+.mascot.idle { animation: orb-float 4s ease-in-out infinite; }
+@keyframes orb-float {
+    0%, 100% { translate: 0 0; }
+    50% { translate: 0 -1px; }
+}
+.mascot.running {
+    background: radial-gradient(circle at 32% 24%, #fff 0%, #b8ffff 5%, #5bf3ff 18%, #168fff 47%, #061d4b 100%);
+    box-shadow: inset -4px -5px 9px rgba(0,0,0,.72), inset 3px 3px 6px rgba(255,255,255,.5), 0 0 12px #38dfff, 0 0 24px rgba(40,130,255,.6);
+    animation: orb-active 1.4s ease-in-out infinite;
+}
+.mascot.running::before { opacity: 1; animation: orb-energy 2.2s linear infinite; }
+.mascot.done { background: radial-gradient(circle at 32% 24%, #fff 0%, #b9fff2 7%, #46ffd0 24%, #087caa 58%, #041b31 100%); }
+.mascot.error { background: radial-gradient(circle at 32% 24%, #fff 0%, #ffd3e0 6%, #ff638b 22%, #a31858 55%, #210b28 100%); }
+@keyframes orb-active {
+    0%, 100% { scale: 1; filter: saturate(1); }
+    50% { scale: 1.055; filter: saturate(1.25) brightness(1.1); }
+}
+@keyframes orb-energy { to { rotate: 360deg; } }
+.mascot:hover {
+    box-shadow: inset -4px -5px 9px rgba(0,0,0,.65), inset 3px 3px 6px rgba(255,255,255,.6),
+                0 0 13px rgba(69,231,255,.95), 0 0 26px rgba(36,124,255,.55);
+    filter: brightness(1.12);
+}
+.mascot:active, .mascot.orb-pulse {
+    --orb-core-scale: 1.38;
+    filter: brightness(1.25) saturate(1.25);
+}
+.mascot.orb-pulse::before { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+    .mascot, .mascot::before { animation: none !important; transition-duration: 0ms !important; }
+}
