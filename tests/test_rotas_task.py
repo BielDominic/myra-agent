@@ -10,6 +10,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 os.environ.setdefault("MYRA_TASK_DB", str(Path(tempfile.gettempdir()) / "myra_smoke_tasks.sqlite3"))
@@ -40,6 +41,21 @@ class RotasTaskTestCase(unittest.TestCase):
         cancel_state.resetar_pausa()
         os.environ.pop("MYRA_TASK_DB", None)
         shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_browser_wait_nao_tenta_abrir_perfil_persistente(self):
+        with mock.patch.object(agent_module.time, "sleep") as dormir, \
+             mock.patch.object(agent_module, "start_browser", side_effect=AssertionError("nao deve abrir navegador")) as iniciar:
+            resultado = agent_module._t_browser_wait(ms=12000)
+        self.assertEqual(resultado["status"], "ok")
+        self.assertEqual(resultado["result"], "Esperei 12s")
+        dormir.assert_called_once_with(12.0)
+        iniciar.assert_not_called()
+
+    def test_browser_wait_limita_intervalo(self):
+        with mock.patch.object(agent_module.time, "sleep") as dormir:
+            resultado = agent_module._t_browser_wait(ms=999999)
+        self.assertEqual(resultado["status"], "ok")
+        dormir.assert_called_once_with(30.0)
 
     def test_task_pause_marca_flag_e_responde_task_id(self):
         agent_module._widget_set(state="running", task_id="task-abc")

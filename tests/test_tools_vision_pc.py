@@ -114,6 +114,9 @@ class PyAutoGUIFalso:
         self.erro = erro
         self.chamadas: list[tuple] = []
 
+    def size(self):
+        return type("Size", (), {"width": 1920, "height": 1080})()
+
     def _registrar(self, nome, *args, **kwargs):
         if self.erro is not None:
             raise self.erro
@@ -149,6 +152,9 @@ class PyAutoGUIEstrito:
         self.largura = largura
         self.altura = altura
         self.chamadas: list[tuple] = []
+
+    def size(self):
+        return type("Size", (), {"width": self.largura, "height": self.altura})()
 
     def _coord(self, x, y):
         for valor in (x, y):
@@ -900,30 +906,21 @@ class VisionClickTestCase(helpers.CasoBase):
             self.assertEqual(fake.chamadas_de("moveTo"), [],
                              f"nao pode mover o rato com coordenadas {x},{y}")
 
-    @unittest.expectedFailure
-    def test_BUG_coordenadas_negativas_e_absurdas_nao_sao_validadas(self):
-        """BUG: nao existe validacao de limites; quem barra e o pyautogui.
-
-        ``vision_locate`` nunca compara as coordenadas com o tamanho da tela.
-        Com um pyautogui permissivo (ou numa versao/plataforma que aceite o
-        valor) o clique acontece em (-1,-1) / (999999,999999); com o pyautogui
-        real o erro e um FailSafeException generico em vez de um erro de
-        validacao da propria ferramenta.
-        """
-        for x, y in [(-1, -1), (999999, 999999)]:
-            fake = PyAutoGUIFalso()  # permissivo: registra sem validar
+    def test_coordenadas_negativas_e_absurdas_sao_barradas_antes_do_clique(self):
+        """Coordenadas fora da tela devem falhar sem chamar o mouse."""
+        for x, y in [(-1, -1), (1920, 1080), (999999, 999999)]:
+            fake = PyAutoGUIFalso()
             r = self._click(self._loc_ok(x=x, y=y), fake)
+            self.assertEqual(r["status"], "erro", f"({x},{y}) -> {r}")
             self.assertEqual(fake.chamadas_de("click"), [],
-                             f"({x},{y}) nao deveria chegar ao pyautogui sem validacao")
-            self.assertTrue(helpers.eh_erro_estruturado(r),
-                            f"({x},{y}) deveria ser erro de validacao, veio: {r}")
+                             f"({x},{y}) nao deveria chegar ao pyautogui")
 
-    def test_coordenada_fora_do_ecra_e_barrada_pelo_pyautogui_real(self):
-        """Confirma a evidencia do bug anterior: o pyautogui real recusa (-1,-1)."""
+    def test_coordenada_fora_do_ecra_e_barrada_antes_do_pyautogui(self):
         fake = PyAutoGUIEstrito()
         r = self._click(self._loc_ok(x=-1, y=-1), fake)
         self.assertTrue(helpers.eh_erro_estruturado(r))
-        self.assertIn("FailSafeException", r["result"])
+        self.assertIn("Coordenadas invalidas", r["result"])
+        self.assertEqual(fake.chamadas_de("click"), [])
 
     def test_locate_que_levanta_nao_escapa_do_vision_click(self):
         with mock.patch.object(vl, "vision_locate", side_effect=RuntimeError("boom")):

@@ -88,6 +88,27 @@ class VerificarTestCase(unittest.TestCase):
         self.assertEqual(v["confianca"], "alta")
         self.assertIn("nao retornou texto", v["motivo"])
 
+    def test_responder_nao_apaga_falha_da_ultima_acao(self):
+        obs = {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "pagina aberta"}
+        objetivo = "Abra example.com, leia o conteudo da pagina e informe o primeiro paragrafo"
+        historico = [
+            passo(1, "browser_new_tab", {"url": "https://example.com"}, True,
+                  observacao=obs, resultado={"status": "ok", "url": "https://example.com/", "title": "Example Domain"}),
+            passo(2, "responder", {"pergunta": "resuma"}, True,
+                  resultado={"status": "ok", "result": "Nao consegui ler o paragrafo"}),
+        ]
+        v = autonomy.verificar(objetivo, historico)
+        self.assertFalse(v["atingido"])
+        self.assertEqual(v["confianca"], "alta")
+        self.assertIn("browser_read_page", v["motivo"])
+
+    def test_responder_sozinho_nao_confirma_objetivo(self):
+        historico = [passo(1, "responder", {"pergunta": "feito?"}, True,
+                           resultado={"status": "ok", "result": "feito"})]
+        v = autonomy.verificar("abrir example.com", historico)
+        self.assertIsNone(v["atingido"])
+        self.assertEqual(v["confianca"], "indeterminada")
+
     def test_observer_confirma_falha_da_acao(self):
         obs = {"status": "ok", "sucesso": False, "objetivo_atingido": False, "motivo": "botao inexistente"}
         v = autonomy.verificar("clicar em entrar", [passo(1, "browser_click_text", {}, True, observacao=obs)], obs)

@@ -183,8 +183,25 @@ def verificar(objetivo: str, historico: list, observacao: dict | None = None) ->
             "evidencia": "",
         }
 
-    ultimo = historico[-1]
-    obs = observacao if observacao is not None else ultimo.get("observacao")
+    # A ferramenta responder apenas sintetiza a saida; ela nao substitui a
+    # evidencia da ultima acao real nem pode apagar uma falha anterior.
+    indice_evidencia = len(historico) - 1
+    while indice_evidencia >= 0 and historico[indice_evidencia].get("ferramenta") == "responder":
+        indice_evidencia -= 1
+    if indice_evidencia < 0:
+        return {
+            "atingido": None,
+            "confianca": "indeterminada",
+            "motivo": "a task so tem sintese final, sem acao observavel para verificar",
+            "evidencia": "",
+        }
+
+    ultimo = historico[indice_evidencia]
+    obs = (
+        observacao
+        if indice_evidencia == len(historico) - 1 and observacao is not None
+        else ultimo.get("observacao")
+    )
     if not isinstance(obs, dict):
         obs = None
 

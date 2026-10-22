@@ -101,28 +101,35 @@ def _fuzzy_match(descricao: str, elementos: list) -> tuple:
 
 
 def _coordenadas_para_mouse(loc: dict, pyautogui_mod) -> tuple | None:
-    """Converte pixels do screenshot para o espaco de coordenadas do PyAutoGUI.
+    """Converte e valida coordenadas do screenshot para o PyAutoGUI.
 
     O Windows pode expor resolucoes diferentes ao MSS (pixels fisicos) e ao
-    PyAutoGUI (coordenadas logicas/DPI). Sem metadados, preserva o contrato
-    antigo; com metadados, escala e recusa coordenadas fora da captura.
+    PyAutoGUI (coordenadas logicas/DPI). Com metadados, escala e valida na
+    captura; sem metadados, valida as coordenadas diretamente na tela do mouse.
     """
     try:
         x, y = int(loc["x"]), int(loc["y"])
         largura = int(loc.get("screen_width") or 0)
         altura = int(loc.get("screen_height") or 0)
-        if largura <= 0 or altura <= 0:
-            return x, y
-        if not (0 <= x < largura and 0 <= y < altura):
-            return None
         tamanho = pyautogui_mod.size()
         mouse_w, mouse_h = int(tamanho.width), int(tamanho.height)
         if mouse_w <= 0 or mouse_h <= 0:
             return None
-        mouse_x = round(x * mouse_w / largura)
-        mouse_y = round(y * mouse_h / altura)
-        # Coordenadas de clique sao zero-based: limite superior exclusivo.
-        return (min(mouse_x, mouse_w - 1), min(mouse_y, mouse_h - 1))
+
+        if largura > 0 and altura > 0:
+            # Valida primeiro na grelha da captura (pixels fisicos).
+            if not (0 <= x < largura and 0 <= y < altura):
+                return None
+            mouse_x = round(x * mouse_w / largura)
+            mouse_y = round(y * mouse_h / altura)
+            # Coordenadas de clique sao zero-based: limite superior exclusivo.
+            return (min(mouse_x, mouse_w - 1), min(mouse_y, mouse_h - 1))
+
+        # Respostas antigas podem nao incluir dimensoes da captura. Nesse caso
+        # nao ha escala segura a inferir: valida diretamente na grelha do mouse.
+        if not (0 <= x < mouse_w and 0 <= y < mouse_h):
+            return None
+        return x, y
     except (KeyError, TypeError, ValueError, AttributeError, OverflowError):
         return None
 

@@ -3411,10 +3411,13 @@ def _t_playwright_go_back():
         return {"status": "erro", "result": f"Playwright go_back: {type(exc).__name__}: {exc}"}
 
 def _t_playwright_wait(seconds: float = 1):
+    """Espera sem abrir/recriar o perfil persistente do navegador."""
     try:
-        return wait(Wait(seconds=seconds))
+        segundos = max(0.0, min(float(seconds), 30.0))
+        time.sleep(segundos)
+        return {"status": "ok", "result": f"Esperei {segundos:g}s"}
     except Exception as exc:
-        return {"status": "erro", "result": f"Playwright wait: {type(exc).__name__}: {exc}"}
+        return {"status": "erro", "result": f"Browser wait: {type(exc).__name__}: {exc}"}
 
 def _t_playwright_read_page():
     try:

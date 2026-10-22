@@ -140,6 +140,7 @@
 - [x] Observacao com screenshot dedicado no observer, fallback textual se captura/modelo visual falhar.
 - [x] Corrigir Unicode/encoding no `computer/vision_locate.py` standalone: a saida de stdout/stderr usa `backslashreplace` para caracteres fora da code page ativa.
 - [x] Corrigir falso sucesso de `vision_locate`/`vision_click`/`vision_type`: alvo ausente, resposta incompleta ou coordenadas ausentes retornam `status: erro` e nao executam clique/digitacao.
+- [x] Validar limites das coordenadas visuais antes de acionar o mouse, inclusive respostas antigas sem metadados de resolucao.
 - [x] Verificacao deterministica de objetivos web: navegar nao satisfaz pedido de leitura, ler nao satisfaz pedido de clique, e extracao exige texto do corpo da pagina.
 
 #### FASE 27 - Overlay Visual TARS
@@ -504,7 +505,7 @@
 3. **Fechar FASE 28 (controle mobile)**: testar comandos no Telegram real, configurar Tailscale e validar a API remota protegida.
 4. **FASE 30 (distribuicao)**: gerar e testar o instalador Windows; depois priorizar voz/interface propria conforme o objetivo do produto.
 
-**Ultima validacao automatizada (2026-10-22):** `pytest -q` — 1.008 passed, 9 skipped, 57 xfailed, 79 warnings e 2.907 subtests aprovados. Os `xfail` sao falhas esperadas/documentadas e ainda merecem triagem.
+**Ultima validacao automatizada (2026-10-22):** `pytest -q` — 1.013 passed, 9 skipped, 56 xfailed, 79 warnings e 2.907 subtests aprovados (176,34s). Os `xfail` sao falhas esperadas/documentadas e ainda merecem triagem.
 
 **Validacao real parcial (2026-10-22):** 9 testes opt-in de integracao passaram com Ollama, servico de visao, backend e Browser Bridge ativos. Uma task real de dois passos abriu `https://example.com`, leu o corpo via `browser_read_active_tab` e extraiu o titulo `Example Domain` e o primeiro paragrafo. O verificador deterministico impediu sucesso prematuro apos a navegacao. Recuperacao real e pausa/retomada no navegador continuam pendentes.
 
@@ -642,6 +643,7 @@
 - [x] Dedicated screenshot observation in the observer, with text fallback if capture/vision inference fails.
 - [x] Standalone Unicode-safe console output in `computer/vision_locate.py`; unencodable OCR characters are escaped rather than crashing on legacy Windows code pages.
 - [x] Vision tools return explicit errors when no target is found or coordinates are missing; click/type do not execute without a validated target.
+- [x] Validate visual coordinate bounds before mouse actions, including legacy results without resolution metadata.
 
 #### PHASE 27 - TARS Visual Overlay
 ![Completed](https://img.shields.io/badge/-COMPLETED-brightgreen?style=flat-square)
