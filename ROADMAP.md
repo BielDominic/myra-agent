@@ -165,10 +165,14 @@
 **Descricao:** ferramenta opcional de analise local de apps JavaScript/Electron.
 **Licenca:** MIT | **Requer:** Node.js 22.19+, 24.11+ ou 26+.
 
-- [x] Criado tasks/rea_tools.py com rea_status e rea_analyze_javascript.
+- [x] Criado tasks/rea_tools.py com rea_status, rea_catalog e rea_analyze_javascript.
 - [x] Ferramentas registradas no planner e regras para uso autorizado.
 - [x] Analise limitada a raizes configuradas; sem instalacao global nem execucao no startup.
-- [ ] Configurar MYRA_REA_ALLOWED_ROOTS e validar com um app JavaScript autorizado.
+- [x] Validado em 2026-10-22 com MYRA_REA_ALLOWED_ROOTS apontando para C:\\computer-agent e analise REA bem-sucedida de widget-tauri\\ui (evidencia JSON; resultado truncado pelo limite de saida de 12.000 caracteres). A variavel foi configurada para a execucao de validacao; configuracao persistente ainda depende do ambiente de deploy.
+- [x] Conexao MCP real via SDK oficial e descoberta de 207 ferramentas com esquemas JSON.
+- [x] Ponte MCP integrada: rea_mcp_list_tools e rea_mcp_call, com allowlist explicita de 11 ferramentas de leitura, validacao de raiz autorizada para analise JavaScript e limites de tamanho/timeout.
+- [x] Validada chamada MCP real de `analyze_javascript_application` no `workspace\\rea_smoke_test`: retornou Evidence com `status=ok`, sem truncamento, respeitando a raiz autorizada.
+- [ ] Validar as ferramentas que dependem de um provedor binario aberto; `current_document` respondeu `target_unavailable` enquanto nenhum app estava aberto.
 
 **Aviso legal:** usar somente software proprio ou explicitamente autorizado. Detalhes em PHASE27_5_REA.md.
 
@@ -503,11 +507,11 @@
 **Ordem revisada em 2026-10-22**, apos corrigir os dois bloqueadores da visao:
 
 1. **Concluir a validacao real da FASE 26 no navegador**: uma task real de dois passos abriu `https://example.com`, leu o corpo via `browser_read_active_tab` e extraiu o titulo `Example Domain` e o primeiro paragrafo. O verificador bloqueou o sucesso prematuro apos a navegacao. Ainda falta validar recuperacao e pausa/retomada reais.
-2. **Validar FASE 27.5 (REA)** com um app JavaScript autorizado e raizes configuradas.
+2. **FASE 27.5 (REA):** analise real do app autorizado `widget-tauri\\ui` passou em 2026-10-22 com raiz autorizada configurada para a execucao; verificar configuracao persistente no ambiente final.
 3. **Fechar FASE 28 (controle mobile)**: testar comandos no Telegram real, configurar Tailscale e validar a API remota protegida.
 4. **FASE 30 (distribuicao)**: gerar e testar o instalador Windows; depois priorizar voz/interface propria conforme o objetivo do produto.
 
-**Ultima validacao automatizada (2026-10-22):** `pytest -q` — 1.015 passed, 9 skipped, 54 xfailed, 79 warnings e 2.907 subtests aprovados (173,49s). Os `xfail` sao falhas esperadas/documentadas e ainda merecem triagem.
+**Ultima validacao automatizada (2026-10-22):** `pytest -q` — 1.017 passed, 9 skipped, 52 xfailed, 79 warnings e 2.907 subtests aprovados (115,58s). Os `xfail` sao falhas esperadas/documentadas e ainda merecem triagem.
 
 **Validacao real parcial (2026-10-22):** 9 testes opt-in de integracao passaram com Ollama, servico de visao, backend e Browser Bridge ativos. Uma task real de dois passos abriu `https://example.com`, leu o corpo via `browser_read_active_tab` e extraiu o titulo `Example Domain` e o primeiro paragrafo. O verificador deterministico impediu sucesso prematuro apos a navegacao. Recuperacao real e pausa/retomada no navegador continuam pendentes.
 
@@ -987,7 +991,7 @@
 **Order revised on 2026-10-22:**
 
 1. **Finish PHASE 26 real-browser validation**: a real two-step task opened `https://example.com`, read the body with `browser_read_active_tab`, and extracted `Example Domain` plus the first paragraph. The verifier blocked premature completion after navigation; real recovery and pause/resume remain pending.
-2. **PHASE 27.5 (REA)**: configure authorized roots and validate against an explicitly authorized JavaScript app.
+2. **PHASE 27.5 (REA):** real analysis of the authorized `widget-tauri\ui` app passed on 2026-10-22 with an allowed root configured for the validation process; confirm persistent configuration in the final environment.
 3. **PHASE 28 mobile control**: validate real Telegram commands, Tailscale, and the protected remote API.
 4. **PHASE 30 distribution**: build and test the Windows installer before prioritizing the native UI and voice.
 
@@ -995,8 +999,24 @@
 
 ---
 
-**Last updated:** 2026-10-22
+**Last updated:** 2026-10-23
 
+
+## PHASE 32 - Universal Windows Application Access
+
+- [x] 32.1 - Discover app shortcuts from per-user/all-users Start Menu and Desktop.
+- [x] 32.2 - Expose app inventory through FastAPI (`POST /pc_list_applications`) and open-app API (`POST /pc_open_application`).
+- [x] 32.3 - Register app inventory/open actions as planner tools.
+- [x] 32.4 - Open a known shortcut by exact/unique name; reject ambiguous matches.
+- [x] 32.5 - Add UI Automation (UIA) control listing with name/type/AutomationId.
+- [x] 32.6 - Add controlled UIA actions: click, set text, focus, toggle and select; reject ambiguous/disabled controls.
+- [x] 32.7 - Add controlled window actions (minimize/maximize/restore/close) with state verification.
+- [ ] 32.8 - Validate multi-application workflows with observe-act-verify and recovery.
+- [ ] 32.9 - Expand inventory to installed-app registry entries where safe launch targets are available.
+
+**Security boundary:** no arbitrary command-line execution, no implicit elevation, and no bypass of existing confirmations for consequential actions. Shortcut discovery and launching run as the logged-in Windows user.
+
+---
 
 ## FASE FUTURA - Cloud Deployment (24/7)
 - [ ] **Objetivo:** Migrar o backend (FastAPI + Telegram Bot) para um VPS (Virtual Private Server).

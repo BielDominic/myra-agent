@@ -31,6 +31,7 @@ ultralytics==8.4.175
 # --- Controlo de PC / janelas / captura ---
 PyAutoGUI==0.9.54
 PyGetWindow==0.0.9
+pywinauto==0.6.9
 mss==10.2.0
 keyboard==0.13.5
 

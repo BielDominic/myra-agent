@@ -148,6 +148,28 @@ def pc_screenshot() -> dict:
     return _post("/pc_screenshot", {"salvar": True})
 
 
+def pc_list_applications() -> dict:
+    """Lista atalhos de aplicativos no menu Iniciar e desktops do Windows."""
+    return _post("/pc_list_applications", {})
+
+
+def pc_open_application(nome: str) -> dict:
+    """Abre um aplicativo por nome de atalho conhecido. Obrigatorio: nome."""
+    return _post("/pc_open_application", {"nome": nome})
+
+
+def pc_list_controls(titulo: str, limite: int = 100) -> dict:
+    return _post("/pc_list_controls", {"titulo": titulo, "limite": limite})
+
+
+def pc_control_action(titulo: str, alvo: str, acao: str, texto: str = "") -> dict:
+    return _post("/pc_control_action", {"titulo": titulo, "alvo": alvo, "acao": acao, "texto": texto})
+
+
+def pc_window_action(titulo: str, acao: str) -> dict:
+    return _post("/pc_window_action", {"titulo": titulo, "acao": acao})
+
+
 def pc_get_windows() -> dict:
     """Lista janelas abertas."""
     return _post("/pc_get_windows", {})
@@ -247,6 +269,16 @@ def registrar_todas(registrar_ferramenta):
         "Retorna a janela ativa.")
     registrar_ferramenta("pc_focus_window", pc_focus_window,
         "Foca uma janela pelo titulo. Obrigatorio: titulo.")
+    registrar_ferramenta("pc_list_applications", pc_list_applications,
+        "Lista aplicativos acess?veis pelos atalhos do menu Iniciar e desktops do Windows.")
+    registrar_ferramenta("pc_open_application", pc_open_application,
+        "Abre um aplicativo pelo nome do atalho conhecido. Obrigatorio: nome. Se houver nomes amb?guos, escolha um mais espec?fico.")
+    registrar_ferramenta("pc_list_controls", pc_list_controls,
+        "Lista controles UI Automation de uma janela. Obrigatorio: titulo; opcional limite entre 1 e 200.")
+    registrar_ferramenta("pc_control_action", pc_control_action,
+        "Aciona um controle UIA unico. Obrigatorios: titulo, alvo, acao; acoes permitidas: click, set_text, focus, toggle, select; texto opcional.")
+    registrar_ferramenta("pc_window_action", pc_window_action,
+        "Minimiza/maximiza/restaura/fecha uma janela unica. Obrigatorios: titulo, acao (minimize, maximize, restore, close). Fechar pode perder trabalho nao salvo: confirme com o usuario quando houver esse risco.")
 
     # --- UTILITARIAS ---
     registrar_ferramenta("get_current_time", get_current_time,

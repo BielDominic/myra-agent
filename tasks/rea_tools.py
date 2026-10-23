@@ -6,6 +6,7 @@ dentro de uma raiz explicitamente permitida.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -16,6 +17,23 @@ from typing import Callable
 REA_PACKAGE = os.getenv("MYRA_REA_PACKAGE", "rea-agents@6.5.0")
 WORKSPACE = Path(os.getenv("MYRA_WORKSPACE", r"C:\computer-agent\workspace"))
 MAX_OUTPUT_CHARS = 12_000
+MCP_HELPER = Path(__file__).resolve().parents[1] / "tools" / "rea_mcp_bridge.mjs"
+MCP_TIMEOUT_SECONDS = 90
+# Allowlist deliberately excludes tools that write annotations, rename symbols,
+# change analysis databases, open arbitrary targets, or execute procedures.
+REA_MCP_READ_ONLY_TOOLS = frozenset({
+    "analyze_javascript_application",
+    "current_document",
+    "current_address",
+    "current_procedure",
+    "address_name",
+    "comment",
+    "inline_comment",
+    "inspect_native_instruction",
+    "inspect_native_data_type",
+    "inspect_native_load_image",
+    "resolve_native_call_targets",
+})
 
 
 def _allowed_roots() -> list[Path]:
@@ -130,6 +148,174 @@ def rea_analyze_javascript(target: str) -> dict:
         return {"status": "erro", "result": f"{type(exc).__name__}: {exc}"}
 
 
+def rea_catalog() -> dict:
+    """Consulta o catalogo de comandos REA suportados pela versao configurada."""
+    try:
+        _node_version()
+        command = _npx_command() + [
+            "--yes", REA_PACKAGE, "--llms", "--format", "json"
+        ]
+        completed = subprocess.run(
+            command,
+            cwd=str(WORKSPACE),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+            check=False,
+            shell=False,
+        )
+        stdout = (completed.stdout or "").strip()
+        stderr = (completed.stderr or "").strip()
+        if completed.returncode != 0:
+            detail = stderr or stdout or f"REA encerrou com codigo {completed.returncode}."
+            return {"status": "erro", "result": detail[:3000], "returncode": completed.returncode}
+        if not stdout:
+            return {"status": "erro", "result": "REA terminou sem retornar o catalogo."}
+        try:
+            payload = json.loads(stdout)
+        except ValueError:
+            return {"status": "erro", "result": "REA retornou um catalogo que nao e JSON valido.", "output": stdout[:3000]}
+        commands = payload.get("commands") if isinstance(payload, dict) else None
+        if not isinstance(commands, list):
+            return {"status": "erro", "result": "O JSON do REA nao contem uma lista commands valida."}
+        catalog = []
+        for item in commands:
+            if isinstance(item, dict) and isinstance(item.get("name"), str):
+                catalog.append({
+                    "name": item["name"][:120],
+                    "description": str(item.get("description", ""))[:500],
+                })
+        return {
+            "status": "ok",
+            "rea_package": REA_PACKAGE,
+            "catalog_version": payload.get("version"),
+            "command_count": len(catalog),
+            "commands": catalog[:250],
+            "truncated": len(catalog) > 250,
+        }
+    except subprocess.TimeoutExpired:
+        return {"status": "erro", "result": "A consulta ao catalogo REA excedeu 60 segundos."}
+    except Exception as exc:
+        return {"status": "erro", "result": f"{type(exc).__name__}: {exc}"}
+
+
+def _run_mcp_bridge(mode: str, payload: dict | None = None) -> dict:
+    """Executa o cliente MCP isolado e devolve apenas JSON validado."""
+    node = shutil.which("node")
+    if not node:
+        raise RuntimeError("Node.js nao encontrado no PATH.")
+    if not MCP_HELPER.is_file():
+        raise RuntimeError(f"Helper MCP nao encontrado: {MCP_HELPER}")
+    request = json.dumps(payload or {}, ensure_ascii=False)
+    completed = subprocess.run(
+        [node, str(MCP_HELPER), mode],
+        input=request if mode == "call" else "",
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=MCP_TIMEOUT_SECONDS,
+        check=False,
+        shell=False,
+        cwd=str(WORKSPACE),
+    )
+    stdout = (completed.stdout or "").strip()
+    if not stdout:
+        detail = (completed.stderr or "").strip()
+        raise RuntimeError((detail or "O cliente MCP nao retornou JSON.")[:3000])
+    try:
+        result = json.loads(stdout.splitlines()[-1])
+    except ValueError as exc:
+        raise RuntimeError("Resposta MCP nao e JSON valido.") from exc
+    if not isinstance(result, dict):
+        raise RuntimeError("Resposta MCP tem formato invalido.")
+    if completed.returncode != 0 or result.get("status") != "ok":
+        raise RuntimeError(str(result.get("result") or completed.stderr or "Falha MCP.")[:3000])
+    return result
+
+
+def rea_mcp_list_tools() -> dict:
+    """Descobre ferramentas e esquemas MCP reais, expondo esquemas apenas para allowlist."""
+    try:
+        payload = _run_mcp_bridge("list")
+        tools = payload.get("tools")
+        if not isinstance(tools, list):
+            return {"status": "erro", "result": "Resposta tools/list invalida."}
+        catalog = []
+        safe_tools = []
+        for item in tools:
+            if not isinstance(item, dict) or not isinstance(item.get("name"), str):
+                continue
+            entry = {"name": item["name"][:120], "description": str(item.get("description", ""))[:500]}
+            catalog.append(entry)
+            if item["name"] in REA_MCP_READ_ONLY_TOOLS:
+                safe_tools.append({**entry, "inputSchema": item.get("inputSchema", {})})
+        return {
+            "status": "ok",
+            "rea_package": REA_PACKAGE,
+            "tool_count": len(catalog),
+            "tools": catalog[:250],
+            "read_only_tools": safe_tools,
+            "truncated": len(catalog) > 250,
+        }
+    except subprocess.TimeoutExpired:
+        return {"status": "erro", "result": f"A descoberta MCP excedeu {MCP_TIMEOUT_SECONDS} segundos."}
+    except Exception as exc:
+        return {"status": "erro", "result": f"{type(exc).__name__}: {exc}"}
+
+
+def rea_mcp_call(tool_name: str, arguments: dict | None = None) -> dict:
+    """Chama uma ferramenta MCP de leitura explicitamente autorizada."""
+    try:
+        if not isinstance(tool_name, str) or tool_name not in REA_MCP_READ_ONLY_TOOLS:
+            return {
+                "status": "erro",
+                "result": "Ferramenta MCP nao autorizada; consulte rea_mcp_list_tools e use apenas a allowlist de leitura.",
+            }
+        if arguments is None:
+            arguments = {}
+        if not isinstance(arguments, dict):
+            return {"status": "erro", "result": "arguments precisa ser um objeto JSON."}
+        arguments = dict(arguments)
+        if tool_name == "analyze_javascript_application":
+            target = arguments.get("input_path")
+            if not isinstance(target, str) or not target.strip():
+                return {"status": "erro", "result": "input_path e obrigatorio para analisar uma aplicacao JavaScript."}
+            path = Path(target).expanduser().resolve(strict=True)
+            if not any(path == root or root in path.parents for root in _allowed_roots()):
+                return {"status": "erro", "result": "Alvo MCP fora das raizes autorizadas em MYRA_REA_ALLOWED_ROOTS."}
+            if not (path.is_file() or path.is_dir()):
+                return {"status": "erro", "result": "input_path precisa ser arquivo ou pasta existente."}
+            arguments["input_path"] = str(path)
+        encoded = json.dumps(arguments, ensure_ascii=False)
+        if len(encoded) > 16_000:
+            return {"status": "erro", "result": "Argumentos excedem o limite de 16000 caracteres."}
+        payload = _run_mcp_bridge("call", {"name": tool_name, "arguments": arguments})
+        result = payload.get("result")
+        content = result.get("content") if isinstance(result, dict) else None
+        if isinstance(content, list):
+            text_parts = [
+                item.get("text", "")
+                for item in content
+                if isinstance(item, dict) and isinstance(item.get("text"), str)
+            ]
+            serialized = "\\n".join(text_parts) if text_parts else json.dumps(result, ensure_ascii=False)
+        else:
+            serialized = json.dumps(result, ensure_ascii=False)
+        return {
+            "status": "ok",
+            "tool": tool_name,
+            "result": serialized[:MAX_OUTPUT_CHARS],
+            "truncated": len(serialized) > MAX_OUTPUT_CHARS,
+        }
+    except subprocess.TimeoutExpired:
+        return {"status": "erro", "result": f"A chamada MCP excedeu {MCP_TIMEOUT_SECONDS} segundos."}
+    except Exception as exc:
+        return {"status": "erro", "result": f"{type(exc).__name__}: {exc}"}
+
+
 def rea_status() -> dict:
     """Verifica pre-requisitos locais sem instalar nem executar o REA."""
     node = shutil.which("node")
@@ -150,6 +336,21 @@ def rea_status() -> dict:
 
 
 def registrar_todas(registrar_ferramenta: Callable) -> None:
+    registrar_ferramenta(
+        "rea_mcp_list_tools",
+        rea_mcp_list_tools,
+        "Descobre as ferramentas MCP reais do REA e retorna esquemas somente para a allowlist de leitura; nao executa ferramentas."
+    )
+    registrar_ferramenta(
+        "rea_mcp_call",
+        rea_mcp_call,
+        "Executa ferramenta MCP REA somente na allowlist de leitura: analyze_javascript_application, current_document, current_address, current_procedure, address_name, comment, inline_comment, inspect_native_instruction, inspect_native_data_type, inspect_native_load_image ou resolve_native_call_targets. Argumentos em arguments como objeto JSON."
+    )
+    registrar_ferramenta(
+        "rea_catalog",
+        rea_catalog,
+        "Lista os comandos e descricoes publicados pelo catalogo JSON do REA instalado/configurado; nao executa comandos de analise."
+    )
     registrar_ferramenta(
         "rea_analyze_javascript",
         rea_analyze_javascript,

@@ -63,28 +63,8 @@ function switchView(state) {
     updateMascotState(state);
 }
 
-const SPEECHES = {
-    idle:    ["Oi! \u{1F44B}", "Pronto!", "To aqui!", "Manda ver!"],
-    running: ["Pensando...", "Ja vou!", "Executando...", "Um instante!"],
-    done:    ["Feito! \u2705", "Consegui!", "Prontinho!", "Ta na mao!"],
-    error:   ["Ops! \u{1F605}", "Deu ruim!", "Tenta de novo!", "Ixi..."]
-};
-
-function updateMascotState(state) {
-    const mascot = document.querySelector(".view-" + state + " .mascot");
-    if (!mascot) return;
-    const speech = mascot.querySelector('.speech');
-    if (!speech) return;
-
-    const msgs = SPEECHES[state] || [];
-    if (msgs.length > 0) {
-        const msg = msgs[Math.floor(Math.random() * msgs.length)];
-        speech.textContent = msg;
-        speech.classList.add('show');
-        clearTimeout(speech._timeout);
-        speech._timeout = setTimeout(() => speech.classList.remove('show'), 2500);
-    }
-}
+// Bal?es de intera??o desativados: o mascote n?o exibe mensagens flutuantes.
+function showSpeech() {}
 
 function startBlinking() {
     setInterval(() => {
@@ -96,45 +76,41 @@ function startBlinking() {
 }
 
 function startEyeTracking() {
-    // Atualiza apenas a esfera sob o ponteiro; sem canvas/WebGL ou loops de renderização.
-    let lastMascot = null;
     document.addEventListener('mousemove', (e) => {
-        const target = e.target.closest && e.target.closest('.mascot');
-        if (lastMascot && lastMascot !== target) {
-            lastMascot.style.setProperty('--orb-x', '0px');
-            lastMascot.style.setProperty('--orb-y', '0px');
-            lastMascot.style.setProperty('--orb-tilt-x', '0deg');
-            lastMascot.style.setProperty('--orb-tilt-y', '0deg');
-        }
-        lastMascot = target;
-        if (!target) return;
-        const rect = target.getBoundingClientRect();
-        const nx = Math.max(-1, Math.min(1, (e.clientX - rect.left - rect.width / 2) / (rect.width / 2)));
-        const ny = Math.max(-1, Math.min(1, (e.clientY - rect.top - rect.height / 2) / (rect.height / 2)));
-        target.style.setProperty('--orb-x', (nx * 2.2).toFixed(2) + 'px');
-        target.style.setProperty('--orb-y', (ny * 2.2).toFixed(2) + 'px');
-        target.style.setProperty('--orb-tilt-x', (nx * 13).toFixed(1) + 'deg');
-        target.style.setProperty('--orb-tilt-y', (-ny * 13).toFixed(1) + 'deg');
-    }, { passive: true });
+        const mascots = document.querySelectorAll('.mascot:not(.done):not(.error)');
+        mascots.forEach(mascot => {
+            const rect = mascot.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            const dx = e.clientX - cx;
+            const dy = e.clientY - cy;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const maxOffset = 3;
+            const factor = Math.min(dist / 100, 1);
+            const ox = (dx / (dist || 1)) * maxOffset * factor;
+            const oy = (dy / (dist || 1)) * maxOffset * factor;
+            // Olhos: movimento total + leve inclinacao
+            const tilt = (ox / 3) * 10;
+            mascot.querySelectorAll('.eye').forEach(eye => {
+                eye.style.transform = "translate(" + ox + "px, " + oy + "px) rotate(" + tilt + "deg)";
+            });
+            // Boca: so mexe se ela ta visivel (balao aberto) - evita artefato do WebView2
+            const mouth = mascot.querySelector('.mouth');
+            const speechOpen = null;
+            if (mouth && speechOpen) {
+                const mx = ox * 0.5;
+                const my = oy * 0.5;
+                mouth.style.transform = "translateX(-50%) translate(" + mx + "px, " + my + "px)";
+            }
+        });
+    });
 }
 
 function setupMascotClick() {
     document.querySelectorAll('.mascot').forEach(m => {
         m.addEventListener('click', (e) => {
             e.stopPropagation();
-            m.classList.remove('orb-pulse');
-            // Reinicia a animação para dar feedback a cada clique.
-            void m.offsetWidth;
-            m.classList.add('orb-pulse');
-            clearTimeout(m._orbPulseTimeout);
-            m._orbPulseTimeout = setTimeout(() => m.classList.remove('orb-pulse'), 420);
-            console.log("[MASCOT] orb interagiu");
-        });
-        m.addEventListener('pointerleave', () => {
-            m.style.setProperty('--orb-x', '0px');
-            m.style.setProperty('--orb-y', '0px');
-            m.style.setProperty('--orb-tilt-x', '0deg');
-            m.style.setProperty('--orb-tilt-y', '0deg');
+            console.log("[MASCOT] click -> abrir chat");
         });
     });
 }

@@ -2,11 +2,15 @@
 
 ## Estado
 
-Implementacao de codigo concluida; validacao real com um projeto JavaScript autorizado ainda pendente.
+Integracao inicial concluida; ponte MCP em validacao. Em 2026-10-22, a analise real de `C:\computer-agent\widget-tauri\ui` executou com sucesso usando `MYRA_REA_ALLOWED_ROOTS=C:\computer-agent` configurado para o processo de validacao. A saida JSON foi limitada a 12.000 caracteres, conforme o limite de seguranca; a configuracao persistente no ambiente de deploy ainda precisa ser confirmada.
 
 ## O que foi adicionado
 
-- `tasks/rea_tools.py`: ferramentas `rea_status` e `rea_analyze_javascript`.
+- `tasks/rea_tools.py`: ferramentas `rea_status`, `rea_catalog`, `rea_analyze_javascript`, `rea_mcp_list_tools` e `rea_mcp_call`.
+- `tools/rea_mcp_bridge.mjs`: cliente baseado no SDK oficial MCP para conectar ao servidor REA por stdio.
+- Descoberta real confirmou 207 ferramentas no servidor; a MYRA expõe os nomes/descricoes do catalogo e os esquemas JSON de 11 ferramentas explicitamente permitidas para leitura.
+- `rea_mcp_call` rejeita ferramentas fora da allowlist, argumentos que nao sejam objeto JSON e payloads acima de 16.000 caracteres; para `analyze_javascript_application`, tambem valida que o caminho exista e esteja dentro de uma raiz autorizada.
+- Validacao real: a chamada MCP `analyze_javascript_application` analisou `C:\\computer-agent\\workspace\\rea_smoke_test` e retornou Evidence com `status=ok`, sem truncamento. A ferramenta `current_document` exige que exista um alvo aberto num provedor binario e devolveu `target_unavailable` quando nenhum estava aberto.
 - Registro das ferramentas no planner da MYRA.
 - Regras no prompt para restringir o uso a software proprio ou explicitamente autorizado.
 - O pacote REA nao e instalado globalmente. O `npx` usa a versao fixada `rea-agents@6.5.0` apenas quando a analise for chamada.

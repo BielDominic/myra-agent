@@ -335,6 +335,27 @@ class PCFocusWindow(BaseModel):
     titulo: str
 
 
+class PCOpenApplication(BaseModel):
+    nome: str = Field(min_length=1, max_length=160)
+
+
+class PCListControls(BaseModel):
+    titulo: str = Field(min_length=1, max_length=200)
+    limite: int = Field(default=100, ge=1, le=200)
+
+
+class PCActuateControl(BaseModel):
+    titulo: str = Field(min_length=1, max_length=200)
+    alvo: str = Field(min_length=1, max_length=300)
+    acao: str = Field(min_length=1, max_length=30)
+    texto: str = Field(default="", max_length=10000)
+
+
+class PCWindowAction(BaseModel):
+    titulo: str = Field(min_length=1, max_length=200)
+    acao: str = Field(min_length=1, max_length=20)
+
+
 class ChatList(BaseModel):
     quantidade: int = 20
 
@@ -2341,6 +2362,8 @@ from computer.controller import (
     scroll as _pc_scroll_fn,
 )
 from computer.screen import screenshot as _pc_screenshot_fn
+from computer.applications import listar_aplicativos as _pc_listar_aplicativos, abrir_aplicativo as _pc_abrir_aplicativo
+from computer.ui_automation import listar_controles as _pc_listar_controles, acionar_controle as _pc_acionar_controle, gerenciar_janela as _pc_gerenciar_janela
 from computer.windows import (
     get_windows as _pc_get_windows,
     get_active_window as _pc_get_active_window,
@@ -2401,6 +2424,35 @@ def pc_screenshot(data: PCScreenshot = None):
     salvar = data.salvar if data else True
     print(f"[PC_SCREENSHOT] salvar={salvar}")
     return _pc_screenshot_fn(salvar)
+
+
+@app.post("/pc_list_applications")
+def pc_applications():
+    """Lista atalhos de aplicativos acessíveis no menu Iniciar e desktops."""
+    print("[PC_APPLICATIONS] inventario de atalhos")
+    return _pc_listar_aplicativos()
+
+
+@app.post("/pc_open_application")
+def pc_open_application(data: PCOpenApplication):
+    """Abre um aplicativo por atalho conhecido, sem executar comandos arbitrarios."""
+    print(f"[PC_OPEN_APPLICATION] nome={data.nome}")
+    return _pc_abrir_aplicativo(data.nome)
+
+
+@app.post("/pc_list_controls")
+def pc_list_controls(data: PCListControls):
+    return _pc_listar_controles(data.titulo, data.limite)
+
+
+@app.post("/pc_control_action")
+def pc_control_action(data: PCActuateControl):
+    return _pc_acionar_controle(data.titulo, data.alvo, data.acao, data.texto)
+
+
+@app.post("/pc_window_action")
+def pc_window_action(data: PCWindowAction):
+    return _pc_gerenciar_janela(data.titulo, data.acao)
 
 
 @app.post("/pc_get_windows")
@@ -4000,6 +4052,18 @@ def _myra_control_intent(text):
     return None
 
 
+def _myra_rea_status_intent(text):
+    """Detecta pedidos de status REA para consultar a ferramenta real."""
+    value = str(text or "").casefold()
+    value = _re.sub(r"[^a-z0-9_]+", " ", value)
+    mentions_rea = bool(_re.search(r"\brea\b|\brea_status\b", value))
+    asks_status = bool(_re.search(
+        r"\b(status|verifique|verificar|consulte|consultar|disponibilidade|check|configuracao)\b",
+        value,
+    ))
+    return mentions_rea and asks_status
+
+
 def _myra_http_json(path, payload=None, timeout=30):
     url = "http://127.0.0.1:8000" + path
     body = None if payload is None else json.dumps(payload).encode("utf-8")
@@ -4076,6 +4140,22 @@ async def _myra_route_message(data, messages, user_msg, model):
             answer = str(result.get("result") or result.get("hora") or "A ferramenta de horário não retornou um resultado.")
         except Exception as exc:
             answer = f"Não consegui consultar o horário atual ({type(exc).__name__})."
+    elif _myra_rea_status_intent(user_msg):
+        try:
+            result = await asyncio.to_thread(
+                _myra_http_json,
+                "/task_simple",
+                {"objetivo": user_msg[:1200], "max_passos": 5},
+                1800,
+            )
+            if result.get("status") == "ok" and result.get("resultado_final"):
+                answer = str(result["resultado_final"])
+            else:
+                answer = "A consulta REA nao foi concluida: " + str(
+                    result.get("erro") or result.get("result") or result.get("status") or "sem detalhes"
+                )
+        except Exception as exc:
+            answer = f"Falha ao consultar rea_status no backend local ({type(exc).__name__}: {str(exc)[:250]})."
     elif _myra_explicit_action(user_msg):
         try:
             current = await asyncio.to_thread(_myra_http_json, "/task_status")

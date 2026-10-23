@@ -140,3 +140,67 @@ def test_synthesis_history_preserves_structured_browser_metadata():
     rendered = simple_task._formatar_historico(history)
     assert '"title": "Example Domain"' in rendered
     assert '"url": "https://example.com/"' in rendered
+
+
+def test_composite_open_app_and_search_routes_each_step_deterministically(monkeypatch):
+    tools = {
+        "pc_open_application": lambda nome: {"status": "ok", "nome": nome},
+        "pc_hotkey": lambda keys: {"status": "ok", "keys": keys},
+        "pc_type_text": lambda text: {"status": "ok", "text": text},
+        "pc_press_key": lambda key: {"status": "ok", "key": key},
+    }
+    for name, fn in tools.items():
+        monkeypatch.setitem(simple_task.FERRAMENTAS_DISPONIVEIS, name, fn)
+
+    objective = "abra o Microsoft To Do e pesquise forza"
+    expected = [
+        ("pc_open_application", {"nome": "microsoft to do"}),
+        ("pc_hotkey", {"keys": ["ctrl", "f"]}),
+        ("pc_type_text", {"text": "forza"}),
+        ("pc_press_key", {"key": "enter"}),
+    ]
+    history = []
+    for tool, args in expected:
+        decision = simple_task._decidir_proximo_passo(objective, history)
+        assert decision["acao"] == "chamar"
+        assert decision["ferramenta"] == tool
+        assert decision["args"] == args
+        history.append({"ok": True, "ferramenta": tool, "args": args, "resultado": {"status": "ok"}})
+
+
+def test_composite_open_app_and_search_does_not_advance_after_failed_step(monkeypatch):
+    for name in ("pc_open_application", "pc_hotkey", "pc_type_text", "pc_press_key"):
+        monkeypatch.setitem(simple_task.FERRAMENTAS_DISPONIVEIS, name, lambda **kwargs: {"status": "ok"})
+    objective = "abra o Microsoft To Do e pesquise forza"
+    history = [{"passo": 1, "ok": False, "ferramenta": "pc_open_application", "args": {"nome": "microsoft to do"}, "resultado": None, "erro": "falhou"}]
+    monkeypatch.setattr(simple_task, "_llm", lambda *args, **kwargs: json.dumps({"acao": "finalizar", "motivo": "teste fallback"}))
+    decision = simple_task._decidir_proximo_passo(objective, history)
+    assert decision["acao"] == "finalizar"
+
+
+def test_app_search_intent_accepts_different_natural_language_phrasings():
+    cases = [
+        ("Entre no Microsoft Store e pesquise Minecraft", ("microsoft store", "minecraft")),
+        ("Abra a loja da Microsoft e procure por Minecraft", ("microsoft store", "minecraft")),
+        ("Quero que abra a Microsoft Store e busque Minecraft", ("microsoft store", "minecraft")),
+        ("Acesse a Microsoft Store e encontre Minecraft", ("microsoft store", "minecraft")),
+        ("Visite a Microsoft Store e veja se tem Minecraft", ("microsoft store", "minecraft")),
+        ("Por favor, entre na Microsoft Store e pesquisar Minecraft", ("microsoft store", "minecraft")),
+    ]
+    for phrase, expected in cases:
+        assert simple_task._extrair_intencao_app_busca(phrase) == expected
+
+
+def test_app_search_intent_is_used_for_same_deterministic_plan(monkeypatch):
+    for name in ("pc_open_application", "pc_hotkey", "pc_type_text", "pc_press_key"):
+        monkeypatch.setitem(simple_task.FERRAMENTAS_DISPONIVEIS, name, lambda **kwargs: {"status": "ok"})
+    phrases = [
+        "Entre no Microsoft Store e pesquise Minecraft",
+        "Abra a loja da Microsoft e procure por Minecraft",
+        "Quero que abra a Microsoft Store e busque Minecraft",
+    ]
+    for objective in phrases:
+        decision = simple_task._decidir_proximo_passo(objective, [])
+        assert decision["acao"] == "chamar"
+        assert decision["ferramenta"] == "pc_open_application"
+        assert decision["args"]["nome"] in {"microsoft store", "loja da microsoft"}

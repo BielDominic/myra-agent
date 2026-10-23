@@ -55,6 +55,7 @@ GRUPOS_ESPERADOS = {
         "pc_move_mouse", "pc_click", "pc_type_text", "pc_press_key",
         "pc_hotkey", "pc_screenshot", "pc_get_windows",
         "pc_get_active_window", "pc_focus_window",
+        "pc_list_applications", "pc_open_application", "pc_list_controls", "pc_control_action", "pc_window_action",
     }),
     "ficheiros": frozenset({
         "write_file", "read_file", "list_dir", "delete_file",
@@ -72,24 +73,24 @@ GRUPOS_ESPERADOS = {
         "web_search", "get_weather", "get_current_time", "youtube_transcript",
         "responder", "save_note", "read_notes",
     }),
-    "rea": frozenset({"rea_analyze_javascript", "rea_status"}),
+    "rea": frozenset({"rea_analyze_javascript", "rea_status", "rea_catalog", "rea_mcp_list_tools", "rea_mcp_call"}),
 }
 
 TAMANHOS_ESPERADOS = {
     "browser_bridge": 12,
-    "visao_pc": 12,
+    "visao_pc": 17,
     "ficheiros": 7,
     "codigo": 2,
     "email": 5,
     "web_youtube_estruturado": 6,
     "utilitarios_sistema": 7,
-    "rea": 2,
+    "rea": 5,
 }
 
 NOMES_ESPERADOS = frozenset(
     nome for grupo in GRUPOS_ESPERADOS.values() for nome in grupo
 )
-TOTAL_FERRAMENTAS = 53
+TOTAL_FERRAMENTAS = 61
 
 # Aliases legados (rotas HTTP antigas) que o registo do planner ja nao expoe.
 LEGADOS_ESPERADOS = frozenset({
@@ -166,7 +167,7 @@ class RegistoRealTestCase(_BaseRegisto):
         self.assertEqual(AGENT.executar_task.__module__, simple_task.__name__)
 
     # -- item (1): conjunto exacto, ordenado --------------------------------
-    def test_registo_exato_de_53_ferramentas(self):
+    def test_registo_exato_de_61_ferramentas(self):
         reais = sorted(simple_task.FERRAMENTAS_DISPONIVEIS)
         self.assertEqual(
             len(reais), TOTAL_FERRAMENTAS,
@@ -183,7 +184,7 @@ class RegistoRealTestCase(_BaseRegisto):
             "ferramentas em falta no registo",
         )
 
-    def test_grupos_somam_53_e_nao_se_sobrepoem(self):
+    def test_grupos_somam_61_e_nao_se_sobrepoem(self):
         todos: list[str] = []
         for grupo, nomes in GRUPOS_ESPERADOS.items():
             with self.subTest(grupo=grupo):

@@ -12,8 +12,8 @@
       {
         "label": "main",
         "title": "MYRA",
-        "width": 200,
-        "height": 44,
+        "width": 156,
+        "height": 156,
         "resizable": false,
         "decorations": false,
         "transparent": true,

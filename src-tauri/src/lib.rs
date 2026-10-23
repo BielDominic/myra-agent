@@ -74,7 +74,8 @@ fn resize_window(window: tauri::Window, width: u32, height: u32) -> Result<(), S
 #[tauri::command]
 fn set_widget_size(window: tauri::Window, size: String) -> Result<(), String> {
     let (width, height) = match size.as_str() {
-        "idle" | "pill" => (200.0, 44.0),
+        "idle" => (200.0, 44.0),
+        "pill" => (200.0, 44.0),
         "running" | "done" | "error" => (340.0, 260.0),
         "compact" => (90.0, 44.0),
         _ => return Err(format!("unknown widget size: {size}")),

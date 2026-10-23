@@ -137,25 +137,89 @@ def _extrair_json(texto: str):
     return None
 
 
-def _eh_pedido_hora_atual(objetivo: str) -> bool:
-    """Reconhece pedidos curtos e explicitos pela hora/data atual em portugues."""
+def _normalizar_intencao(objetivo: str) -> str:
     texto = unicodedata.normalize("NFKD", str(objetivo or "").lower())
     texto = "".join(c for c in texto if not unicodedata.combining(c))
-    texto = re.sub(r"[^a-z0-9]+", " ", texto).strip()
+    return re.sub(r"[^a-z0-9]+", " ", texto).strip()
+
+
+def _extrair_intencao_app_busca(objetivo: str) -> tuple[str, str] | None:
+    """Extrai o objetivo comum de pedidos equivalentes para pesquisar dentro de um app.
+
+    A intenção extraída (app + termo) independe da frase original e segue para
+    um único plano executável. O planner continua responsável pelos demais pedidos.
+    """
+    texto = _normalizar_intencao(objetivo)
+    # Remove a etapa final de instalacao para nao enviar "e instale" como parte da busca.
+    texto = re.sub(r"\s+e\s+(?:instale|instalar|instala|baixe|baixar)$", "", texto)
+    prefixo = (
+        r"(?:(?:por favor|voce pode|pode|quero que|quero|preciso que|preciso) )?"
+        r"(?:abra|abre|abrir|inicie|iniciar|execute|executar|entre no|entre na|entre em|"
+        r"acessa|acesse|acessar|vai para|va para|visite|visitar) "
+        r"(?:o|a|os|as|na|no|em|pela|pelo|da|do)? ?"
+    )
+    m = re.fullmatch(
+        prefixo
+        + r"(.+?) (?:e )?(?:pesquise|pesquisar|busque|buscar|procure|procurar|"
+        r"pesquisa|buscar por|procura por|veja se tem|veja se existe|encontre|encontrar) (?:por )?(.+)",
+        texto,
+    )
+    if not m:
+        return None
+    nome_app, termo_busca = (parte.strip() for parte in m.groups())
+    termos_nao_app = ("no navegador", "pagina web", "url ", "link ", "http ", "https ", "www ")
+    if not nome_app or not termo_busca:
+        return None
+    if nome_app.startswith(("site ", "site do ", "pagina ")) or any(t in nome_app for t in termos_nao_app):
+        return None
+
+    # Resolucao de aliases comuns para o nome instalado do aplicativo.
+    # A intencao e a mesma mesmo quando o usuario chama o app por apelido.
+    aliases_apps = {
+        "loja da microsoft": "microsoft store",
+        "loja microsoft": "microsoft store",
+        "store da microsoft": "microsoft store",
+        "loja do windows": "microsoft store",
+        "to do da microsoft": "microsoft to do",
+    }
+    nome_app = aliases_apps.get(nome_app, nome_app)
+    return nome_app, termo_busca
+
+
+def _eh_pedido_hora_atual(objetivo: str) -> bool:
+    """Reconhece pedidos curtos e explicitos pela hora/data atual em portugues."""
+    texto = _normalizar_intencao(objetivo)
     padroes = (
-        "que horas sao",
-        "que hora e",
-        "qual a hora",
-        "qual e a hora",
-        "hora atual",
-        "horario atual",
-        "horas agora",
-        "hora agora",
-        "que dia e hoje",
-        "data de hoje",
-        "data e hora atual",
+        "que horas sao", "que hora e", "qual a hora", "qual e a hora",
+        "hora atual", "horario atual", "horas agora", "hora agora",
+        "que dia e hoje", "data de hoje", "data e hora atual",
     )
     return any(padrao in texto for padrao in padroes)
+
+
+def _eh_pedido_status_rea(objetivo: str) -> bool:
+    """Detecta pedidos de consulta REA que devem executar a ferramenta real."""
+    texto = _normalizar_intencao(objetivo)
+    menciona_rea = bool(re.search(r"\brea\b", texto)) or "rea status" in texto
+    pede_consulta = any(termo in texto for termo in (
+        "status", "disponibilidade", "configuracao", "pre requisitos",
+        "pre requisitos", "verifique", "verificar", "consulte", "consultar",
+        "cheque", "checar", "ferramenta rea status", "node js", "npx",
+        "pastas autorizadas", "raizes autorizadas",
+    ))
+    return menciona_rea and pede_consulta
+
+
+def _eh_pedido_catalogo_rea(objetivo: str) -> bool:
+    """Reconhece pedidos explicitos para listar comandos/capacidades do REA."""
+    texto = _normalizar_intencao(objetivo)
+    menciona_rea = bool(re.search(r"\brea\b", texto))
+    pede_catalogo = any(termo in texto for termo in (
+        "catalogo", "comandos do rea", "comandos rea", "ferramentas do rea",
+        "ferramentas rea", "capacidades do rea", "capacidades rea",
+        "listar comandos", "liste os comandos",
+    ))
+    return menciona_rea and pede_catalogo
 
 
 def _formatar_resultado(res: dict) -> str:
@@ -259,6 +323,270 @@ def _decidir_proximo_passo(
     # Em pedidos de navegação, priorize o navegador Playwright local isolado.
     # Mantemos as ferramentas de pesquisa disponíveis para outros tipos de objetivo.
     objetivo_lower = objetivo.lower()
+
+    # Roteamento deterministico para comandos compostos abrir + pesquisar em app.
+    # Mantem cada acao como um passo auditavel no loop de autonomia.
+    texto_intencao = _normalizar_intencao(objetivo)
+    intencao_app_busca = _extrair_intencao_app_busca(objetivo)
+    if intencao_app_busca:
+        # Garante registro tardio das ferramentas do PC antes de depender do LLM.
+        ferramentas_pc_busca = (
+            "pc_open_application", "pc_focus_window", "pc_list_controls",
+            "pc_control_action", "pc_press_key"
+        )
+        if any(nome not in FERRAMENTAS_DISPONIVEIS for nome in ferramentas_pc_busca):
+            try:
+                from tasks import system_tools as _system_tools
+                _system_tools.registrar_todas(registrar_ferramenta)
+            except Exception as exc:
+                print(f"[ROTEAMENTO] falha ao registrar ferramentas PC: {exc}")
+        if not all(nome in FERRAMENTAS_DISPONIVEIS for nome in ferramentas_pc_busca):
+            return {
+                "acao": "finalizar",
+                "resultado": (
+                    "Reconheci o pedido de pesquisa no aplicativo, mas as ferramentas "
+                    "necessarias do PC nao estao registradas/disponiveis."
+                ),
+            }
+        nome_app, termo_busca = intencao_app_busca
+        termos_nao_app = ("no navegador", "pagina web", "url ", "link ", "http ", "https ", "www ")
+        if nome_app and termo_busca and not nome_app.startswith(("site ", "site do ", "pagina ")) and not any(t in nome_app for t in termos_nao_app):
+            if not historico and "pc_open_application" in FERRAMENTAS_DISPONIVEIS:
+                return {
+                    "acao": "chamar", "ferramenta": "pc_open_application",
+                    "args": {"nome": nome_app},
+                    "motivo": "primeiro passo do fluxo: abrir o aplicativo solicitado",
+                }
+            if historico and all(h.get("ok") for h in historico):
+                proximo = len(historico)
+                eh_store = "microsoft store" in _normalizar_intencao(nome_app)
+                if eh_store:
+                    # Nao digitar cegamente: primeiro inspeciona os controles da janela.
+                    if proximo == 1:
+                        return {
+                            "acao": "chamar", "ferramenta": "pc_focus_window",
+                            "args": {"titulo": "Microsoft Store"},
+                            "motivo": "focar a janela da Microsoft Store antes de inspecionar a busca",
+                        }
+                    if proximo == 2:
+                        return {
+                            "acao": "chamar", "ferramenta": "pc_list_controls",
+                            "args": {"titulo": "Microsoft Store", "limite": 100},
+                            "motivo": "identificar o controle de pesquisa real antes de inserir texto",
+                        }
+                    if proximo == 3:
+                        controles = historico[-1].get("resultado")
+                        lista = controles.get("result", []) if isinstance(controles, dict) else []
+                        if not isinstance(lista, list):
+                            lista = []
+                        candidatos = [
+                            c for c in lista
+                            if isinstance(c, dict)
+                            and c.get("visible") and c.get("enabled")
+                            and str(c.get("control_type", "")).casefold() in {"edit", "combobox"}
+                            and (
+                                "search" in str(c.get("nome", "")).casefold()
+                                or "search" in str(c.get("automation_id", "")).casefold()
+                                or "pesquis" in str(c.get("nome", "")).casefold()
+                                or "pesquis" in str(c.get("automation_id", "")).casefold()
+                            )
+                        ]
+                        if len(candidatos) != 1:
+                            return {
+                                "acao": "finalizar",
+                                "resultado": (
+                                    "Nao consegui identificar um unico campo de pesquisa da Microsoft Store. "
+                                    f"Campos candidatos encontrados: {len(candidatos)}. "
+                                    "Nao digitei texto em outro lugar."
+                                ),
+                            }
+                        controle = candidatos[0]
+                        alvo = str(controle.get("automation_id") or controle.get("nome") or "").strip()
+                        if not alvo:
+                            return {
+                                "acao": "finalizar",
+                                "resultado": "O campo de pesquisa nao possui nome nem automation_id; nao digitei texto.",
+                            }
+                        return {
+                            "acao": "chamar", "ferramenta": "pc_control_action",
+                            "args": {
+                                "titulo": "Microsoft Store", "alvo": alvo,
+                                "acao": "set_text", "texto": termo_busca,
+                            },
+                            "motivo": "preencher diretamente o campo de pesquisa identificado por UI Automation",
+                        }
+                    if proximo == 4:
+                        preenchimento = historico[-1].get("resultado")
+                        if not isinstance(preenchimento, dict) or preenchimento.get("status") != "ok":
+                            return {
+                                "acao": "finalizar",
+                                "resultado": "O campo de pesquisa nao confirmou o preenchimento; nao enviei Enter.",
+                            }
+                        return {
+                            "acao": "chamar", "ferramenta": "pc_press_key",
+                            "args": {"key": "enter"},
+                            "motivo": "enviar a pesquisa somente depois do preenchimento confirmado pelo controle UIA",
+                        }
+                    if proximo == 5:
+                        return {
+                            "acao": "chamar", "ferramenta": "pc_get_active_window",
+                            "args": {},
+                            "motivo": "dar tempo para a Microsoft Store processar a pesquisa sem repetir a acao de foco",
+                        }
+                    if proximo == 6:
+                        time.sleep(2)
+                        return {
+                            "acao": "chamar", "ferramenta": "pc_list_controls",
+                            "args": {"titulo": "Microsoft Store", "limite": 99},
+                            "motivo": "verificar os resultados reais da pesquisa antes de instalar",
+                        }
+                    if proximo == 10 and historico[-1].get("ferramenta") == "pc_control_action":
+                        time.sleep(5)
+                        return {
+                            "acao": "chamar", "ferramenta": "pc_list_controls",
+                            "args": {"titulo": "Microsoft Store", "limite": 98},
+                            "motivo": "aguardar a instalacao e recolher evidencias atualizadas da Microsoft Store",
+                        }
+                    if proximo in (7, 9, 10, 11):
+                        controles = historico[-1].get("resultado")
+                        lista = controles.get("result", []) if isinstance(controles, dict) else []
+                        if not isinstance(lista, list):
+                            lista = []
+                        visiveis = [
+                            c for c in lista
+                            if isinstance(c, dict) and c.get("visible") and c.get("enabled")
+                        ]
+                        nomes = [
+                            " ".join(str(c.get(k, "")) for k in ("nome", "automation_id")).casefold()
+                            for c in visiveis
+                        ]
+                        tem_telegram = any("telegram" in nome for nome in nomes)
+                        botoes_instalar = [
+                            c for c, nome in zip(visiveis, nomes)
+                            if str(c.get("control_type", "")).casefold() == "button"
+                            and re.search(r"\b(install|instalar|get|obter|download|baixar)\b", nome)
+                            and (
+                                str(c.get("automation_id", "")).casefold() in {
+                                    "acquirenewproduct", "installbutton", "installbuttontextblock"
+                                }
+                                or "telegram" in nome
+                            )
+                        ]
+                        botoes_abrir = [
+                            c for c, nome in zip(visiveis, nomes)
+                            if str(c.get("control_type", "")).casefold() == "button"
+                            and re.search(r"\b(open|abrir|launch|iniciar)\b", nome)
+                        ]
+                        if proximo == 10 and len(historico) >= 3:
+                            ultimo = historico[-3]
+                        elif proximo >= 9 and len(historico) >= 2:
+                            ultimo = historico[-2]
+                        else:
+                            ultimo = historico[-1] if historico else {}
+                        ultimo_alvo = str((ultimo.get("args") or {}).get("alvo", "")).casefold()
+                        ultimo_foi_clique = (
+                            ultimo.get("ferramenta") == "pc_control_action"
+                            and (ultimo.get("args") or {}).get("acao") == "click"
+                        )
+                        ultimo_clicou_instalar = ultimo_foi_clique and (
+                            bool(re.search(r"\b(install|instalar|get|obter|download|baixar)\b", ultimo_alvo))
+                            or ultimo_alvo in {"acquirenewproduct", "installbutton", "installbuttontextblock"}
+                        )
+                        if botoes_abrir and (tem_telegram or proximo == 11):
+                            return {
+                                "acao": "finalizar",
+                                "resultado": "Telegram Desktop instalado: a Microsoft Store exibe o botao Abrir.",
+                            }
+                        if proximo == 11 or (proximo == 10 and ultimo_clicou_instalar):
+                            return {
+                                "acao": "finalizar",
+                                "resultado": (
+                                    "A Microsoft Store nao confirmou a instalacao do Telegram Desktop: "
+                                    "o botao Abrir nao apareceu apos aguardar."
+                                ),
+                            }
+                        if proximo == 9 and ultimo_clicou_instalar:
+                            # A instalacao pode demorar; aguarde antes da verificacao final.
+                            time.sleep(5)
+                            return {
+                                "acao": "chamar", "ferramenta": "pc_list_controls",
+                                "args": {"titulo": "Microsoft Store", "limite": 98},
+                                "motivo": "aguardar e verificar se a instalacao terminou e apareceu Abrir",
+                            }
+                        if len(botoes_instalar) == 1 and tem_telegram:
+                            controle = botoes_instalar[0]
+                            alvo = str(controle.get("automation_id") or controle.get("nome") or "").strip()
+                            return {
+                                "acao": "chamar", "ferramenta": "pc_control_action",
+                                "args": {"titulo": "Microsoft Store", "alvo": alvo, "acao": "click"},
+                                "motivo": "clicar em Instalar/Get somente com Telegram visivel nos resultados",
+                            }
+                        candidatos_telegram = [
+                            c for c, nome in zip(visiveis, nomes)
+                            if "telegram desktop" in nome
+                            and "total ratings" in nome
+                            and str(c.get("control_type", "")).casefold() == "button"
+                        ]
+                        if len(candidatos_telegram) == 1 and proximo == 7:
+                            controle = candidatos_telegram[0]
+                            alvo = str(controle.get("automation_id") or controle.get("nome") or "").strip()
+                            return {
+                                "acao": "chamar", "ferramenta": "pc_control_action",
+                                "args": {"titulo": "Microsoft Store", "alvo": alvo, "acao": "click"},
+                                "motivo": "abrir a ficha exata do Telegram Desktop para localizar a opcao de instalacao",
+                            }
+                        return {
+                            "acao": "finalizar",
+                            "resultado": (
+                                "Nao foi possivel identificar com seguranca o Telegram Desktop e um botao de instalacao "
+                                "unico nos controles visiveis da Microsoft Store; nenhuma instalacao foi presumida."
+                            ),
+                        }
+                    if proximo == 8:
+                        time.sleep(2)
+                        return {
+                            "acao": "chamar", "ferramenta": "pc_list_controls",
+                            "args": {"titulo": "Microsoft Store", "limite": 97},
+                            "motivo": "inspecionar a ficha do Telegram ou o estado apos solicitar instalacao",
+                        }
+                    if proximo == 10:
+                        time.sleep(5)
+                        return {
+                            "acao": "chamar", "ferramenta": "pc_list_controls",
+                            "args": {"titulo": "Microsoft Store", "limite": 98},
+                            "motivo": "aguardar a conclusao da instalacao antes de verificar o botao Abrir",
+                        }
+                else:
+                    etapas = [
+                        ("pc_focus_window", {"titulo": nome_app}, "garantir que a janela do aplicativo solicitado esteja em primeiro plano"),
+                        ("pc_hotkey", {"keys": ["ctrl", "e"]}, "focar a busca do aplicativo"),
+                        ("pc_type_text", {"text": termo_busca}, "digitar o termo solicitado na busca do aplicativo"),
+                        ("pc_press_key", {"key": "enter"}, "executar a pesquisa solicitada no aplicativo"),
+                    ]
+                    if proximo <= len(etapas):
+                        ferramenta, args, motivo = etapas[proximo - 1]
+                        if ferramenta in FERRAMENTAS_DISPONIVEIS:
+                            return {"acao": "chamar", "ferramenta": ferramenta, "args": args, "motivo": motivo}
+
+    # Roteamento deterministico para comandos diretos de abrir aplicativos locais.
+    # Evita que o modelo 3B finalize sem chamar ferramenta para pedidos simples.
+    if not historico and "pc_open_application" in FERRAMENTAS_DISPONIVEIS:
+        m_app = re.fullmatch(
+            r"(?:por favor )?(?:abra|abre|abrir|inicie|iniciar|execute|executar) "
+            r"(?:o|a|os|as )?(.+?)[.!?]*",
+            texto_intencao,
+        )
+        if m_app:
+            nome_app = m_app.group(1).strip()
+            termos_nao_app = ("no navegador", "pagina web", "url ", "link ", "http ", "https ", "www ")
+            if nome_app and not nome_app.startswith(("site ", "site do ", "pagina ")) and not any(t in nome_app for t in termos_nao_app):
+                return {
+                    "acao": "chamar",
+                    "ferramenta": "pc_open_application",
+                    "args": {"nome": nome_app},
+                    "motivo": "abrir aplicativo local solicitado explicitamente pelo usuario",
+                }
+
     termos_navegacao = ("abre", "abra", "abrir", "navega", "visita", "acesse", "acessa", "vai para", "entre no site", "entre em", "no navegador", "chrome", "pesquise")
     eh_navegacao = any(t in objetivo_lower for t in termos_navegacao)
     ferramentas_ocultas_navegacao = {
@@ -364,6 +692,14 @@ Se o objetivo menciona EMAIL, GMAIL, CAIXA DE ENTRADA:
 Se o objetivo menciona ABRIR SITE, NAVEGAR, PESQUISAR NO GOOGLE:
   -> use browser_new_tab(url) ou browser_search_google(termo).
 
+Se o objetivo pede STATUS, DISPONIBILIDADE, CONFIGURACAO ou PR?-REQUISITOS do REA,
+ou pergunta se Node.js/npx estao disponiveis, quais pastas estao autorizadas,
+ou pede para verificar/consultar o REA:
+  -> CHAME rea_status() imediatamente; nao responda que nao tem acesso ao computador.
+  -> apresente o resultado real retornado pela ferramenta, incluindo node_found, npx_found,
+     node_version, rea_package e allowed_roots; diferencie raiz padrao de variavel persistente.
+  -> esta verificacao e somente leitura e nao instala nem executa o pacote REA.
+
 Se o objetivo menciona engenharia reversa autorizada de um app JavaScript/Electron:
   -> use rea_analyze_javascript(target) para produzir evidencias locais.
   -> target precisa estar dentro de MYRA_REA_ALLOWED_ROOTS; se houver erro de permissao, nao tente contornar a restricao.
@@ -420,6 +756,29 @@ Para finalizar:
 }}
 """
 
+    # O catalogo REA e uma consulta somente leitura; use a ferramenta real
+    # antes do LLM para nao substituir o resultado por uma lista inventada.
+    if not historico and "rea_catalog" in FERRAMENTAS_DISPONIVEIS and _eh_pedido_catalogo_rea(objetivo):
+        print("[TASK] roteamento deterministico: catalogo REA -> rea_catalog")
+        return {
+            "acao": "chamar",
+            "ferramenta": "rea_catalog",
+            "args": {},
+            "motivo": "pedido explicito do catalogo real de comandos REA; consulta somente leitura",
+        }
+
+    # Consulta de status REA e uma leitura simples: roteie antes do LLM para
+    # garantir que a ferramenta seja chamada mesmo se o modelo estiver lento,
+    # indisponivel ou responder apenas com uma promessa.
+    if not historico and "rea_status" in FERRAMENTAS_DISPONIVEIS and _eh_pedido_status_rea(objetivo):
+        print("[TASK] roteamento deterministico: consulta REA -> rea_status")
+        return {
+            "acao": "chamar",
+            "ferramenta": "rea_status",
+            "args": {},
+            "motivo": "consulta de status REA; executar verificacao real somente leitura",
+        }
+
     texto = _llm(prompt, system)
     data = _extrair_json(texto)
 
@@ -440,6 +799,24 @@ Para finalizar:
             "ferramenta": "get_current_time",
             "args": {},
             "motivo": "pedido explicito pela hora atual; consultar a ferramenta de horario real",
+        }
+
+    # Roteamento deterministico: consultas de status REA sao somente leitura.
+    # Nao dependem da decisao probabilistica do planner, que antes podia prometer
+    # executar a ferramenta sem realmente a chamar.
+    if (
+        not historico
+        and "rea_status" in FERRAMENTAS_DISPONIVEIS
+        and _eh_pedido_status_rea(objetivo)
+        and (not isinstance(data, dict) or data.get("acao") != "chamar"
+             or data.get("ferramenta") != "rea_status")
+    ):
+        print("[TASK] fallback de intencao: consulta REA -> rea_status")
+        return {
+            "acao": "chamar",
+            "ferramenta": "rea_status",
+            "args": {},
+            "motivo": "consulta de status REA; executar verificacao real somente leitura",
         }
 
     if not data or "acao" not in data:
@@ -509,9 +886,15 @@ def _executar_passo(ferramenta: str, args: dict, tentativas: int = 2) -> dict:
             print(f"[TASK] executando {ferramenta}({list(args.keys())}) tentativa {tentativa}")
             resultado = fn(**args)
 
-            if isinstance(resultado, dict) and resultado.get("status") == "erro":
-                ultimo_erro = resultado.get("result", "erro desconhecido")
-                print(f"[TASK] {ferramenta} retornou erro: {str(ultimo_erro)[:120]}")
+            if isinstance(resultado, dict) and (
+                resultado.get("status") == "erro"
+                or (
+                    ferramenta == "pc_control_action"
+                    and resultado.get("status") != "ok"
+                )
+            ):
+                ultimo_erro = resultado.get("result") or resultado.get("message") or resultado.get("status", "erro desconhecido")
+                print(f"[TASK] {ferramenta} retornou erro/estado nao confirmado: {str(ultimo_erro)[:120]}")
                 time.sleep(1)
                 continue
 
@@ -528,6 +911,33 @@ def _executar_passo(ferramenta: str, args: dict, tentativas: int = 2) -> dict:
 def _sintetizar(objetivo: str, historico: list) -> str:
     if not historico:
         return "Nao foi executada nenhuma ferramenta. Verifique a decisao do planner e tente reformular o objetivo."
+
+    # Resposta deterministica para status REA: nao deixar a sintese do LLM
+    # substituir valores observados por uma promessa de execucao ou omiti-los.
+    if _eh_pedido_status_rea(objetivo):
+        for passo in reversed(historico):
+            if passo.get("ferramenta") != "rea_status":
+                continue
+            if not passo.get("ok"):
+                return f"Nao consegui consultar o status do REA. Erro real: {passo.get('erro') or 'sem detalhes'}."
+            dados = passo.get("resultado")
+            if not isinstance(dados, dict):
+                return f"A ferramenta rea_status retornou um resultado inesperado: {dados!r}"
+            if dados.get("status") != "ok":
+                return f"A consulta rea_status nao confirmou sucesso. Retorno real: {json.dumps(dados, ensure_ascii=False)}"
+            raizes = dados.get("allowed_roots") or []
+            raizes_texto = ", ".join(str(r) for r in raizes) if raizes else "(nenhuma raiz informada)"
+            return (
+                "Status do REA (retorno real de rea_status):\n"
+                f"- Status: {dados.get('status')}\n"
+                f"- Node.js encontrado: {dados.get('node_found')}\n"
+                f"- npx encontrado: {dados.get('npx_found')}\n"
+                f"- Versao do Node.js: {dados.get('node_version') or 'nao informada'}\n"
+                f"- Pacote REA configurado: {dados.get('rea_package') or 'nao informado'}\n"
+                f"- Raizes autorizadas: {raizes_texto}\n"
+                f"- Observacao: {dados.get('note') or 'nenhuma'}"
+            )
+
     contexto = _formatar_historico(historico)
     prompt = (
         f"OBJETIVO: {objetivo}\n\n"
@@ -892,8 +1302,44 @@ def executar_task(
             }
             historico.append(entrada)
 
-            # FASE 26 - verificar o objetivo com evidencia observavel
+            # Verificacao especial de instalacao na Microsoft Store: clicar em Get
+            # nao comprova instalacao. So aceitamos conclusao quando a arvore UIA
+            # mostra o botao Open/Abrir na ficha do Telegram Desktop.
             verificacao = autonomy.verificar(objetivo, historico, observacao)
+            intencao_store_instalacao = _extrair_intencao_app_busca(objetivo)
+            eh_instalacao_store = bool(
+                intencao_store_instalacao
+                and "microsoft store" in _normalizar_intencao(intencao_store_instalacao[0])
+                and re.search(r"\b(instale|instalar|instalacao)\b", _normalizar_intencao(objetivo))
+            )
+            if eh_instalacao_store and verificacao.get("atingido") is True:
+                resultado_observado = r.get("resultado")
+                controles_observados = (
+                    resultado_observado.get("result", [])
+                    if isinstance(resultado_observado, dict) else []
+                )
+                if not isinstance(controles_observados, list):
+                    controles_observados = []
+                nomes_observados = [
+                    str(c.get("nome", "")).casefold()
+                    for c in controles_observados if isinstance(c, dict)
+                ]
+                confirmou_abrir = (
+                    ferramenta == "pc_list_controls"
+                    and any("telegram" in nome for nome in nomes_observados)
+                    and any(
+                        str(c.get("control_type", "")).casefold() == "button"
+                        and re.search(r"\b(open|abrir|launch|iniciar)\b", str(c.get("nome", "")).casefold())
+                        for c in controles_observados if isinstance(c, dict)
+                    )
+                )
+                if not confirmou_abrir:
+                    verificacao = {
+                        **verificacao,
+                        "atingido": None,
+                        "confianca": "indeterminada",
+                        "motivo": "clique/consulta nao prova instalacao; aguardando evidencia do botao Abrir",
+                    }
             entrada["verificacao"] = verificacao
             print(f"[VERIFICAR] atingido={verificacao.get('atingido')} "
                   f"confianca={verificacao.get('confianca')} "
@@ -937,9 +1383,46 @@ def executar_task(
 
             if r["ok"]:
                 erros_consecutivos = 0
+                # rea_status e uma consulta simples: o retorno real basta para
+                # concluir o pedido. Nao envie de volta ao planner, que podia
+                # repetir a mesma ferramenta e marcar a task como falha.
+                if ferramenta == "rea_status" and _eh_pedido_status_rea(objetivo):
+                    motivo_encerramento = "status REA obtido diretamente de rea_status"
+                    print("[TASK] consulta REA concluida com retorno real; encerrando")
+                    break
+                # A analise REA e uma operacao de resultado: quando a ferramenta
+                # retorna status=ok, nao repita consultas de pre-requisitos nem
+                # deixe o planner invalidar a analise concluida.
+                if ferramenta == "rea_analyze_javascript" and isinstance(r.get("resultado"), dict) and r["resultado"].get("status") == "ok":
+                    motivo_encerramento = "analise REA concluida com retorno real de rea_analyze_javascript"
+                    print("[TASK] analise REA concluida com retorno real; encerrando")
+                    break
                 # A recuperacao funcionou: a diretriz deixa de ser necessaria
                 # (as acoes bloqueadas continuam bloqueadas).
                 diretriz_recuperacao = ""
+                # Fluxo deterministico abrir+pesquisar: Enter conclui a sequencia de entrada.
+                # Nao volta ao LLM para decidir um quinto passo inutil (pode estar offline).
+                eh_fluxo_busca_app = _extrair_intencao_app_busca(objetivo) is not None
+                intencao_atual = _extrair_intencao_app_busca(objetivo)
+                eh_store_atual = bool(
+                    intencao_atual
+                    and "microsoft store" in _normalizar_intencao(intencao_atual[0])
+                )
+                # Para a Store, Enter apenas envia a consulta; nao prova que
+                # resultados apareceram, muito menos que uma instalacao ocorreu.
+                if (eh_fluxo_busca_app and not eh_store_atual
+                        and ferramenta == "pc_press_key"
+                        and str(args.get("key", "")).lower() == "enter"
+                        and len(historico) >= 5
+                        and [h.get("ferramenta") for h in historico[-5:]] == [
+                            "pc_open_application", "pc_focus_window", "pc_hotkey",
+                            "pc_type_text", "pc_press_key"
+                        ]
+                        and all(h.get("ok") for h in historico[-5:])):
+                    motivo_encerramento = "comandos de pesquisa enviados; resultado visual nao confirmado"
+                    print(f"[TASK] fluxo abrir+pesquisar enviado: {motivo_encerramento}")
+                    break
+
                 # Objetivo confirmado pelo observer: encerra com evidencia, sem esperar o planner.
                 if verificacao.get("atingido") is True:
                     motivo_encerramento = f"objetivo verificado: {verificacao.get('motivo')}"
@@ -978,7 +1461,33 @@ def executar_task(
             motivo_encerramento=erro_encerramento,
         )
 
-    resultado_final = _sintetizar(objetivo, historico)
+    intencao_busca_final = _extrair_intencao_app_busca(objetivo)
+    eh_store_busca = bool(
+        intencao_busca_final
+        and "microsoft store" in _normalizar_intencao(intencao_busca_final[0])
+    )
+    ferramentas_esperadas_busca = (
+        ["pc_open_application", "pc_focus_window", "pc_list_controls", "pc_control_action", "pc_press_key"]
+        if eh_store_busca else
+        ["pc_open_application", "pc_focus_window", "pc_hotkey", "pc_type_text", "pc_press_key"]
+    )
+    eh_fluxo_busca_concluido = bool(
+        intencao_busca_final is not None
+        and len(historico) >= len(ferramentas_esperadas_busca)
+        and [h.get("ferramenta") for h in historico[-len(ferramentas_esperadas_busca):]] == ferramentas_esperadas_busca
+        and all(h.get("ok") for h in historico[-len(ferramentas_esperadas_busca):])
+        and str(historico[-1].get("args", {}).get("key", "")).lower() == "enter"
+    )
+    if eh_fluxo_busca_concluido and eh_store_busca:
+        resultado_final = (
+            "A pesquisa foi enviada pela sequência de controles da Microsoft Store, "
+            "mas os resultados não foram verificados e nenhuma instalação foi confirmada."
+        )
+    elif eh_fluxo_busca_concluido:
+        _, termo_busca = _extrair_intencao_app_busca(objetivo)
+        resultado_final = f"Comandos enviados para pesquisar '{termo_busca}'; resultado não verificado."
+    else:
+        resultado_final = _sintetizar(objetivo, historico)
     _persistir(
         task_id,
         historico=historico,
