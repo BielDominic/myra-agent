@@ -4,6 +4,7 @@ use serde_json::Value;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
+use tauri_plugin_notification::NotificationExt;
 
 fn command_matches_executable(command: &str, executable: &str) -> bool {
     command
@@ -89,6 +90,23 @@ fn set_autostart(_enabled: bool) -> Result<bool, String> {
 }
 
 const AGENT_URL: &str = "http://127.0.0.1:8000";
+
+#[tauri::command]
+fn show_native_notification(
+    app: tauri::AppHandle,
+    title: String,
+    body: String,
+) -> Result<(), String> {
+    if title.trim().is_empty() || body.trim().is_empty() {
+        return Err("Titulo e mensagem da notificacao nao podem ficar vazios".to_string());
+    }
+    app.notification()
+        .builder()
+        .title(title)
+        .body(body)
+        .show()
+        .map_err(|e| format!("Falha ao mostrar notificacao do Windows: {e}"))
+}
 
 // ============================================================
 // Win32: GetCursorPos (posicao global do mouse na tela)
@@ -267,6 +285,7 @@ fn get_cursor_relative_to_window(app: tauri::AppHandle) -> Value {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let show_item = MenuItem::with_id(app, "show", "Mostrar MYRA", true, None::<&str>)?;
             let autostart_item = CheckMenuItem::with_id(
@@ -313,6 +332,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             get_task_status,
+            show_native_notification,
             cancel_task,
             resize_window,
             get_gpu_info,

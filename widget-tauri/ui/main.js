@@ -18,6 +18,22 @@ function updateConnectionIndicator(connected) {
     });
 }
 
+async function notifyTaskTransition(state) {
+    // Respeita o modo Não Perturbe e não expõe o conteúdo da tarefa na notificação.
+    if (localStorage.getItem("myra-dnd") === "on") return;
+    const completed = state === "done";
+    try {
+        await invoke("show_native_notification", {
+            title: completed ? "MYRA — Tarefa concluída" : "MYRA — Tarefa com erro",
+            body: completed
+                ? "A tarefa solicitada foi concluída."
+                : "A tarefa não pôde ser concluída. Abra a MYRA para ver os detalhes."
+        });
+    } catch (e) {
+        console.warn("[NOTIFICATION] Não foi possível mostrar a notificação nativa:", e);
+    }
+}
+
 async function setWindowSize(state) {
     const compact = document.body.dataset.compact === "on";
     const runningMode = document.body.dataset.runningMode || "full";
@@ -172,7 +188,11 @@ async function pollStatus() {
         // Reconcile o visual mesmo se lastState ja estiver sincronizado, mas a view/classe tiver sido alterada.
         if (state !== lastState || !visualStateMatches) {
             console.log("[POLL] " + lastState + " -> " + state + " | visualOK=" + visualStateMatches + " | passo=" + status.passo_atual + " num=" + status.passo_num);
+            const previousState = lastState;
             lastState = state;
+            if (previousState === "running" && (state === "done" || state === "error")) {
+                void notifyTaskTransition(state);
+            }
 
             if (state === "running") {
                 const tool = document.getElementById("tool-name");

@@ -226,7 +226,7 @@
 - [x] Instalador NSIS gerado e smoke-testado: instalacao silenciosa em diretorio temporario, executavel `MYRA` abriu/respondia, desinstalacao concluiu; artefatos temporarios removidos
 - [x] Auto-start no boot opt-in por usuario via HKCU Run; menu da bandeja consulta o registro como fonte da verdade e sincroniza a marcacao mesmo em caso de falha; teste real de reboot pendente
 - [x] Bandeja do sistema (menu Mostrar MYRA/Sair implementado; smoke visual no Windows pendente)
-- [ ] Notificacao nativa Windows
+- [x] Notificacao nativa Windows para conclusao/erro; respeita Nao Perturbe e usa texto generico para nao expor dados da tarefa; smoke test real do toast pendente
 - [x] Indicador de conexao no widget (accent conectado; vermelho e tooltip quando API local offline)
 
 #### FASE 31 - Interface Propria
@@ -712,7 +712,7 @@
 - [x] NSIS installer generated and smoke-tested: silent install to a temporary directory, `MYRA` executable launched/responded, uninstall succeeded; temporary artifacts removed
 - [x] Per-user opt-in auto-start via HKCU Run; toggle in tray menu; state is read from the registry as source of truth and the checkmark is resynchronized after success/failure; real reboot test pending
 - [x] System tray (Show MYRA/Quit menu implemented; Windows visual smoke test pending)
-- [ ] Native Windows notification
+- [x] Native Windows notifications on task completion/failure; respects Do Not Disturb and uses generic privacy-preserving text; real toast smoke test pending
 - [x] Connection indicator in widget (green/accent when connected; red when local API is offline)
 
 #### PHASE 31 - Custom Interface
