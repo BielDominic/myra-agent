@@ -3,7 +3,7 @@
 [![Progress](https://img.shields.io/badge/Progress-32%25-orange?style=flat-square)]()
 [![Active Phase](https://img.shields.io/badge/Active_Phase-26-blue?style=flat-square)]()
 [![Phases](https://img.shields.io/badge/Phases-31-purple?style=flat-square)]()
-[![Updated](https://img.shields.io/badge/Updated-2026-10-22-lightgrey?style=flat-square)]()
+[![Updated](https://img.shields.io/badge/Updated-2026-10-24-lightgrey?style=flat-square)]()
 [![Language](https://img.shields.io/badge/Language-PT--BR_%7C_EN-green?style=flat-square)]()
 
 **Documentacao disponivel em:** [Portugues](#portugues) | [English](#english)
@@ -222,8 +222,8 @@
 
 - [x] `npm install` reproduzivel com `package-lock.json`; `cargo tauri build` gerou `myra-widget.exe` (release)
 - [x] Instalador NSIS gerado e smoke-testado: instalacao silenciosa em diretorio temporario, executavel `MYRA` abriu/respondia, desinstalacao concluiu; artefatos temporarios removidos
-- [ ] Auto-start no boot
-- [ ] Bandeja do sistema
+- [ ] Auto-start no boot (opt-in por usuario; ainda nao implementado)
+- [x] Bandeja do sistema (menu Mostrar MYRA/Sair implementado; smoke visual no Windows pendente)
 - [ ] Notificacao nativa Windows
 - [ ] Indicador de conexao no widget
 
@@ -708,10 +708,10 @@
 
 - [x] Reproducible `npm install` with `package-lock.json`; `cargo tauri build` generated the release `myra-widget.exe`
 - [x] NSIS installer generated and smoke-tested: silent install to a temporary directory, `MYRA` executable launched/responded, uninstall succeeded; temporary artifacts removed
-- [ ] Auto-start on boot
-- [ ] System tray
+- [ ] Auto-start on boot (per-user opt-in; not implemented yet)
+- [x] System tray (Show MYRA/Quit menu implemented; Windows visual smoke test pending)
 - [ ] Native Windows notification
-- [ ] Connection indicator in widget
+- [x] Connection indicator in widget (green/accent when connected; red when local API is offline)
 
 #### PHASE 31 - Custom Interface
 ![Blocked](https://img.shields.io/badge/-BLOCKED-red?style=flat-square)

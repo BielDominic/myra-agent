@@ -10,6 +10,14 @@ const CARD_W = 440, CARD_H = 340;
 let lastState = null;
 let resetting = false;
 
+function updateConnectionIndicator(connected) {
+    document.querySelectorAll(".status-dot").forEach((dot) => {
+        dot.classList.toggle("connection-offline", !connected);
+        dot.title = connected ? "MYRA conectada" : "MYRA desconectada — servidor local indisponível";
+        dot.setAttribute("aria-label", dot.title);
+    });
+}
+
 async function setWindowSize(state) {
     const compact = document.body.dataset.compact === "on";
     const runningMode = document.body.dataset.runningMode || "full";
@@ -151,7 +159,12 @@ async function pollStatus() {
     if (resetting) return;
     try {
         const status = await invoke('get_task_status');
-        if (!status) return;
+        if (!status) {
+            updateConnectionIndicator(false);
+            return;
+        }
+        const connected = status.error !== "offline" && status.error !== "client";
+        updateConnectionIndicator(connected);
         const state = status.state || "idle";
 
         const island = document.getElementById("island");
@@ -202,7 +215,9 @@ async function pollStatus() {
                 pillTimer.textContent = s + "s";
             }
         }
-    } catch (e) { /* offline */ }
+    } catch (e) {
+        updateConnectionIndicator(false);
+    }
 }
 
 const appWin = window.__TAURI__.window.getCurrentWindow();
