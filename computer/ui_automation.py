@@ -63,6 +63,37 @@ def listar_controles(titulo: str, limite: int = 100) -> dict:
         return {"status": "erro", "result": f"Falha ao ler controles: {type(exc).__name__}: {exc}"}
 
 
+def _snapshot_controle(controle) -> dict:
+    """Captura evidências acessíveis do controle sem presumir sucesso da ação."""
+    estado = {}
+    try:
+        estado["nome"] = str(controle.element_info.name or "")[:300]
+    except Exception:
+        pass
+    for chave, metodo in (("visible", "is_visible"), ("enabled", "is_enabled")):
+        try:
+            estado[chave] = bool(getattr(controle, metodo)())
+        except Exception:
+            pass
+    try:
+        valor = controle.get_value()
+        if valor is not None:
+            estado["value"] = str(valor)[:1000]
+    except Exception:
+        pass
+    try:
+        estado["selected"] = bool(controle.is_selected())
+    except Exception:
+        pass
+    try:
+        toggle = int(controle.get_toggle_state())
+        if toggle in (0, 1, 2):
+            estado["toggle_state"] = toggle
+    except Exception:
+        pass
+    return estado
+
+
 def acionar_controle(titulo: str, alvo: str, acao: str, texto: str = "") -> dict:
     """Executa apenas uma ação de UIA permitida em um controle único."""
     if not isinstance(alvo, str) or not alvo.strip() or len(alvo) > 300:
@@ -115,8 +146,11 @@ def acionar_controle(titulo: str, alvo: str, acao: str, texto: str = "") -> dict
                 estado_toggle_antes = None
         if not c.is_visible() or not c.is_enabled():
             return {"status": "erro", "result": "O controle está oculto ou desabilitado; nenhuma ação foi executada."}
+        evidencia_antes = _snapshot_controle(c) if acao == "click" else None
+        evidencia_depois = None
         if acao == "click":
             c.click_input()
+            evidencia_depois = _snapshot_controle(c)
         elif acao == "set_text":
             c.set_edit_text(texto)
         elif acao == "focus":
@@ -161,7 +195,9 @@ def acionar_controle(titulo: str, alvo: str, acao: str, texto: str = "") -> dict
                     "janela": janela.window_text(), "controle": alvo, "acao": acao,
                     "result": "Sele??o confirmada." if verificado else "Sele??o solicitada, mas n?o confirmada."}
         return {"status": "ok", "verified": False, "janela": janela.window_text(), "controle": alvo, "acao": acao,
-                "result": "Ação enviada; o efeito final ainda precisa ser observado separadamente."}
+                "evidencia_antes": evidencia_antes, "evidencia_depois": evidencia_depois,
+                "mudanca_observavel": evidencia_antes != evidencia_depois if acao == "click" else None,
+                "result": "Clique enviado; evidências antes/depois capturadas, mas o efeito final ainda precisa ser observado separadamente."}
     except Exception as exc:
         return {"status": "erro", "result": f"Falha na ação UIA: {type(exc).__name__}: {exc}"}
 
