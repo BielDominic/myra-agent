@@ -1,5 +1,28 @@
 import requests
 from pydantic import BaseModel, Field
+from pydantic.fields import FieldInfo
+
+
+def _normalizar_payload(payload: dict) -> dict:
+    """Converte defaults Pydantic FieldInfo em valores JSON serializaveis."""
+    normalizado = {}
+    for chave, valor in payload.items():
+        if isinstance(valor, FieldInfo):
+            if valor.default is None:
+                continue
+            valor = None if type(valor.default).__name__ == "PydanticUndefinedType" else valor.default
+        normalizado[chave] = valor
+    return normalizado
+
+
+def _normalizar_resposta(resposta) -> dict:
+    """Garante contrato de objeto JSON e resultado textual para o consumidor."""
+    if not isinstance(resposta, dict):
+        return {"status": "erro", "result": "Erro: resposta invalida do agent.py (JSON nao e objeto)"}
+    if resposta.get("result", "sem resultado") is None:
+        resposta = dict(resposta)
+        resposta["result"] = "sem resultado"
+    return resposta
 
 
 class Tools:
@@ -8,9 +31,10 @@ class Tools:
 
     def _post(self, rota: str, payload: dict) -> dict:
         try:
+            payload = _normalizar_payload(payload)
             r = requests.post(f"{self.base_url}{rota}", json=payload, timeout=300)
             r.raise_for_status()
-            return r.json()
+            return _normalizar_resposta(r.json())
         except requests.exceptions.ConnectionError:
             return {"status": "erro", "result": "agent.py inacessivel"}
         except Exception as e:
@@ -85,7 +109,14 @@ class Tools:
         """Le a pagina atual."""
         r = self._post("/read_page", {})
         texto = r.get("result", "")
+        if texto is None:
+            texto = ""
+        elif not isinstance(texto, str):
+            texto = str(texto)
         clicaveis = r.get("clicaveis", [])
+        if not isinstance(clicaveis, list):
+            clicaveis = []
+        clicaveis = [str(item) for item in clicaveis if item is not None]
         return f"TEXTO:\n{texto}\n\nCLICAVEIS:\n" + "\n".join(clicaveis)
 
     # ============================================================
@@ -439,7 +470,8 @@ class Tools:
         r = self._post("/pc_get_windows", {})
         result = r.get("result", [])
         if isinstance(result, list):
-            return "\n".join(result) if result else "(nenhuma janela aberta)"
+            titulos = [str(item) for item in result if item is not None]
+            return "\n".join(titulos) if titulos else "(nenhuma janela aberta)"
         return str(result)
 
     def pc_get_active_window(self) -> str:
@@ -472,7 +504,8 @@ class Tools:
         r = self._post("/pc_get_chats", {"quantidade": quantidade})
         result = r.get("result", [])
         if isinstance(result, list):
-            return "\n".join(result) if result else "(nenhum chat)"
+            titulos = [str(item) for item in result if item is not None]
+            return "\n".join(titulos) if titulos else "(nenhum chat)"
         return str(result)
 
     def pc_remove_chat(
@@ -616,8 +649,12 @@ class Tools:
             return f"ERRO ao executar task: {erro}"
 
         plano = r.get("plano", [])
-        if plano:
-            ferramentas = " -> ".join(p.get("ferramenta", "?") for p in plano)
+        if isinstance(plano, list):
+            plano_valido = [passo for passo in plano if isinstance(passo, dict)]
+        else:
+            plano_valido = []
+        if plano_valido:
+            ferramentas = " -> ".join(str(passo.get("ferramenta", "?")) for passo in plano_valido)
         else:
             ferramentas = "(plano vazio)"
 

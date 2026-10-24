@@ -564,7 +564,6 @@ class TestSearchGoogleStructured(CasoFerramentas):
                 self.assertErro(saida)
                 self.assertIn(type(erro).__name__, saida["result"])
 
-    @unittest.expectedFailure
     def test_bug_url_com_query_string_e_truncada(self):
         # BUG: search_google_structured faz urllib.parse.unquote() ANTES de
         # _limpar_url_google() (linhas 55-56). Com isso o '&' interno da URL de
@@ -834,21 +833,25 @@ class TestYoutubeSearch(CasoFerramentas):
             self.assertErro(st.youtube_search("q", 5), "ModuleNotFoundError")
 
     def test_max_resultados_entra_no_prefixo_ytsearch(self):
-        for limite, esperado in ((0, "ytsearch0:Termo"), (1, "ytsearch1:Termo"), (10000, "ytsearch10000:Termo")):
+        for limite, esperado in ((1, "ytsearch1:Termo"), (10000, "ytsearch10000:Termo")):
             with self.subTest(limite=limite):
                 with YtDlpFalso({"entries": self.ENTRADAS}) as falso:
                     st.youtube_search("Termo", limite)
                 self.assertEqual(falso.targets, [esperado])
 
-    def test_max_resultados_negativo_gera_alvo_invalido(self):
-        # Documenta: nenhuma validacao de limites -> "ytsearch-1:..." e enviado
-        # ao provider (que, com o dublê, devolve tudo).
+    def test_max_resultados_zero_e_rejeitado(self):
+        with YtDlpFalso({"entries": self.ENTRADAS}) as falso:
+            saida = st.youtube_search("Termo", 0)
+        self.assertEqual(falso.targets, [])
+        self.assertEqual(saida["status"], "erro")
+
+    def test_max_resultados_negativo_e_rejeitado_sem_chamar_provider(self):
         with YtDlpFalso({"entries": self.ENTRADAS}) as falso:
             saida = st.youtube_search("Termo", -1)
-        self.assertEqual(falso.targets, ["ytsearch-1:Termo"])
-        self.assertEqual(saida["status"], "ok")
+        self.assertEqual(falso.targets, [])
+        self.assertEqual(saida["status"], "erro")
+        self.assertIn("maior que zero", saida["result"])
 
-    @unittest.expectedFailure
     def test_bug_max_resultados_nao_e_aplicado_na_lista(self):
         # BUG: youtube_search delega o limite ao provider e nunca corta a lista
         # (linhas 140-152), ao contrario de youtube_channel_latest (linha 236).
@@ -966,8 +969,10 @@ class TestYoutubeChannelLatest(CasoFerramentas):
         self.assertOkLista(saida, 2)
 
     def test_max_resultados_zero_devolve_erro(self):
-        with YtDlpFalso(self.INFO):
-            self.assertErro(st.youtube_channel_latest("@c", 0), "sem videos acessiveis")
+        with YtDlpFalso(self.INFO) as falso:
+            saida = st.youtube_channel_latest("@c", 0)
+        self.assertEqual(falso.targets, [])
+        self.assertErro(saida, "maior que zero")
 
     def test_max_resultados_10000_vai_para_playlistend(self):
         with YtDlpFalso(self.INFO) as falso:
@@ -1068,7 +1073,6 @@ class TestYoutubeChannelLatest(CasoFerramentas):
         self.assertEqual(falso.targets, ["https://www.youtube.com/@/videos"])
         self.assertEqual(saida["status"], "ok")
 
-    @unittest.expectedFailure
     def test_bug_max_resultados_negativo_devolve_todos_menos_um(self):
         # BUG: linha 236 faz info["entries"][:max_resultados]; com um limite
         # negativo o slice Python devolve len-1 itens (2 de 3) em vez de 0/erro.

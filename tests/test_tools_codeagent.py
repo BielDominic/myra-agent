@@ -976,7 +976,6 @@ class BugsConhecidosTests(helpers.CasoBase):
     unittest reporta "unexpected success" e o teste deve deixar de ser expectedFailure.
     """
 
-    @unittest.expectedFailure
     def test_bug_defaults_fieldinfo_nao_serializavel(self):
         """BUG: defaults declarados com pydantic.Field(...) vazam o FieldInfo para o payload.
 
@@ -997,7 +996,6 @@ class BugsConhecidosTests(helpers.CasoBase):
                     self.assertNotIsInstance(valor, FieldInfo,
                                              f"{nome}: FieldInfo vazou no payload")
 
-    @unittest.expectedFailure
     def test_bug_resposta_json_nao_dict_escapa_excecao(self):
         """BUG: resposta JSON valida mas nao-dict (``[]``) rebenta com AttributeError.
 
@@ -1014,7 +1012,6 @@ class BugsConhecidosTests(helpers.CasoBase):
                     self.assertIsInstance(saida, str, f"{nome}: excepcao escapou")
                     self.assertTrue(contem_erro(saida), f"{nome}: devia reportar erro legivel")
 
-    @unittest.expectedFailure
     def test_bug_read_page_clicaveis_invalidos(self):
         """BUG: ``read_page`` rebenta com TypeError quando ``clicaveis`` nao e lista de str.
 
@@ -1029,7 +1026,6 @@ class BugsConhecidosTests(helpers.CasoBase):
                 saida = browseragent.Tools().read_page()
                 self.assertIsInstance(saida, str)
 
-    @unittest.expectedFailure
     def test_bug_pc_get_windows_chats_itens_nao_str(self):
         """BUG: ``pc_get_windows``/``pc_get_chats`` rebentam com itens nao-str.
 
@@ -1043,7 +1039,6 @@ class BugsConhecidosTests(helpers.CasoBase):
                     saida = getattr(browseragent.Tools(), nome)()
                     self.assertIsInstance(saida, str)
 
-    @unittest.expectedFailure
     def test_bug_task_run_plano_com_itens_nao_dict(self):
         """BUG: ``task_run`` rebenta se um item do plano nao for dict.
 
@@ -1056,7 +1051,6 @@ class BugsConhecidosTests(helpers.CasoBase):
                 saida = browseragent.Tools().task_run("o", 1)
                 self.assertIsInstance(saida, str)
 
-    @unittest.expectedFailure
     def test_bug_result_none_devolve_none(self):
         """BUG: um ``result`` nulo do backend e devolvido como ``None``, nao como str.
 

@@ -48,14 +48,20 @@ def search_google_structured(query: str = "", max_resultados: int = 5) -> dict:
         html = r.text
 
         resultados = []
-        padrao = _re.compile(r'<a[^>]+href="(/url\?q=[^"&]+)[^"]*"[^>]*>.*?<h3[^>]*>(.*?)</h3>', _re.DOTALL)
+        padrao = _re.compile(r'<a[^>]+href="(/url\?[^\"]+)"[^>]*>.*?<h3[^>]*>(.*?)</h3>', _re.DOTALL)
         for match in padrao.finditer(html):
             if len(resultados) >= max_resultados:
                 break
-            url_bruta = urllib.parse.unquote(match.group(1))
+            # Deixa parse_qs decodificar o parametro q inteiro; unquote antes
+            # faria os & internos da URL de destino virarem separadores da query.
+            url_bruta = match.group(1)
             url_real = _limpar_url_google("https://www.google.com" + url_bruta)
             titulo = _re.sub(r"<[^>]+>", "", match.group(2)).strip()
             titulo = titulo.replace("&amp;", "&").replace("&#39;", "'").replace("&quot;", '"')
+            if not url_real.startswith(("http://", "https://")):
+                continue
+            if url_real.startswith("https://www.google.com/url?"):
+                continue
             resultados.append({"titulo": titulo, "url": url_real, "snippet": ""})
 
         if not resultados:
@@ -125,6 +131,8 @@ def youtube_search(query: str = "", max_resultados: int = 5) -> dict:
     """Busca videos no YouTube usando yt-dlp."""
     if not query:
         return {"status": "erro", "result": "Parametro 'query' obrigatorio. Passe query='termo de busca'."}
+    if not isinstance(max_resultados, int) or isinstance(max_resultados, bool) or max_resultados < 1:
+        return {"status": "erro", "result": "max_resultados deve ser um inteiro maior que zero."}
 
     try:
         import yt_dlp
@@ -137,7 +145,8 @@ def youtube_search(query: str = "", max_resultados: int = 5) -> dict:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(f"ytsearch{max_resultados}:{query}", download=False)
 
-        entries = info.get("entries", [])
+        entries = info.get("entries", []) or []
+        entries = entries[:max_resultados]
         resultados = []
         for e in entries:
             if not e:
@@ -168,6 +177,8 @@ def youtube_channel_latest(channel: str = "", max_resultados: int = 3) -> dict:
     """Pega os ultimos videos de um canal do YouTube."""
     if not channel:
         return {"status": "erro", "result": "Parametro 'channel' obrigatorio. Passe channel='@handle' ou channel='nome do canal'."}
+    if not isinstance(max_resultados, int) or isinstance(max_resultados, bool) or max_resultados < 1:
+        return {"status": "erro", "result": "max_resultados deve ser um inteiro maior que zero."}
 
     try:
         import yt_dlp

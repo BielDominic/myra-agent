@@ -1,5 +1,29 @@
 import requests
 from pydantic import BaseModel, Field
+from pydantic.fields import FieldInfo
+
+
+def _normalizar_payload(payload: dict) -> dict:
+    """Converte defaults Pydantic FieldInfo em valores JSON serializaveis."""
+    normalizado = {}
+    for chave, valor in payload.items():
+        if isinstance(valor, FieldInfo):
+            if valor.default is None:
+                continue
+            valor = None if type(valor.default).__name__ == "PydanticUndefinedType" else valor.default
+        normalizado[chave] = valor
+    return normalizado
+
+
+def _normalizar_resposta(resposta) -> dict:
+    """Garante contrato de objeto JSON e resultado textual para o consumidor."""
+    if not isinstance(resposta, dict):
+        return {"status": "erro", "result": "Erro: resposta invalida do agent.py (JSON nao e objeto)"}
+    resultado = resposta.get("result", "sem resultado")
+    if resultado is None:
+        resposta = dict(resposta)
+        resposta["result"] = "sem resultado"
+    return resposta
 
 
 class Tools:
@@ -8,9 +32,10 @@ class Tools:
 
     def _post(self, rota: str, payload: dict) -> dict:
         try:
+            payload = _normalizar_payload(payload)
             r = requests.post(f"{self.base_url}{rota}", json=payload, timeout=300)
             r.raise_for_status()
-            return r.json()
+            return _normalizar_resposta(r.json())
         except requests.exceptions.ConnectionError:
             return {"status": "erro", "result": "agent.py inacessivel"}
         except Exception as e:
