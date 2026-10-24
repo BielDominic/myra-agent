@@ -119,7 +119,24 @@ def acionar_controle(titulo: str, alvo: str, acao: str, texto: str = "") -> dict
             c.toggle()
         elif acao == "select":
             c.select()
-        return {"status": "ok", "janela": janela.window_text(), "controle": alvo, "acao": acao, "result": "Ação enviada ao controle; o estado final deve ser verificado separadamente."}
+        if acao == "set_text":
+            try:
+                verificado = str(c.get_value()) == texto
+            except Exception:
+                verificado = False
+            return {"status": "ok" if verificado else "unverified", "verified": verificado,
+                    "janela": janela.window_text(), "controle": alvo, "acao": acao,
+                    "result": "Texto confirmado no controle." if verificado else "Texto enviado, mas o valor final não pôde ser confirmado."}
+        if acao == "focus":
+            try:
+                verificado = bool(c.has_keyboard_focus())
+            except Exception:
+                verificado = False
+            return {"status": "ok" if verificado else "unverified", "verified": verificado,
+                    "janela": janela.window_text(), "controle": alvo, "acao": acao,
+                    "result": "Foco confirmado." if verificado else "Foco solicitado, mas não confirmado."}
+        return {"status": "ok", "verified": False, "janela": janela.window_text(), "controle": alvo, "acao": acao,
+                "result": "Ação enviada; o efeito final ainda precisa ser observado separadamente."}
     except Exception as exc:
         return {"status": "erro", "result": f"Falha na ação UIA: {type(exc).__name__}: {exc}"}
 

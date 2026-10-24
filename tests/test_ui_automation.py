@@ -42,6 +42,18 @@ class UIAutomationTests(TestCase):
         self.assertEqual(result["status"], "ok")
         self.control.click_input.assert_called_once_with()
 
+    def test_set_text_so_retorna_ok_quando_valor_final_e_confirmado(self):
+        self.control.get_value.return_value = "hello"
+        result = uia.acionar_controle("Notepad", "saveButton", "set_text", "hello")
+        self.assertEqual(result["status"], "ok")
+        self.assertTrue(result["verified"])
+
+    def test_set_text_sem_leitura_final_retorna_unverified(self):
+        self.control.get_value.side_effect = RuntimeError("provider unavailable")
+        result = uia.acionar_controle("Notepad", "saveButton", "set_text", "hello")
+        self.assertEqual(result["status"], "unverified")
+        self.assertFalse(result["verified"])
+
     def test_acao_nao_permitida_e_bloqueada(self):
         result = uia.acionar_controle("Notepad", "saveButton", "delete")
         self.assertEqual(result["status"], "erro")
