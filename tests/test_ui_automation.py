@@ -109,6 +109,20 @@ class UIAutomationTests(TestCase):
         self.assertEqual(result["status"], "erro")
         self.control.click_input.assert_not_called()
 
+    def test_acao_com_tipo_invalido_e_rejeitada_sem_excecao(self):
+        for acao in (None, [], {}, 123):
+            with self.subTest(acao=acao):
+                result = uia.acionar_controle("Notepad", "saveButton", acao)
+                self.assertEqual(result["status"], "erro")
+        self.control.click_input.assert_not_called()
+
+    def test_acao_de_janela_com_tipo_invalido_e_rejeitada_sem_excecao(self):
+        for acao in (None, [], {}, 123):
+            with self.subTest(acao=acao):
+                result = uia.gerenciar_janela("Notepad", acao)
+                self.assertEqual(result["status"], "erro")
+        self.window.close.assert_not_called()
+
     def test_controle_duplicado_nao_e_acionado(self):
         duplicate = Mock()
         duplicate.element_info.name = "Save"

@@ -98,7 +98,7 @@ def acionar_controle(titulo: str, alvo: str, acao: str, texto: str = "") -> dict
     """Executa apenas uma ação de UIA permitida em um controle único."""
     if not isinstance(alvo, str) or not alvo.strip() or len(alvo) > 300:
         return {"status": "erro", "result": "Informe nome ou automation_id válido (1–300 caracteres)."}
-    if acao not in _ACOES:
+    if not isinstance(acao, str) or acao not in _ACOES:
         return {"status": "erro", "result": f"Ação não permitida. Use: {', '.join(sorted(_ACOES))}."}
     if acao == "set_text" and (not isinstance(texto, str) or len(texto) > 10000):
         return {"status": "erro", "result": "Texto deve ter até 10.000 caracteres."}
@@ -206,7 +206,7 @@ def gerenciar_janela(titulo: str, acao: str) -> dict:
     permitidas = {"minimize", "maximize", "restore", "close"}
     if not isinstance(titulo, str) or not titulo.strip() or len(titulo) > 200:
         return {"status": "erro", "result": "Informe um título de janela válido."}
-    if acao not in permitidas:
+    if not isinstance(acao, str) or acao not in permitidas:
         return {"status": "erro", "result": "Ação não permitida. Use minimize, maximize, restore ou close."}
     desktop = _backend()
     if desktop is None:

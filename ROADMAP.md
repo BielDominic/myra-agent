@@ -1018,6 +1018,7 @@
 - [x] 32.5 - Add UI Automation (UIA) control listing with name/type/AutomationId.
 - [x] 32.6 - Add controlled UIA actions: click, set text, focus, toggle and select; reject ambiguous/disabled controls.
 - [x] 32.7 - Add controlled window actions (minimize/maximize/restore/close) with state verification.
+  - Robustness regression (2026-10-24): UIA control/window actions reject non-string action values (including list/dict) with a structured error instead of raising TypeError; tests cover malformed arguments.
 - [ ] 32.8 - Validate multi-application workflows with observe-act-verify and recovery.
   - Progress (2026-10-24): deterministic 2-3 app launch flow now requires `pc_open_application` to return `status=ok` before proceeding to the next app.
   - Added post-launch observation through Windows UI Automation: opening is `ok` only when a matching visible window title is observed; otherwise returns `unverified` and explicitly avoids automatic repeat attempts.
