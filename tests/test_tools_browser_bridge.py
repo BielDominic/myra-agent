@@ -338,8 +338,6 @@ class RunCommandValidacaoTests(_BaseBridge):
         self.assertFilaVazia()
 
     # -- read_page_url / navigate / new_tab ---------------------------
-    # [xfail-2026-10-15] fila apagada apos timeout em alguns sub-casos
-    @expectedFailure
     def test_urls_invalidas_sao_rejeitadas(self):
         for url in ("", "   ", "javascript:alert(1)", "file:///C:/Windows/System32",
                     "http://", "https://", "ftp://example.com", "example.com",

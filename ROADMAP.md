@@ -1,6 +1,6 @@
 # MYRA - Roadmap
 
-[![Progress](https://img.shields.io/badge/Progress-32%25-orange?style=flat-square)]()
+[![Progress](https://img.shields.io/badge/Progress-33%25-orange?style=flat-square)]()
 [![Active Phase](https://img.shields.io/badge/Active_Phase-26-blue?style=flat-square)]()
 [![Phases](https://img.shields.io/badge/Phases-31-purple?style=flat-square)]()
 [![Updated](https://img.shields.io/badge/Updated-2026-10-24-lightgrey?style=flat-square)]()
@@ -143,6 +143,7 @@
 - [x] Validar limites das coordenadas visuais antes de acionar o mouse, inclusive respostas antigas sem metadados de resolucao.
 - [x] Rejeitar tipos invalidos em descricao e caminho do screenshot com erros estruturados, sem excecoes de tipo escaparem para o executor.
 - [x] Verificacao deterministica de objetivos web: navegar nao satisfaz pedido de leitura, ler nao satisfaz pedido de clique, e extracao exige texto do corpo da pagina.
+- [x] Validacao ao vivo do Chrome Browser Bridge (2026-10-24): `get_tabs`, nova aba `example.com`, leitura de DOM/texto e fechamento confirmado; abas preexistentes preservadas.
 - [x] Validacao de `GET /task_pendentes`: rejeita limites negativos com HTTP 422 e normaliza inteiros acima de int64 sem perder tasks.
 
 #### FASE 27 - Overlay Visual TARS
@@ -497,9 +498,9 @@
 | Meta / Estrategico | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
 **Checklist PT-BR: 250 itens rastreados**
-**Progresso do checklist PT-BR: 36% (89 de 250 itens marcados).**
+**Progresso do checklist PT-BR: 36% (90 de 250 itens marcados).**
 
-**Progresso geral combinado dos checklists PT-BR + EN: 32% (157 de 484 itens marcados).**
+**Progresso geral combinado dos checklists PT-BR + EN: 33% (158 de 484 itens marcados).**
 
 *Este percentual é a contagem simples dos checkboxes da seção em português; não pondera complexidade nem significa prontidão para produção.*
 
@@ -983,7 +984,7 @@
 | Strategic / Meta | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
 **PT-BR checklist: 250 tracked items**
-**PT-BR checklist progress: 36% (89 of 250 items checked).**
+**PT-BR checklist progress: 36% (90 of 250 items checked).**
 
 **EN checklist progress: 29% (68 of 234 items checked).**
 
@@ -995,7 +996,7 @@
 
 **Order revised on 2026-10-22:**
 
-1. **Finish PHASE 26 real-browser validation**: live navigation/read/scroll, pause/resume, Learn more click, and a local form flow all passed. The form was filled and submitted, and a subsequent DOM read confirmed the exact Sent: MYRA text. Fixed Playwright thread affinity, optional Pydantic fields, planner argument aliases, deterministic URL/form routing, and verification of expected page text after interaction. A missing-text click fails explicitly; unrelated tools cannot erase negative evidence. Migrated FastAPI startup/shutdown to lifespan and updated the MSS capture API. Latest full suite (2026-10-24): 1,093 passed, 9 skipped, 35 xfailed, 1 warning, and 3,198 subtests. Remaining: more recovery tests and triage of the remaining xfails.
+1. **Continue PHASE 26 hardening and xfail triage**: live navigation/read/scroll, pause/resume, Learn more click, and a local form flow all passed. The form was filled and submitted, and a subsequent DOM read confirmed the exact Sent: MYRA text. Fixed Playwright thread affinity, optional Pydantic fields, planner argument aliases, deterministic URL/form routing, and verification of expected page text after interaction. A missing-text click fails explicitly; unrelated tools cannot erase negative evidence. Migrated FastAPI startup/shutdown to lifespan and updated the MSS capture API. Latest local unittest suite (2026-10-24): 1,049 tests, exit 0 (9 skipped, 34 expected failures); strict URL validation now rejects malformed/external-risk inputs before enqueue; live Chrome Bridge smoke test also passed (`get_tabs` -> open `example.com` -> read DOM/text -> close tab). Remaining: more recovery tests and triage of the remaining xfails.
 2. **PHASE 27.5 (REA):** the allowed root is now persisted per-user and analysis of `widget-tauri\ui` passed again on 2026-10-24; only tools requiring an open binary-analysis provider remain to be tested.
 3. **PHASE 28 mobile control**: validate real Telegram commands, Tailscale, and the protected remote API.
 4. **PHASE 30 distribution**: release build, NSIS installer, silent install/uninstall, and smoke launch are validated. Per-user opt-in auto-start, tray menu, and connection indicator are implemented; Windows visual menu smoke test, real reboot test, and native notifications remain.

@@ -175,20 +175,36 @@ def _delete_command(command_id: str) -> None:
         conn.commit()
 
 
+def _normalizar_url_http(value: object) -> str | None:
+    """Valida e normaliza URLs externas antes de enfileirar qualquer comando."""
+    if not isinstance(value, str):
+        return None
+    raw_url = value.strip()
+    if not raw_url or len(raw_url) > 2000 or any(ch.isspace() or ord(ch) < 32 for ch in raw_url):
+        return None
+    try:
+        parsed = urlparse(raw_url)
+        hostname = parsed.hostname
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc or not hostname:
+            return None
+        if parsed.username is not None or parsed.password is not None:
+            return None
+        _ = parsed.port  # Raises ValueError for malformed ports.
+    except (TypeError, ValueError):
+        return None
+    return raw_url
+
+
 def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> dict:
     if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text", "get_tabs", "type_text", "new_tab", "close_tab", "scroll", "search_google", "search_google_visivel"}:
         return {"status": "erro", "result": "Acao do navegador nao permitida."}
-    if action == "read_page_url":
-        raw_url = str(args.get("url", "")).strip()
-        parsed = urlparse(raw_url)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            return {"status": "erro", "result": "URL invalida: use apenas http:// ou https://."}
-        args["url"] = raw_url
-    if action in {"navigate_active_tab", "new_tab"}:
-        raw_url = str(args.get("url", "")).strip()
-        parsed = urlparse(raw_url)
-        if len(raw_url) > 2000 or parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            return {"status": "erro", "result": "URL invalida: use uma URL HTTP/HTTPS completa com até 2000 caracteres."}
+    if action in {"read_page_url", "navigate_active_tab", "new_tab"}:
+        raw_url = _normalizar_url_http(args.get("url", ""))
+        if raw_url is None:
+            return {
+                "status": "erro",
+                "result": "URL invalida: informe uma URL HTTP/HTTPS completa, sem espacos/credenciais e com ate 2000 caracteres.",
+            }
         args["url"] = raw_url
     if action == "read_active_tab":
         url_contains = str(args.get("url_contains") or "").strip()
