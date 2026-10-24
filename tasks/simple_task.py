@@ -893,7 +893,14 @@ def _executar_passo(ferramenta: str, args: dict, tentativas: int = 2) -> dict:
                     and resultado.get("status") != "ok"
                 )
             ):
-                ultimo_erro = resultado.get("result") or resultado.get("message") or resultado.get("status", "erro desconhecido")
+                # Preserve explicit result values (including None); use a fallback only
+                # when the tool omitted both result and message fields.
+                if "result" in resultado:
+                    ultimo_erro = resultado["result"]
+                elif "message" in resultado:
+                    ultimo_erro = resultado["message"]
+                else:
+                    ultimo_erro = "erro desconhecido"
                 print(f"[TASK] {ferramenta} retornou erro/estado nao confirmado: {str(ultimo_erro)[:120]}")
                 time.sleep(1)
                 continue

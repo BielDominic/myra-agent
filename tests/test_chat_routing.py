@@ -145,6 +145,7 @@ def test_synthesis_history_preserves_structured_browser_metadata():
 def test_composite_open_app_and_search_routes_each_step_deterministically(monkeypatch):
     tools = {
         "pc_open_application": lambda nome: {"status": "ok", "nome": nome},
+        "pc_focus_window": lambda titulo: {"status": "ok", "titulo": titulo},
         "pc_hotkey": lambda keys: {"status": "ok", "keys": keys},
         "pc_type_text": lambda text: {"status": "ok", "text": text},
         "pc_press_key": lambda key: {"status": "ok", "key": key},
@@ -155,7 +156,8 @@ def test_composite_open_app_and_search_routes_each_step_deterministically(monkey
     objective = "abra o Microsoft To Do e pesquise forza"
     expected = [
         ("pc_open_application", {"nome": "microsoft to do"}),
-        ("pc_hotkey", {"keys": ["ctrl", "f"]}),
+        ("pc_focus_window", {"titulo": "microsoft to do"}),
+        ("pc_hotkey", {"keys": ["ctrl", "e"]}),
         ("pc_type_text", {"text": "forza"}),
         ("pc_press_key", {"key": "enter"}),
     ]
