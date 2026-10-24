@@ -258,6 +258,24 @@ def test_ambiguous_control_action_is_never_retried(monkeypatch):
     assert len(calls) == 1
 
 
+def test_store_instalacao_so_confirma_com_telegram_e_botao_abrir_visiveis():
+    confirmar = simple_task._store_controles_confirmam_instalacao_telegram
+    controles_validos = [
+        {"nome": "Telegram Desktop", "control_type": "Text", "visible": True, "enabled": True},
+        {"nome": "Open", "control_type": "Button", "visible": True, "enabled": True},
+    ]
+    assert confirmar(controles_validos) is True
+    assert confirmar([
+        {"nome": "Notepad", "control_type": "Text", "visible": True, "enabled": True},
+        {"nome": "Open", "control_type": "Button", "visible": True, "enabled": True},
+    ]) is False
+    assert confirmar([
+        {"nome": "Telegram Desktop", "control_type": "Text", "visible": True, "enabled": True},
+        {"nome": "Open", "control_type": "Button", "visible": False, "enabled": True},
+    ]) is False
+    assert confirmar(None) is False
+
+
 def test_multiapp_open_stops_after_unverified_or_failed_step(monkeypatch):
     monkeypatch.setitem(simple_task.FERRAMENTAS_DISPONIVEIS, "pc_open_application",
                         lambda nome: {"status": "ok", "nome": nome})

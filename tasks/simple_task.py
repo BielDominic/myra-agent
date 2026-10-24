@@ -60,6 +60,27 @@ def _is_computer_activity_tool(name: str) -> bool:
     tool = str(name or "").strip().lower()
     return tool in _COMPUTER_ACTIVITY_TOOLS or tool.startswith(_COMPUTER_ACTIVITY_PREFIXES)
 
+
+def _store_controles_confirmam_instalacao_telegram(controles) -> bool:
+    """Confirma apenas quando a UI visivel identifica Telegram Desktop e oferece Abrir."""
+    if not isinstance(controles, list):
+        return False
+    visiveis = [
+        c for c in controles
+        if isinstance(c, dict) and c.get("visible") and c.get("enabled")
+    ]
+    nomes = [
+        " ".join(str(c.get(k, "")) for k in ("nome", "automation_id")).casefold()
+        for c in visiveis
+    ]
+    identifica_telegram = any("telegram desktop" in nome for nome in nomes)
+    oferece_abrir = any(
+        str(c.get("control_type", "")).casefold() == "button"
+        and re.search(r"\b(open|abrir|launch|iniciar)\b", nome)
+        for c, nome in zip(visiveis, nomes)
+    )
+    return identifica_telegram and oferece_abrir
+
 # Ferramentas legadas que deixam de ser expostas ao planner quando
 # a ferramenta equivalente do Browser Bridge estiver registrada.
 # Isso altera somente o registro usado pelo planner; as rotas HTTP do agent.py
@@ -553,7 +574,7 @@ def _decidir_proximo_passo(
                             bool(re.search(r"\b(install|instalar|get|obter|download|baixar)\b", ultimo_alvo))
                             or ultimo_alvo in {"acquirenewproduct", "installbutton", "installbuttontextblock"}
                         )
-                        if botoes_abrir and (tem_telegram or proximo == 11):
+                        if _store_controles_confirmam_instalacao_telegram(lista):
                             return {
                                 "acao": "finalizar",
                                 "resultado": "Telegram Desktop instalado: a Microsoft Store exibe o botao Abrir.",
