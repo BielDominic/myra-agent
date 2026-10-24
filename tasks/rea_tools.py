@@ -23,6 +23,9 @@ MCP_TIMEOUT_SECONDS = 90
 # change analysis databases, open arbitrary targets, or execute procedures.
 REA_MCP_READ_ONLY_TOOLS = frozenset({
     "analyze_javascript_application",
+    "inspect_binary_layout",
+    "inspect_go_binary",
+    "inspect_rust_binary",
     "current_document",
     "current_address",
     "current_procedure",
@@ -289,6 +292,16 @@ def rea_mcp_call(tool_name: str, arguments: dict | None = None) -> dict:
             if not (path.is_file() or path.is_dir()):
                 return {"status": "erro", "result": "input_path precisa ser arquivo ou pasta existente."}
             arguments["input_path"] = str(path)
+        elif tool_name in {"inspect_binary_layout", "inspect_go_binary", "inspect_rust_binary"}:
+            target = arguments.get("path")
+            if not isinstance(target, str) or not target.strip():
+                return {"status": "erro", "result": "path e obrigatorio para inspecionar um binario local."}
+            path = Path(target).expanduser().resolve(strict=True)
+            if not path.is_file():
+                return {"status": "erro", "result": "path precisa apontar para um arquivo existente."}
+            if not any(path == root or root in path.parents for root in _allowed_roots()):
+                return {"status": "erro", "result": "Binario MCP fora das raizes autorizadas em MYRA_REA_ALLOWED_ROOTS."}
+            arguments["path"] = str(path)
         encoded = json.dumps(arguments, ensure_ascii=False)
         if len(encoded) > 16_000:
             return {"status": "erro", "result": "Argumentos excedem o limite de 16000 caracteres."}

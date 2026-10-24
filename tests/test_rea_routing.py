@@ -151,3 +151,27 @@ def test_pedido_catalogo_rea_rota_para_ferramenta_sem_llm():
         simple_task.FERRAMENTAS_DISPONIVEIS.update(original_tools)
         simple_task.FERRAMENTAS_DESCRICOES.clear()
         simple_task.FERRAMENTAS_DESCRICOES.update(original_descriptions)
+
+
+def test_mcp_static_binary_tools_validate_authorized_existing_file(tmp_path):
+    from tasks import rea_tools
+
+    allowed = tmp_path / "allowed"
+    outside = tmp_path / "outside"
+    allowed.mkdir()
+    outside.mkdir()
+    binary = allowed / "sample.exe"
+    binary.write_bytes(b"MZ\x00\x00")
+    denied = outside / "other.exe"
+    denied.write_bytes(b"MZ\x00\x00")
+
+    with mock.patch.object(rea_tools, "_allowed_roots", return_value=[allowed.resolve()]), \
+         mock.patch.object(rea_tools, "_run_mcp_bridge", return_value={"result": {"content": [{"text": "Evidence"}]}}) as bridge:
+        accepted = rea_tools.rea_mcp_call("inspect_go_binary", {"path": str(binary)})
+        rejected = rea_tools.rea_mcp_call("inspect_rust_binary", {"path": str(denied)})
+
+    assert accepted["status"] == "ok"
+    assert bridge.call_count == 1
+    assert bridge.call_args.args[1]["arguments"]["path"] == str(binary.resolve())
+    assert rejected["status"] == "erro"
+    assert "fora das raizes autorizadas" in rejected["result"]
