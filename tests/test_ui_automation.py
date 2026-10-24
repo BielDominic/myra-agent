@@ -54,6 +54,16 @@ class UIAutomationTests(TestCase):
         self.assertIn("mudanca_observavel", result)
         self.control.click_input.assert_called_once_with()
 
+    def test_click_detecta_mudanca_observavel_no_valor_do_controle(self):
+        self.control.get_value.side_effect = ["before", "after"]
+        self.control.is_selected.side_effect = RuntimeError("not selectable")
+        self.control.get_toggle_state.side_effect = RuntimeError("not toggleable")
+        result = uia.acionar_controle("Notepad", "saveButton", "click")
+        self.assertEqual(result["evidencia_antes"]["value"], "before")
+        self.assertEqual(result["evidencia_depois"]["value"], "after")
+        self.assertTrue(result["mudanca_observavel"])
+        self.assertFalse(result["verified"], "mudança observável não prova que o objetivo final foi atingido")
+
     def test_set_text_so_retorna_ok_quando_valor_final_e_confirmado(self):
         self.control.get_value.return_value = "hello"
         result = uia.acionar_controle("Notepad", "saveButton", "set_text", "hello")
