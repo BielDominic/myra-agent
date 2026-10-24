@@ -63,6 +63,12 @@ try {
   } else if (mode === 'call') {
     const request = JSON.parse(requestText || '{}');
     if (typeof request.name !== 'string' || !request.arguments || typeof request.arguments !== 'object' || Array.isArray(request.arguments)) throw new Error('Formato de chamada invalido.');
+    // Each CLI invocation owns a fresh MCP process. Re-open a previously validated
+    // target in this same session before context-dependent read-only operations.
+    if (typeof request.openTarget === 'string' && request.openTarget.length > 0 && request.name !== 'open_binary') {
+      const opened = await client.callTool({ name: 'open_binary', arguments: { path: request.openTarget } });
+      if (opened.isError) throw new Error('Nao foi possivel restaurar o alvo REA ativo: ' + JSON.stringify(opened.content || []).slice(0, 1000));
+    }
     const result = await client.callTool({ name: request.name, arguments: request.arguments });
     console.log(JSON.stringify({ status: result.isError ? 'erro' : 'ok', result }));
   } else {

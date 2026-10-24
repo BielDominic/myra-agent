@@ -19,10 +19,12 @@ WORKSPACE = Path(os.getenv("MYRA_WORKSPACE", r"C:\computer-agent\workspace"))
 MAX_OUTPUT_CHARS = 12_000
 MCP_HELPER = Path(__file__).resolve().parents[1] / "tools" / "rea_mcp_bridge.mjs"
 MCP_TIMEOUT_SECONDS = 90
+ACTIVE_TARGET_FILE = WORKSPACE / ".myra_rea_active_target.json"
 # Allowlist deliberately excludes tools that write annotations, rename symbols,
 # change analysis databases, open arbitrary targets, or execute procedures.
 REA_MCP_READ_ONLY_TOOLS = frozenset({
     "analyze_javascript_application",
+    "open_binary",
     "inspect_binary_layout",
     "inspect_go_binary",
     "inspect_rust_binary",
@@ -282,6 +284,27 @@ def rea_mcp_call(tool_name: str, arguments: dict | None = None) -> dict:
         if not isinstance(arguments, dict):
             return {"status": "erro", "result": "arguments precisa ser um objeto JSON."}
         arguments = dict(arguments)
+        open_target = None
+        if tool_name == "open_binary":
+            target = arguments.get("path")
+            if not isinstance(target, str) or not target.strip():
+                return {"status": "erro", "result": "path e obrigatorio para abrir um alvo binario REA."}
+            path = Path(target).expanduser().resolve(strict=True)
+            if not path.is_file():
+                return {"status": "erro", "result": "path precisa apontar para um arquivo existente."}
+            if not any(path == root or root in path.parents for root in _allowed_roots()):
+                return {"status": "erro", "result": "Alvo REA fora das raizes autorizadas em MYRA_REA_ALLOWED_ROOTS."}
+            arguments["path"] = str(path)
+        elif tool_name in {"current_document", "current_address", "current_procedure", "address_name", "comment", "inline_comment", "inspect_native_instruction", "inspect_native_data_type", "inspect_native_load_image", "resolve_native_call_targets"}:
+            try:
+                saved = json.loads(ACTIVE_TARGET_FILE.read_text(encoding="utf-8"))
+                candidate = saved.get("path") if isinstance(saved, dict) else None
+                if isinstance(candidate, str):
+                    resolved = Path(candidate).resolve(strict=True)
+                    if resolved.is_file() and any(resolved == root or root in resolved.parents for root in _allowed_roots()):
+                        open_target = str(resolved)
+            except (OSError, ValueError, TypeError):
+                open_target = None
         if tool_name == "analyze_javascript_application":
             target = arguments.get("input_path")
             if not isinstance(target, str) or not target.strip():
@@ -305,8 +328,14 @@ def rea_mcp_call(tool_name: str, arguments: dict | None = None) -> dict:
         encoded = json.dumps(arguments, ensure_ascii=False)
         if len(encoded) > 16_000:
             return {"status": "erro", "result": "Argumentos excedem o limite de 16000 caracteres."}
-        payload = _run_mcp_bridge("call", {"name": tool_name, "arguments": arguments})
+        request_payload = {"name": tool_name, "arguments": arguments}
+        if open_target:
+            request_payload["openTarget"] = open_target
+        payload = _run_mcp_bridge("call", request_payload)
         result = payload.get("result")
+        if tool_name == "open_binary" and payload.get("status") == "ok":
+            ACTIVE_TARGET_FILE.parent.mkdir(parents=True, exist_ok=True)
+            ACTIVE_TARGET_FILE.write_text(json.dumps({"path": arguments["path"]}, ensure_ascii=False), encoding="utf-8")
         content = result.get("content") if isinstance(result, dict) else None
         if isinstance(content, list):
             text_parts = [

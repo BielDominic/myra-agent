@@ -8,9 +8,9 @@ Integracao inicial concluida; ponte MCP em validacao. Em 2026-10-24, a raiz perm
 
 - `tasks/rea_tools.py`: ferramentas `rea_status`, `rea_catalog`, `rea_analyze_javascript`, `rea_mcp_list_tools` e `rea_mcp_call`.
 - `tools/rea_mcp_bridge.mjs`: cliente baseado no SDK oficial MCP para conectar ao servidor REA por stdio. O helper localiza dinamicamente o pacote fixado no cache npx (ou aceita `MYRA_REA_PACKAGE_ROOT`), valida a versao e nao depende de um hash/caminho de cache codificado no codigo.
-- Descoberta real confirmou 207 ferramentas no servidor; a MYRA expõe os nomes/descricoes do catalogo e os esquemas JSON de 14 ferramentas explicitamente permitidas para leitura, incluindo inspe??o est?tica de bin?rios Go/Rust sem executar o alvo.
+- Descoberta real confirmou 207 ferramentas no servidor; a MYRA expõe os nomes/descricoes do catalogo e os esquemas JSON de 15 ferramentas explicitamente permitidas para leitura, incluindo inspe??o est?tica de bin?rios Go/Rust sem executar o alvo.
 - `rea_mcp_call` rejeita ferramentas fora da allowlist, argumentos que nao sejam objeto JSON e payloads acima de 16.000 caracteres; para `analyze_javascript_application`, tambem valida que o caminho exista e esteja dentro de uma raiz autorizada.
-- Validacao real (2026-10-24): o helper portavel descobriu 207 ferramentas MCP; os esquemas foram expostos apenas para as 11 ferramentas na allowlist. A analise real de `C:\\computer-agent\\widget-tauri\\ui` retornou Evidence JSON com `status=ok` (saida limitada a 12.000 caracteres). `current_document` retornou `target_unavailable` porque nao ha provedor binario instalado/aberto nesta maquina; portanto, as ferramentas de analise nativa ainda precisam de validacao com Ghidra/IDA/Binary Ninja ou provedor compativel.
+- Validacao real (2026-10-24): o helper portavel descobriu 207 ferramentas MCP; os esquemas foram expostos apenas para as ferramentas na allowlist. A analise real de `C:\\computer-agent\\widget-tauri\\ui` retornou Evidence JSON com `status=ok` (saida limitada a 12.000 caracteres). `open_binary` abriu o PE da MYRA e confirmou arquitetura x86_64 e SHA-256. A ponte agora restaura o alvo validado em cada chamada de contexto, pois cada invocacao cria uma sessao MCP nova. O teste interativo confirmou que `current_document`, `current_address` e `current_procedure` chegam ao REA, mas retornam `provider_unavailable`: esta maquina nao tem Java/Ghidra nem IDA/Hopper configurados. A analise estatica Go/Rust segue validada sem disassembler; o smoke test de provedor interativo permanece bloqueado pela dependencia ausente.
 - Registro das ferramentas no planner da MYRA.
 - Regras no prompt para restringir o uso a software proprio ou explicitamente autorizado.
 - O pacote REA nao e instalado globalmente. O `npx` usa a versao fixada `rea-agents@6.5.0` apenas quando a analise for chamada.
@@ -43,7 +43,7 @@ No planner da MYRA, solicite a analise de uma aplicacao JavaScript/Electron que 
 - A ferramenta nao aceita caminhos fora das raizes permitidas.
 - A chamada usa argumentos separados, sem `shell=True`.
 - O processo tem timeout de 240 segundos e a resposta e limitada a 12.000 caracteres.
-- O comando integrado e o analisador estatico de aplicacoes JavaScript; nao configura Hopper/Ghidra/IDA nem instala motores nativos.
+- O comando integrado executa analise JavaScript e analise estatica PE Go/Rust. As ferramentas dependentes de contexto reabrem o alvo autorizado salvo, mas exigem um provedor compativel instalado e configurado (Ghidra/IDA/Hopper). A integracao nao instala esses motores automaticamente.
 
 ## Referencias
 
