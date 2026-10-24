@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import html
 import json
+import math
 from typing import Any, Dict, List, Literal, Set, Tuple, Union
 
 from pydantic import BaseModel, Field
@@ -97,6 +98,32 @@ class Tools:
     def __init__(self) -> None:
         self.valves = self.Valves()
 
+    @staticmethod
+    def _json_for_script(value: Any) -> str:
+        """Serialize JSON safely inside an HTML script element (prevent </script> breakout)."""
+        return (
+            json.dumps(value, ensure_ascii=False, allow_nan=False)
+            .replace("<", "\\u003c")
+            .replace(">", "\\u003e")
+            .replace("&", "\\u0026")
+        )
+
+    @staticmethod
+    def _safe_float(value: Any) -> float | None:
+        try:
+            number = float(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return number if math.isfinite(number) else None
+
+    @staticmethod
+    def _safe_int(value: Any, default: int, minimum: int = 1, maximum: int = 50) -> int:
+        try:
+            number = int(value)
+        except (TypeError, ValueError, OverflowError):
+            number = default
+        return max(minimum, min(number, maximum))
+
     class Valves(BaseModel):
         allow_external_cdn: bool = Field(
             True,
@@ -157,14 +184,12 @@ class Tools:
         if not isinstance(v, list):
             return []
         out: List[float] = []
-        for x in v:
-            if isinstance(x, (int, float)) and not isinstance(x, bool):
-                out.append(float(x))
-            else:
-                try:
-                    out.append(float(str(x).strip()))
-                except Exception:
-                    pass
+        for value in v:
+            if isinstance(value, bool):
+                continue
+            number = self._safe_float(value)
+            if number is not None:
+                out.append(number)
         return out
 
     def _resolve_mode(self, mode: OutputMode) -> Literal["embed", "text"]:
@@ -375,7 +400,8 @@ class Tools:
         if not fixed_rows:
             return "No valid rows provided."
 
-        rows = fixed_rows[: self.valves.max_rows]
+        # Normalize keys so non-string object keys remain visible in table cells.
+        rows = [{str(key): value for key, value in row.items()} for row in fixed_rows[: self.valves.max_rows]]
 
         # union‑of‑keys in first‑seen order
         cols: List[str] = []
@@ -414,13 +440,11 @@ class Tools:
                 if not isinstance(item_scores, dict):
                     continue
                 v = item_scores.get(criterion)
-                if isinstance(v, (int, float)) and not isinstance(v, bool):
-                    values.append(float(v))
-                else:
-                    try:
-                        values.append(float(str(v).strip()))
-                    except Exception:
-                        pass
+                if isinstance(v, bool):
+                    continue
+                number = self._safe_float(v)
+                if number is not None:
+                    values.append(number)
             if values:
                 best_values[criterion] = {max(values)}
         return best_values
@@ -430,13 +454,11 @@ class Tools:
     ) -> bool:
         if criterion not in best_vals:
             return False
-        if isinstance(val, (int, float)) and not isinstance(val, bool):
-            return float(val) in best_vals[criterion]
-        try:
-            s = str(val).replace("★", "").strip()
-            return float(s) in best_vals[criterion]
-        except Exception:
+        if isinstance(val, bool):
             return False
+        s = str(val).replace("★", "").strip()
+        number = self._safe_float(s)
+        return number in best_vals[criterion] if number is not None else False
 
     def _html_comparison_table(
         self,
@@ -563,7 +585,7 @@ class Tools:
         if not y:
             return f"### {title}\n\nNo data to display."
 
-        h = int(self.valves.ascii_chart_height)
+        h = self._safe_int(self.valves.ascii_chart_height, default=12, minimum=5, maximum=40)
         chart_type = (chart_type or "line").lower().strip()
 
         if chart_type == "bar":
@@ -741,8 +763,8 @@ class Tools:
 <script src="https://cdn.plot.ly/plotly-{self._PLOTLY_CDN_VERSION}.min.js"></script>
 <script>
   (function(){{
-    const trace = {json.dumps(trace)};
-    const layout = {json.dumps(layout_cfg)};
+    const trace = {self._json_for_script(trace)};
+    const layout = {self._json_for_script(layout_cfg)};
     Plotly.newPlot("{chart_id}", [trace], layout, {{responsive:true, displayModeBar:false}});
   }})();
 </script>
@@ -832,8 +854,8 @@ class Tools:
 <script src="https://cdn.plot.ly/plotly-{self._PLOTLY_CDN_VERSION}.min.js"></script>
 <script>
   (function(){{
-    const traces = {json.dumps(traces)};
-    const layout = {json.dumps(layout_cfg)};
+    const traces = {self._json_for_script(traces)};
+    const layout = {self._json_for_script(layout_cfg)};
     Plotly.newPlot("{chart_id}", traces, layout, {{responsive:true, displayModeBar:false}});
   }})();
 </script>
@@ -858,7 +880,7 @@ class Tools:
             return "No data provided (y values are empty)."
         # use provided height, ignore width (grid is len(y)*2)
         old = self.valves.ascii_chart_height
-        self.valves.ascii_chart_height = max(5, min(int(height), 40))
+        self.valves.ascii_chart_height = self._safe_int(height, default=12, minimum=5, maximum=40)
         try:
             return self._ascii_line_chart(
                 x_list, y_list, title, int(self.valves.ascii_chart_height)
@@ -882,7 +904,7 @@ class Tools:
         if not y_list:
             return "No data provided (y values are empty)."
         old = self.valves.ascii_chart_height
-        self.valves.ascii_chart_height = max(5, min(int(height), 40))
+        self.valves.ascii_chart_height = self._safe_int(height, default=12, minimum=5, maximum=40)
         try:
             return self._ascii_bar_chart(
                 x_list, y_list, title, int(self.valves.ascii_chart_height)
@@ -952,14 +974,9 @@ class Tools:
                 if not isinstance(row_l, list):
                     continue
                 out_row: List[float] = []
-                for v in row_l:
-                    if isinstance(v, (int, float)) and not isinstance(v, bool):
-                        out_row.append(float(v))
-                    else:
-                        try:
-                            out_row.append(float(str(v).strip()))
-                        except Exception:
-                            out_row.append(0.0)
+                for value in row_l:
+                    number = None if isinstance(value, bool) else self._safe_float(value)
+                    out_row.append(number if number is not None else 0.0)
                 fixed.append(out_row)
 
         if len(fixed) > self.valves.max_rows:
@@ -1027,8 +1044,8 @@ class Tools:
 <script src="https://cdn.plot.ly/plotly-{self._PLOTLY_CDN_VERSION}.min.js"></script>
 <script>
   (function(){{
-    const trace = {json.dumps(trace)};
-    const layout = {json.dumps(layout_cfg)};
+    const trace = {self._json_for_script(trace)};
+    const layout = {self._json_for_script(layout_cfg)};
     Plotly.newPlot("{heat_id}", [trace], layout, {{responsive:true, displayModeBar:false}});
   }})();
 </script>
@@ -1192,7 +1209,7 @@ class Tools:
           - dict nested objects
           - list of edges: { "parent": "...", "child": "..." }
         """
-        max_depth = max(1, min(int(max_depth), 50))
+        max_depth = self._safe_int(max_depth, default=12, minimum=1, maximum=50)
 
         def render_from_dict(node: Any, prefix: str = "", depth: int = 0) -> List[str]:
             if depth > max_depth:

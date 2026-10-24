@@ -77,7 +77,7 @@ def code_run(codigo: str) -> dict:
 
 def run_python(codigo: str) -> dict:
     """Alias de code_run (mantido pra compatibilidade)."""
-    return _post("/run_python", {"codigo": codigo})
+    return code_run(codigo)
 
 
 # ============================================================
@@ -105,7 +105,9 @@ def email_search(termo: str, quantidade: int = 10) -> dict:
 
 
 def email_reply(indice: int = 0, corpo: str = "") -> dict:
-    """Responde um email."""
+    """Responde um email; o corpo da resposta e obrigatorio e nao pode ficar vazio."""
+    if not isinstance(corpo, str) or not corpo.strip():
+        return {"status": "erro", "result": "Corpo da resposta obrigatorio."}
     return _post("/email_reply", {"indice": indice, "pasta": "INBOX", "corpo": corpo})
 
 

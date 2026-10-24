@@ -1025,7 +1025,6 @@ class CasoContratoGeral(CasoVisual):
 class CasoBugsConhecidos(CasoVisual):
     """Cada teste aqui e um bug real de ``tools/visuals_core.py`` (nenhum foi corrigido)."""
 
-    @unittest.expectedFailure
     def test_bug_embed_nao_escapa_script_tag_no_json_do_plotly(self):
         # BUG: render_chart/render_multi_chart/render_heatmap escrevem json.dumps()
         # cru dentro de <script>. json.dumps nao escapa '<', '>' nem '/', por isso
@@ -1054,7 +1053,6 @@ class CasoBugsConhecidos(CasoVisual):
                 falhas.append(f"{nome}: tag <script> injectada crua -> {pagina[max(0, posicao - 30):posicao + 50]!r}")
         self.assertEqual([], falhas, "HTML/SVG nao escapado: " + " | ".join(falhas))
 
-    @unittest.expectedFailure
     def test_bug_nan_e_infinity_levam_a_valueerror(self):
         # BUG: json.loads aceita NaN/Infinity e float("nan") passa em _coerce_float_list,
         # mas _ascii_line_chart/_ascii_scatter_chart/_ascii_heatmap fazem int(nan)
@@ -1071,7 +1069,6 @@ class CasoBugsConhecidos(CasoVisual):
         falhas = self._excecoes(casos)
         self.assertEqual([], falhas, "excecoes escaparam: " + "; ".join(falhas))
 
-    @unittest.expectedFailure
     def test_bug_inteiro_gigante_leva_a_overflowerror(self):
         # BUG: numeros inteiros maiores que float (ex.: 10**400, que json.loads
         # devolve como int sem problema) rebentam em float(x) dentro de
@@ -1088,7 +1085,6 @@ class CasoBugsConhecidos(CasoVisual):
         falhas = self._excecoes(casos)
         self.assertEqual([], falhas, "excecoes escaparam: " + "; ".join(falhas))
 
-    @unittest.expectedFailure
     def test_bug_tipos_invalidos_em_height_e_max_depth_levantam(self):
         # BUG: int(height) e int(max_depth) sao chamados sem try. Um argumento JSON
         # com tipo errado (string nao numerica, None, lista) escapa como
@@ -1104,7 +1100,6 @@ class CasoBugsConhecidos(CasoVisual):
         falhas = self._excecoes(casos)
         self.assertEqual([], falhas, "excecoes escaparam: " + "; ".join(falhas))
 
-    @unittest.expectedFailure
     def test_bug_ascii_chart_height_zero_levanta_indexerror(self):
         # BUG: Tools.Valves nao valida ascii_chart_height (falta ge=1). Com 0 ou
         # negativo, _ascii_line_chart/_ascii_scatter_chart criam um grid vazio
@@ -1122,7 +1117,6 @@ class CasoBugsConhecidos(CasoVisual):
         )
         self.assertEqual([], falhas, "excecoes escaparam: " + "; ".join(falhas))
 
-    @unittest.expectedFailure
     def test_bug_chaves_nao_string_perdem_valores_na_tabela(self):
         # BUG: render_table cria o cabecalho com str(k) mas le a celula com
         # r.get(c) usando essa string. Com chaves nao-string (int, float, tuple)

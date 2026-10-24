@@ -54,12 +54,12 @@ TABELA = (
     ("move_file", "/move_file", ("a.txt", "b.txt"), {}),
     ("search_in_files", "/search_in_files", ("termo",), {}),
     ("code_run", "/code_run", ("print(1)",), {}),
-    ("run_python", "/run_python", ("print(1)",), {}),
+    ("run_python", "/code_run", ("print(1)",), {}),
     ("email_list", "/email_list", (), {}),
     ("email_read", "/email_read", (), {}),
     ("email_send", "/email_send", ("a@b.c", "assunto", "corpo"), {}),
     ("email_search", "/email_search", ("termo",), {}),
-    ("email_reply", "/email_reply", (), {}),
+    ("email_reply", "/email_reply", (0, "resposta de teste"), {}),
     ("pc_move_mouse", "/pc_move_mouse", (10, 20), {}),
     ("pc_click", "/pc_click", (), {}),
     ("pc_type_text", "/pc_type_text", ("texto",), {}),
@@ -472,16 +472,15 @@ class RotasEPayloadsTestCase(_BaseComCaptura):
         self.assertEqual(rota, "/code_run")
         self.assertEqual(payload, {"codigo": "print(1)"})
 
-    def test_run_python_usa_rota_run_python(self):
+    def test_run_python_usa_rota_code_run(self):
         rota, payload = self._rota_payload(st.run_python, "print(1)")
-        self.assertEqual(rota, "/run_python")
+        self.assertEqual(rota, "/code_run")
         self.assertEqual(payload, {"codigo": "print(1)"})
 
-    def test_code_run_e_run_python_nao_sao_equivalentes(self):
-        """As duas rotas sao implementacoes diferentes no agent.py."""
+    def test_code_run_e_run_python_sao_aliases_equivalentes(self):
         rota_code, payload_code = self._rota_payload(st.code_run, "print(1)")
         rota_run, payload_run = self._rota_payload(st.run_python, "print(1)")
-        self.assertNotEqual(rota_code, rota_run)
+        self.assertEqual(rota_code, rota_run)
         self.assertEqual(payload_code, payload_run)
         self.assertIsNot(st.code_run, st.run_python)
 
@@ -530,10 +529,12 @@ class RotasEPayloadsTestCase(_BaseComCaptura):
         rota, payload = self._rota_payload(st.email_search, "fatura", 3)
         self.assertEqual(payload, {"termo": "fatura", "pasta": "INBOX", "quantidade": 3})
 
-    def test_email_reply_defaults(self):
-        rota, payload = self._rota_payload(st.email_reply)
-        self.assertEqual(rota, "/email_reply")
-        self.assertEqual(payload, {"indice": 0, "pasta": "INBOX", "corpo": ""})
+    def test_email_reply_recusa_corpo_vazio(self):
+        with HTTPFalso() as http, sem_rede():
+            saida = st.email_reply()
+        self.assertEqual(saida["status"], "erro")
+        self.assertIn("corpo da resposta obrigatorio", saida["result"].lower())
+        self.assertEqual(http.pedidos, [])
 
     def test_email_reply_com_indice_e_corpo(self):
         rota, payload = self._rota_payload(st.email_reply, 4, "obrigado")
@@ -690,13 +691,15 @@ class RotasEPayloadsTestCase(_BaseComCaptura):
     def test_tabela_de_rotas_completa_e_sem_duplicados(self):
         rotas_esperadas = [linha[1] for linha in TABELA]
         self.assertEqual(len(rotas_esperadas), 33)
-        self.assertEqual(len(set(rotas_esperadas)), 33, "cada rota deve ser unica")
+        self.assertEqual(len(set(rotas_esperadas)), 32, "a unica rota duplicada deve ser o alias run_python/code_run")
+        self.assertEqual(rotas_esperadas.count("/code_run"), 2)
         nomes = [linha[0] for linha in TABELA]
         self.assertEqual(len(set(nomes)), 33)
         for nome, rota, _args, _kwargs in TABELA:
             with self.subTest(nome=nome):
                 self.assertTrue(callable(getattr(st, nome)))
-                self.assertEqual(rota, "/" + nome)
+                rota_esperada = "/code_run" if nome == "run_python" else "/" + nome
+                self.assertEqual(rota, rota_esperada)
 
 
 # ============================================================
@@ -824,7 +827,7 @@ class ContratoSeveroTestCase(_BaseComCaptura):
                 self.assertEqual(m.call_count, 0)
 
     def test_wrappers_sem_argumentos_aceitam_chamada_limpa(self):
-        for fn in (st.list_dir, st.email_list, st.email_read, st.email_reply, st.pc_click,
+        for fn in (st.list_dir, st.email_list, st.email_read, st.pc_click,
                    st.pc_screenshot, st.pc_get_windows, st.pc_get_active_window,
                    st.get_current_time, st.get_weather, st.read_notes):
             with self.subTest(fn=fn.__name__):
@@ -912,7 +915,6 @@ class ContratoSeveroTestCase(_BaseComCaptura):
             "email_list": {"quantidade": 5},
             "email_read": {"indice": 0},
             "email_search": {"quantidade": 10},
-            "email_reply": {"indice": 0, "corpo": ""},
             "pc_click": {"x": None, "y": None, "button": "left"},
             "get_weather": {"cidade": ""},
         }
@@ -1129,7 +1131,6 @@ class RegistroTestCase(_BaseComCaptura):
 class BugsProducaoTestCase(_BaseComCaptura):
     """Testes que falham de proposito: fixam bugs encontrados em producao."""
 
-    @unittest.expectedFailure
     def test_bug_run_python_diz_ser_alias_mas_usa_outra_rota(self):
         """BUG: tasks/system_tools.py:78-80 documenta ``run_python`` como "Alias de
         code_run", mas POSTa /run_python e o agent.py:1874 implementa um
@@ -1138,23 +1139,22 @@ class BugsProducaoTestCase(_BaseComCaptura):
         (linha 216-217) tambem afirma "alias de code_run".
         """
         diz_alias = "alias" in (st.run_python.__doc__ or "").lower()
-        rota, _payload = self._rota_payload(st.run_python, "print(1)")
-        self.assertTrue(diz_alias and rota == "/code_run",
-                        "run_python alega ser alias de code_run mas usa rota propria")
+        rota, payload = self._rota_payload(st.run_python, "print(1)")
+        self.assertTrue(diz_alias)
+        self.assertEqual(rota, "/code_run")
+        self.assertEqual(payload, {"codigo": "print(1)"})
 
-    @unittest.expectedFailure
     def test_bug_email_reply_descricao_diz_corpo_obrigatorio_mas_tem_default(self):
         """BUG: em tasks/system_tools.py:107 ``email_reply`` tem ``corpo: str = ""``,
         mas a descricao registada para o planner (linha 228-229) diz
         "Obrigatorio: corpo. Opcional: indice." — contrato contraditorio: o
         planner pode omitir o corpo e enviar um email de resposta vazio.
         """
-        registros = self._coletar_descricoes()
-        descricao = registros["email_reply"].lower()
-        diz_obrigatorio = "obrigatorio: corpo" in descricao
-        tem_default = inspect.signature(st.email_reply).parameters["corpo"].default != inspect.Parameter.empty
-        self.assertFalse(diz_obrigatorio and tem_default,
-                         "descricao exige corpo mas a assinatura tem default vazio")
+        with HTTPFalso() as http, sem_rede():
+            saida = st.email_reply(0, "   ")
+        self.assertEqual(saida["status"], "erro")
+        self.assertIn("corpo da resposta obrigatorio", saida["result"].lower())
+        self.assertEqual(http.pedidos, [])
 
     def _coletar_descricoes(self):
         descricoes = {}
