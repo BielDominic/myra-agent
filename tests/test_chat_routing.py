@@ -188,6 +188,8 @@ def test_app_search_intent_accepts_different_natural_language_phrasings():
         ("Acesse a Microsoft Store e encontre Minecraft", ("microsoft store", "minecraft")),
         ("Visite a Microsoft Store e veja se tem Minecraft", ("microsoft store", "minecraft")),
         ("Por favor, entre na Microsoft Store e pesquisar Minecraft", ("microsoft store", "minecraft")),
+        ("Abra a Microsoft Store, pesquise Telegram Desktop, abra a ficha do aplicativo e verifique se está instalado; se não estiver, instale e confirme pelo botão Abrir.", ("microsoft store", "telegram desktop")),
+        ("Abra a Microsoft Store e pesquise Telegram Desktop e instale", ("microsoft store", "telegram desktop")),
     ]
     for phrase, expected in cases:
         assert simple_task._extrair_intencao_app_busca(phrase) == expected
@@ -290,6 +292,34 @@ def test_store_instalacao_reconhece_rotulos_localizados_e_id_de_pacote():
     assert confirmar([
         {"nome": "Telegram Desktop", "control_type": "Text", "visible": True, "enabled": True},
         {"nome": "Install", "control_type": "Button", "visible": True, "enabled": True},
+    ]) is False
+    # Na ficha real da Microsoft Store, o rótulo Open pode ser exposto como Text.
+    assert confirmar([
+        {"nome": "Telegram Desktop", "control_type": "Text", "visible": True, "enabled": True},
+        {"nome": "Open", "control_type": "Text", "automation_id": "AcquisitionBlock", "visible": True, "enabled": True},
+    ]) is True
+    # Um texto Open genérico, sem o ID de estado da Store, não é prova suficiente.
+    assert confirmar([
+        {"nome": "Telegram Desktop", "control_type": "Text", "visible": True, "enabled": True},
+        {"nome": "Open", "control_type": "Text", "automation_id": "Description", "visible": True, "enabled": True},
+    ]) is False
+
+
+def test_store_resultados_so_confirmam_instalacao_com_card_exato_installed():
+    confirmar = simple_task._store_resultados_confirmam_telegram_instalado
+    assert confirmar([
+        {"nome": "Telegram Desktop. 7 total ratings. Average rating of 4.7 out of five stars. Installed ",
+         "control_type": "Button", "visible": True, "enabled": True},
+    ]) is True
+    assert confirmar([
+        {"nome": "Telegram Desktop. 7 total ratings. Average rating of 4.7 out of five stars. Owned ",
+         "control_type": "Button", "visible": True, "enabled": True},
+    ]) is False
+    assert confirmar([
+        {"nome": "WhatsApp. 7 total ratings. Installed", "control_type": "Button", "visible": True, "enabled": True},
+    ]) is False
+    assert confirmar([
+        {"nome": "Telegram Desktop. 7 total ratings. Installed", "control_type": "Button", "visible": False, "enabled": True},
     ]) is False
 
 

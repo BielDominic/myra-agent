@@ -92,11 +92,32 @@ def _store_controles_confirmam_instalacao_telegram(controles) -> bool:
         "openen", "otworz", "abrir aplicacion", "starten", "start",
     }
     oferece_abrir = any(
-        normalizar(c.get("control_type")) == "button"
-        and normalizar(c.get("nome")) in rotulos_abrir
+        normalizar(c.get("nome")) in rotulos_abrir
+        and (
+            normalizar(c.get("control_type")) == "button"
+            or (
+                normalizar(c.get("control_type")) == "text"
+                and normalizar(c.get("automation_id")) in {"acquisitionblock", "installbuttontextblock"}
+            )
+        )
         for c in visiveis
     )
     return identifica_telegram and oferece_abrir
+
+
+def _store_resultados_confirmam_telegram_instalado(controles) -> bool:
+    """A lista de resultados pode confirmar Installed sem abrir o app ao clicar no card."""
+    if not isinstance(controles, list):
+        return False
+    return any(
+        isinstance(c, dict)
+        and c.get("visible") and c.get("enabled")
+        and str(c.get("control_type", "")).casefold() == "button"
+        and "telegram desktop" in str(c.get("nome", "")).casefold()
+        and "total ratings" in str(c.get("nome", "")).casefold()
+        and re.search(r"\binstalled\b", str(c.get("nome", "")).casefold())
+        for c in controles
+    )
 
 # Ferramentas legadas que deixam de ser expostas ao planner quando
 # a ferramenta equivalente do Browser Bridge estiver registrada.
@@ -228,6 +249,15 @@ def _extrair_intencao_app_busca(objetivo: str) -> tuple[str, str] | None:
     if not m:
         return None
     nome_app, termo_busca = (parte.strip() for parte in m.groups())
+    # Pedidos compostos podem continuar apos a consulta (abrir a ficha, verificar
+    # estado, instalar). Esses verbos sao etapas seguintes, nao parte do termo buscado.
+    termo_busca = re.split(
+        r"\s+(?:(?:e|depois)\s+)?(?:abra|abrir|acesse|acessar|verifique|verificar|"
+        r"confirme|confirmar|instale|instalar|baixe|baixar)\s+(?:a\s+)?"
+        r"(?:ficha|pagina|detalhes|estado|se|aplicativo|instalacao)\b",
+        termo_busca,
+        maxsplit=1,
+    )[0].strip(" ,.;:")
     termos_nao_app = ("no navegador", "pagina web", "url ", "link ", "http ", "https ", "www ")
     if not nome_app or not termo_busca:
         return None
@@ -536,7 +566,7 @@ def _decidir_proximo_passo(
                         time.sleep(2)
                         return {
                             "acao": "chamar", "ferramenta": "pc_list_controls",
-                            "args": {"titulo": "Microsoft Store", "limite": 99},
+                            "args": {"titulo": "Microsoft Store", "limite": 200},
                             "motivo": "verificar os resultados reais da pesquisa antes de instalar",
                         }
                     if proximo == 10 and historico[-1].get("ferramenta") == "pc_control_action":
@@ -591,6 +621,11 @@ def _decidir_proximo_passo(
                             bool(re.search(r"\b(install|instalar|get|obter|download|baixar)\b", ultimo_alvo))
                             or ultimo_alvo in {"acquirenewproduct", "installbutton", "installbuttontextblock"}
                         )
+                        if proximo == 7 and _store_resultados_confirmam_telegram_instalado(lista):
+                            return {
+                                "acao": "finalizar",
+                                "resultado": "Telegram Desktop ja esta instalado: a Microsoft Store marca o resultado exato como Installed.",
+                            }
                         if _store_controles_confirmam_instalacao_telegram(lista):
                             return {
                                 "acao": "finalizar",
@@ -1433,17 +1468,11 @@ def executar_task(
                 )
                 if not isinstance(controles_observados, list):
                     controles_observados = []
-                nomes_observados = [
-                    str(c.get("nome", "")).casefold()
-                    for c in controles_observados if isinstance(c, dict)
-                ]
                 confirmou_abrir = (
                     ferramenta == "pc_list_controls"
-                    and any("telegram" in nome for nome in nomes_observados)
-                    and any(
-                        str(c.get("control_type", "")).casefold() == "button"
-                        and re.search(r"\b(open|abrir|launch|iniciar)\b", str(c.get("nome", "")).casefold())
-                        for c in controles_observados if isinstance(c, dict)
+                    and (
+                        _store_controles_confirmam_instalacao_telegram(controles_observados)
+                        or _store_resultados_confirmam_telegram_instalado(controles_observados)
                     )
                 )
                 if not confirmou_abrir:
