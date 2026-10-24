@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import time
+import unicodedata
 from pathlib import Path
 
 
@@ -135,19 +136,43 @@ def _janelas_visiveis() -> list[str]:
         return []
 
 
+def _normalizar_texto_janela(valor: str) -> str:
+    """Normaliza acentos e pontuação para comparar títulos de janela localizados."""
+    texto = unicodedata.normalize("NFKD", valor.casefold())
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    return " ".join("".join(c if c.isalnum() else " " for c in texto).split())
+
+
 def _verificar_janela_aplicativo(nome: str, timeout: float = 2.5) -> str | None:
-    """Aguarda evidência de uma janela visível; não confunde startfile com sucesso final."""
-    termos = {
-        "bloco de notas": ("notepad",), "notas": ("notepad",),
-        "calculadora": ("calculator",), "gerenciador de tarefas": ("task manager",),
-        "explorador de arquivos": ("file explorer",), "prompt de comando": ("command prompt", "cmd"),
+    """Aguarda evidência de janela visível usando nomes localizados sem falsos positivos óbvios."""
+    if not isinstance(nome, str) or not nome.strip():
+        return None
+    aliases = {
+        "bloco de notas": ("notepad", "bloco de notas"),
+        "notas": ("notepad", "bloco de notas"),
+        "notepad": ("notepad", "bloco de notas"),
+        "windows notepad": ("notepad", "bloco de notas"),
+        "calculadora": ("calculator", "calculadora"),
+        "calculator": ("calculator", "calculadora"),
+        "windows calculator": ("calculator", "calculadora"),
+        "gerenciador de tarefas": ("task manager", "gerenciador de tarefas"),
+        "task manager": ("task manager", "gerenciador de tarefas"),
+        "taskmgr": ("task manager", "gerenciador de tarefas"),
+        "explorador de arquivos": ("file explorer", "explorador de arquivos"),
+        "file explorer": ("file explorer", "explorador de arquivos"),
+        "explorer": ("file explorer", "explorador de arquivos"),
+        "prompt de comando": ("command prompt", "prompt de comando", "cmd exe"),
+        "command prompt": ("command prompt", "prompt de comando", "cmd exe"),
+        "cmd": ("command prompt", "prompt de comando", "cmd exe"),
     }
-    chaves = termos.get(nome.casefold(), (nome.casefold(),))
+    nome_normalizado = _normalizar_texto_janela(nome)
+    chaves = aliases.get(nome_normalizado, (nome_normalizado,))
+    chaves_normalizadas = tuple(_normalizar_texto_janela(chave) for chave in chaves if chave)
     fim = time.monotonic() + max(0.0, timeout)
     while True:
         for titulo in _janelas_visiveis():
-            t = titulo.casefold()
-            if any(k in t for k in chaves):
+            titulo_normalizado = _normalizar_texto_janela(titulo)
+            if any(chave and chave in titulo_normalizado for chave in chaves_normalizadas):
                 return titulo
         if time.monotonic() >= fim:
             return None
