@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import time
 from pathlib import Path
 
 
@@ -124,6 +125,35 @@ def listar_aplicativos() -> dict:
         return {"status": "erro", "result": f"{type(exc).__name__}: {exc}"}
 
 
+def _janelas_visiveis() -> list[str]:
+    """Retorna títulos de janelas realmente visíveis via Windows UIA."""
+    try:
+        from pywinauto import Desktop
+        return [str(w.window_text() or "").strip() for w in Desktop(backend="uia").windows()
+                if w.is_visible() and str(w.window_text() or "").strip()]
+    except Exception:
+        return []
+
+
+def _verificar_janela_aplicativo(nome: str, timeout: float = 2.5) -> str | None:
+    """Aguarda evidência de uma janela visível; não confunde startfile com sucesso final."""
+    termos = {
+        "bloco de notas": ("notepad",), "notas": ("notepad",),
+        "calculadora": ("calculator",), "gerenciador de tarefas": ("task manager",),
+        "explorador de arquivos": ("file explorer",), "prompt de comando": ("command prompt", "cmd"),
+    }
+    chaves = termos.get(nome.casefold(), (nome.casefold(),))
+    fim = time.monotonic() + max(0.0, timeout)
+    while True:
+        for titulo in _janelas_visiveis():
+            t = titulo.casefold()
+            if any(k in t for k in chaves):
+                return titulo
+        if time.monotonic() >= fim:
+            return None
+        time.sleep(0.2)
+
+
 def abrir_aplicativo(nome: str) -> dict:
     """Abre um atalho conhecido por nome exato ou correspondência inequívoca."""
     nome = (nome or "").strip()
@@ -159,7 +189,14 @@ def abrir_aplicativo(nome: str) -> dict:
     alvo = candidatos[0]["atalho"]
     try:
         os.startfile(alvo)  # Windows Shell resolve .lnk/.url sem shell command injection.
-        return {"status": "ok", "result": f"Solicitada abertura de {candidatos[0]['nome']}", "nome": candidatos[0]["nome"], "atalho": alvo}
+        nome_app = str(candidatos[0]["nome"])
+        janela = _verificar_janela_aplicativo(nome_app)
+        if janela:
+            return {"status": "ok", "verified": True, "janela_visivel": janela,
+                    "result": f"Aplicativo aberto; janela visível verificada: {janela}", "nome": nome_app, "atalho": alvo}
+        return {"status": "unverified", "verified": False,
+                "result": f"Pedido de abertura enviado para {nome_app}, mas nenhuma janela visível correspondente foi confirmada. Não repetir automaticamente.",
+                "nome": nome_app, "atalho": alvo}
     except OSError as exc:
         return {"status": "erro", "result": f"Falha ao abrir {candidatos[0]['nome']}: {type(exc).__name__}: {exc}"}
 

@@ -258,9 +258,26 @@ def test_application_open_supports_common_portuguese_aliases(monkeypatch):
         ]
     })
     monkeypatch.setattr(applications.os, "startfile", lambda target: launched.append(target), raising=False)
-    assert applications.abrir_aplicativo("bloco de notas")["status"] == "ok"
-    assert applications.abrir_aplicativo("calculadora")["status"] == "ok"
+    monkeypatch.setattr(applications, "_verificar_janela_aplicativo", lambda nome: {"Notepad": "Untitled - Notepad", "Calculator": "Calculator"}.get(nome))
+    resultado_notas = applications.abrir_aplicativo("bloco de notas")
+    resultado_calc = applications.abrir_aplicativo("calculadora")
+    assert resultado_notas["status"] == "ok" and resultado_notas["verified"] is True
+    assert resultado_calc["status"] == "ok" and resultado_calc["verified"] is True
     assert len(launched) == 2
+
+
+def test_application_open_reports_unverified_when_no_visible_window(monkeypatch):
+    from computer import applications
+    monkeypatch.setattr(applications, "listar_aplicativos", lambda: {"status": "ok", "total": 1, "result": [
+        {"nome": "Example App", "atalho": "C:\\Apps\\example.exe", "origem": "test"}
+    ]})
+    launched = []
+    monkeypatch.setattr(applications.os, "startfile", lambda target: launched.append(target), raising=False)
+    monkeypatch.setattr(applications, "_verificar_janela_aplicativo", lambda nome: None)
+    result = applications.abrir_aplicativo("Example App")
+    assert launched == ["C:\\Apps\\example.exe"]
+    assert result["status"] == "unverified"
+    assert result["verified"] is False
 
 
 
