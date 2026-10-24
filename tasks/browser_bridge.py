@@ -215,12 +215,18 @@ def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> 
         else:
             args.pop("url_contains", None)
     if action == "search_google":
-        term = str(args.get("term", "")).strip()
+        raw_term = args.get("term", "")
+        if not isinstance(raw_term, str):
+            return {"status": "erro", "result": "termo deve ser texto com 1 a 200 caracteres."}
+        term = raw_term.strip()
         if not term or len(term) > 200:
             return {"status": "erro", "result": "termo deve conter de 1 a 200 caracteres."}
         args["term"] = term
     if action == "search_google_visivel":
-        term = str(args.get("term", "")).strip()
+        raw_term = args.get("term", "")
+        if not isinstance(raw_term, str):
+            return {"status": "erro", "result": "termo deve ser texto com 1 a 200 caracteres."}
+        term = raw_term.strip()
         if not term or len(term) > 200:
             return {"status": "erro", "result": "termo deve conter de 1 a 200 caracteres."}
         args["term"] = term
@@ -265,7 +271,10 @@ def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> 
         args["campo"] = campo
         args["texto"] = texto
     if action == "click_text":
-        text = str(args.get("text", "")).strip()
+        raw_text = args.get("text", "")
+        if not isinstance(raw_text, str):
+            return {"status": "erro", "result": "Informe o texto do botao/link como texto (ate 500 caracteres)."}
+        text = raw_text.strip()
         if not text or len(text) > MAX_TEXT_LENGTH:
             return {"status": "erro", "result": "Informe o texto do botao/link (ate 500 caracteres)."}
         args["text"] = text

@@ -429,8 +429,6 @@ class RunCommandValidacaoTests(_BaseBridge):
         self.assertEqual(json.loads(_linhas()[0]["args_json"])["url_contains"], "github.com")
 
     # -- search_google / search_google_visivel -----------------------
-    # [xfail-2026-10-15] search_google aceita termos curtos (so rejeita <1 ou >200 chars)
-    @expectedFailure
     def test_termo_de_pesquisa_invalido(self):
         for termo in ("", "   ", None, 123, "x" * 201, "☃" * 201):
             with self.subTest(termo=str(termo)[:20]):
@@ -547,8 +545,6 @@ class RunCommandValidacaoTests(_BaseBridge):
         )
         self.assertEqual(json.loads(_linhas()[0]["args_json"])["texto"], texto)
 
-    # [xfail-2026-10-15] click_text aceita qualquer valor via str(); teste esperava rejeicao com '500'
-    @expectedFailure
     def test_click_text_invalido(self):
         for texto in ("", "   ", None, 12, "t" * 501):
             with self.subTest(texto=str(texto)[:20]):
