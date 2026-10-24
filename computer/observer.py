@@ -43,6 +43,27 @@ def _extrair_json(texto: str) -> dict | None:
     return None
 
 
+def _resumir_evidencia_ui(resultado) -> str:
+    """Preserva evidencias estruturadas de UIA no prompt, sem confundir mudanca com sucesso."""
+    if not isinstance(resultado, dict):
+        return ""
+    candidatos = [resultado]
+    aninhado = resultado.get("result")
+    if isinstance(aninhado, dict):
+        candidatos.append(aninhado)
+    resumo = {}
+    for item in candidatos:
+        for chave in ("mudanca_observavel", "evidencia_antes", "evidencia_depois", "verified", "status"):
+            if chave in item:
+                resumo[chave] = item[chave]
+    if not resumo:
+        return ""
+    try:
+        return json.dumps(resumo, ensure_ascii=False, default=str)[:1400]
+    except (TypeError, ValueError):
+        return str(resumo)[:1400]
+
+
 def _bool_estrito(valor):
     """Coage valores comuns, mas deixa respostas textuais ambÃ­guas indeterminadas."""
     if isinstance(valor, bool):
@@ -163,6 +184,7 @@ def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
                 return {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "Pesquisa Google confirmada por URL e titulo.", "proximo_passo_sugerido": ""}
 
     resultado_str = str(resultado)[:800] if resultado else "(vazio)"
+    evidencia_ui = _resumir_evidencia_ui(resultado)
     try:
         args_str = json.dumps(args, ensure_ascii=False)[:200] if args else "{}"
     except (TypeError, ValueError):
@@ -175,6 +197,8 @@ def observar(objetivo: str, acao_anterior: dict | None = None) -> dict:
         f"OBJETIVO DA TASK: {objetivo}\n\n"
         f"ACAO EXECUTADA: {ferramenta}({args_str})\n"
         f"RESULTADO: {resultado_str}\n"
+        f"EVIDENCIA ESTRUTURADA UIA (mudanca nao significa objetivo concluido): {evidencia_ui or '(nao disponivel)'}\n"
+        "Use evidencia antes/depois para avaliar o estado, mas so confirme o objetivo se a evidencia sustentar explicitamente a conclusao.\n"
         f"ERRO: {erro_str or '(nenhum)'}\n\n"
         "Responda APENAS com JSON puro (nada antes, nada depois, sem markdown):\n"
         '{"sucesso": true/false, "objetivo_atingido": true/false, '

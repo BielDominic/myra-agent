@@ -44,6 +44,44 @@ class ObserverTestCase(unittest.TestCase):
         self.assertIn("\n", prompt)
         self.assertNotIn("\\n", prompt)
 
+    def test_resumo_preserva_evidencia_ui_aninhada_sem_promover_mudanca_a_sucesso(self):
+        resultado = {
+            "status": "ok",
+            "verified": False,
+            "result": {
+                "mudanca_observavel": True,
+                "evidencia_antes": {"value": "antes"},
+                "evidencia_depois": {"value": "depois"},
+            },
+        }
+        resumo = json.loads(observer._resumir_evidencia_ui(resultado))
+        self.assertTrue(resumo["mudanca_observavel"])
+        self.assertFalse(resumo["verified"])
+        self.assertEqual(resumo["evidencia_antes"]["value"], "antes")
+        self.assertEqual(resumo["evidencia_depois"]["value"], "depois")
+
+    def test_prompt_expoe_evidencia_uia_depois_de_resultado_longo(self):
+        captured = {}
+        def urlopen(req, timeout=0):
+            captured["payload"] = json.loads(req.data.decode("utf-8"))
+            return _FakeResponse({"message": {"content": '{"sucesso":true,"objetivo_atingido":false}'} })
+        acao = {
+            "ferramenta": "pc_control_action",
+            "resultado": {
+                "status": "ok", "result": {"texto_longo": "x" * 1200,
+                    "mudanca_observavel": True,
+                    "evidencia_antes": {"value": "antes"},
+                    "evidencia_depois": {"value": "depois"}},
+            },
+        }
+        with mock.patch.object(observer.urllib.request, "urlopen", urlopen):
+            observer.observar("instalar aplicativo", acao)
+        prompt = captured["payload"]["messages"][0]["content"]
+        self.assertIn("EVIDENCIA ESTRUTURADA UIA", prompt)
+        self.assertIn('"mudanca_observavel": true', prompt)
+        self.assertIn('"value": "depois"', prompt)
+        self.assertIn("mudanca nao significa objetivo concluido", prompt)
+
     def test_resposta_invalida_e_indeterminada(self):
         with self._resposta("não é JSON"):
             resultado = observer.observar("concluir tarefa", {"ferramenta": "x"})
