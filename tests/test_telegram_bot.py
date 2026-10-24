@@ -381,3 +381,43 @@ def test_direct_open_target_resolves_common_sites():
     assert TelegramBot._direct_open_target("Abra o YouTube") == "https://www.youtube.com"
     assert TelegramBot._direct_open_target("Open GitHub") == "https://github.com"
     assert TelegramBot._direct_open_target("Pesquise no Google por tomates") is None
+
+
+def test_poll_loop_stops_after_telegram_409_conflict():
+    import requests
+    from unittest.mock import Mock
+
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"})
+    response = Mock(status_code=409)
+    response.json.return_value = {
+        "ok": False,
+        "description": "Conflict: terminated by other getUpdates request",
+    }
+    error = requests.exceptions.HTTPError(response=response)
+
+    def conflict(*args, **kwargs):
+        raise error
+
+    bot._telegram = conflict
+    bot._poll_loop()
+
+    assert bot._stop_event.is_set()
+    assert bot.status()["running"] is False
+    assert "409 Conflict" in bot.status()["last_error"]
+    assert "another getUpdates poller" in bot.status()["last_error"]
+
+
+def test_start_refuses_to_create_second_thread_while_previous_thread_exits():
+    from unittest.mock import Mock
+
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"})
+    old_thread = Mock()
+    old_thread.is_alive.return_value = True
+    bot._thread = old_thread
+    bot._stop_event.set()
+
+    result = bot.start()
+
+    assert result["status"] == "erro"
+    assert "ainda esta encerrando" in result["result"]
+    assert bot._thread is old_thread

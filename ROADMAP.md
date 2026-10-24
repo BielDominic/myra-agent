@@ -190,7 +190,8 @@
 - [ ] Antes de acesso direto remoto, implementar autenticacao de API e restringir rotas sensiveis.
 
 ##### 28.2 - Telegram Bot
-- [ ] Criar bot no @BotFather e configurar token/chat IDs no Windows.
+- [x] Bot valido configurado no Windows; token e allowlist detectados sem expor segredos.
+- [x] Polling para ao detectar HTTP 409 e `start()` recusa thread concorrente durante encerramento.
 - [x] Integracao via long polling em tasks/telegram_bot.py (sem porta publica/webhook).
 - [x] Comandos implementados: /task, /status, /cancel, /pause, /resume, /screenshot, /see, /help.
 - [x] Autenticacao por allowlist MYRA_TELEGRAM_ALLOWED_CHAT_IDS; bot desativado sem token/allowlist.
@@ -498,9 +499,9 @@
 | Meta / Estrategico | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
 **Checklist PT-BR: 250 itens rastreados**
-**Progresso do checklist PT-BR: 36% (90 de 250 itens marcados).**
+**Progresso do checklist PT-BR: 37% (92 de 250 itens marcados).**
 
-**Progresso geral combinado dos checklists PT-BR + EN: 33% (158 de 484 itens marcados).**
+**Progresso geral combinado dos checklists PT-BR + EN: 33% (160 de 484 itens marcados).**
 
 *Este percentual é a contagem simples dos checkboxes da seção em português; não pondera complexidade nem significa prontidão para produção.*
 
@@ -984,7 +985,7 @@
 | Strategic / Meta | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
 **PT-BR checklist: 250 tracked items**
-**PT-BR checklist progress: 36% (90 of 250 items checked).**
+**PT-BR checklist progress: 37% (92 of 250 items checked).**
 
 **EN checklist progress: 29% (68 of 234 items checked).**
 

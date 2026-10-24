@@ -174,7 +174,13 @@ class TelegramBot:
                 "status": "erro",
                 "result": "Configure MYRA_TELEGRAM_BOT_TOKEN e MYRA_TELEGRAM_ALLOWED_CHAT_IDS antes de iniciar.",
             }
-        if self.running:
+        thread = self._thread
+        if thread and thread.is_alive():
+            if self._stop_event.is_set():
+                return {
+                    "status": "erro",
+                    "result": "O bot Telegram ainda esta encerrando uma sessao de polling; aguarde antes de iniciar novamente.",
+                }
             return {"status": "ok", "result": "Bot Telegram ja esta em execucao."}
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._poll_loop, name="myra-telegram", daemon=True)
@@ -910,6 +916,15 @@ class TelegramBot:
                     detail = str(payload.get("description", ""))[:120] if isinstance(payload, dict) else ""
                 except Exception:
                     detail = ""
+                if status == 409:
+                    # Telegram permits only one active getUpdates poller per bot token.
+                    # Stop instead of retrying every 3s and fighting the other instance.
+                    self._last_error = (
+                        "polling: HTTP 409 Conflict; another getUpdates poller is active. "
+                        "Polling stopped to prevent repeated conflicts."
+                    )
+                    self._stop_event.set()
+                    break
                 suffix = f" {detail}" if detail else ""
                 self._last_error = f"polling: HTTP {status}{suffix}"[:180]
                 self._stop_event.wait(3)

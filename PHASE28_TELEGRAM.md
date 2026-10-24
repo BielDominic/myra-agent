@@ -2,7 +2,7 @@
 
 ## Estado
 
-Codigo implementado, desativado ate que o usuario configure token e chat IDs e faca uma validacao real no Telegram.
+Codigo implementado; token e allowlist estao configurados neste PC. A validacao ao vivo esta bloqueada por HTTP 409 (outro poller getUpdates); o codigo agora para ao detectar o conflito e impede reinicio concorrente do thread. Reiniciar o backend e confirmar `/telegram/status` ainda sao necessarios.
 
 ## Decisao de arquitetura
 
@@ -46,6 +46,13 @@ A tarefa roda em uma thread separada para que o bot continue recebendo `/status`
 - Capturas de tela so sao enviadas quando `/screenshot` e solicitado.
 - O bot usa o backend local em `127.0.0.1:8000`; nao deve ser exposto publicamente.
 - O token nunca deve ser commitado ou colocado em arquivos versionados.
+
+## Diagnostico de polling duplicado (2026-10-24)
+
+- O endpoint real `/telegram/status` informou `HTTP 409 Conflict: terminated by other getUpdates request`.
+- `getMe` confirmou que o token atual e valido; `getWebhookInfo` confirmou que nao ha webhook configurado. A inspecao local encontrou apenas um backend MYRA ativo, por isso nao e possivel afirmar se o outro poller esta noutro processo/PC ou se houve uma corrida anterior de start/stop.
+- O polling agora para ao receber 409, em vez de repetir a requisicao a cada 3 segundos; `start()` tambem recusa criar um segundo thread enquanto o anterior ainda esta encerrando.
+- A alteracao requer reiniciar o backend para entrar em vigor. Depois, consultar `/telegram/status`. Se o 409 persistir, localizar e parar a outra instancia que usa o mesmo token; nao revogar o token automaticamente.
 
 ## Pendencias de validacao
 
