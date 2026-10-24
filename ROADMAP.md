@@ -222,10 +222,10 @@
 
 - [x] `npm install` reproduzivel com `package-lock.json`; `cargo tauri build` gerou `myra-widget.exe` (release)
 - [x] Instalador NSIS gerado e smoke-testado: instalacao silenciosa em diretorio temporario, executavel `MYRA` abriu/respondia, desinstalacao concluiu; artefatos temporarios removidos
-- [ ] Auto-start no boot (opt-in por usuario; ainda nao implementado)
+- [x] Auto-start no boot opt-in por usuario via HKCU Run; habilitacao/desabilitacao pelo menu da bandeja; teste real de reboot pendente
 - [x] Bandeja do sistema (menu Mostrar MYRA/Sair implementado; smoke visual no Windows pendente)
 - [ ] Notificacao nativa Windows
-- [ ] Indicador de conexao no widget
+- [x] Indicador de conexao no widget (accent conectado; vermelho e tooltip quando API local offline)
 
 #### FASE 31 - Interface Propria
 ![Bloqueada](https://img.shields.io/badge/-BLOQUEADA-red?style=flat-square)
@@ -708,7 +708,7 @@
 
 - [x] Reproducible `npm install` with `package-lock.json`; `cargo tauri build` generated the release `myra-widget.exe`
 - [x] NSIS installer generated and smoke-tested: silent install to a temporary directory, `MYRA` executable launched/responded, uninstall succeeded; temporary artifacts removed
-- [ ] Auto-start on boot (per-user opt-in; not implemented yet)
+- [x] Per-user opt-in auto-start via HKCU Run; toggle in tray menu; real reboot test pending
 - [x] System tray (Show MYRA/Quit menu implemented; Windows visual smoke test pending)
 - [ ] Native Windows notification
 - [x] Connection indicator in widget (green/accent when connected; red when local API is offline)

@@ -1,9 +1,53 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde_json::Value;
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
+
+#[cfg(target_os = "windows")]
+fn autostart_enabled() -> bool {
+    use winreg::{enums::HKEY_CURRENT_USER, RegKey};
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let Ok(run_key) = hkcu.open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Run") else {
+        return false;
+    };
+    let Ok(command) = run_key.get_value::<String, _>("MYRA") else {
+        return false;
+    };
+    std::env::current_exe()
+        .map(|exe| command == format!("\"{}\"", exe.display()))
+        .unwrap_or(false)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn autostart_enabled() -> bool { false }
+
+#[cfg(target_os = "windows")]
+fn set_autostart(enabled: bool) -> Result<bool, String> {
+    use winreg::{enums::HKEY_CURRENT_USER, RegKey};
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let (run_key, _) = hkcu
+        .create_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Run")
+        .map_err(|e| format!("Nao foi possivel abrir a chave de inicializacao do usuario: {e}"))?;
+    if enabled {
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        run_key.set_value("MYRA", &format!("\"{}\"", exe.display()))
+            .map_err(|e| format!("Nao foi possivel ativar a inicializacao: {e}"))?;
+    } else {
+        match run_key.delete_value("MYRA") {
+            Ok(()) => {},
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {},
+            Err(e) => return Err(format!("Nao foi possivel desativar a inicializacao: {e}")),
+        }
+    }
+    Ok(enabled)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn set_autostart(_enabled: bool) -> Result<bool, String> {
+    Err("Inicializacao automatica so e suportada no Windows".to_string())
+}
 
 const AGENT_URL: &str = "http://127.0.0.1:8000";
 
@@ -167,8 +211,17 @@ fn main() {
     tauri::Builder::default()
         .setup(|app| {
             let show_item = MenuItem::with_id(app, "show", "Mostrar MYRA", true, None::<&str>)?;
+            let autostart_item = CheckMenuItem::with_id(
+                app,
+                "autostart",
+                "Iniciar com o Windows",
+                true,
+                autostart_enabled(),
+                None::<&str>,
+            )?;
             let quit_item = MenuItem::with_id(app, "quit", "Sair da MYRA", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&show_item, &autostart_item, &quit_item])?;
+            let autostart_item_for_event = autostart_item.clone();
             let icon = app.default_window_icon().cloned().ok_or_else(|| {
                 std::io::Error::new(std::io::ErrorKind::Other, "icone padrao ausente")
             })?;
@@ -176,11 +229,17 @@ fn main() {
                 .icon(icon)
                 .menu(&menu)
                 .tooltip("MYRA")
-                .on_menu_event(|app, event| match event.id().as_ref() {
+                .on_menu_event(move |app, event| match event.id().as_ref() {
                     "show" => {
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
+                        }
+                    }
+                    "autostart" => {
+                        let requested = !autostart_item_for_event.is_checked().unwrap_or(false);
+                        if let Ok(enabled) = set_autostart(requested) {
+                            let _ = autostart_item_for_event.set_checked(enabled);
                         }
                     }
                     "quit" => app.exit(0),
