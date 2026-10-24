@@ -21,7 +21,9 @@ fn autostart_enabled() -> bool {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn autostart_enabled() -> bool { false }
+fn autostart_enabled() -> bool {
+    false
+}
 
 #[cfg(target_os = "windows")]
 fn set_autostart(enabled: bool) -> Result<bool, String> {
@@ -32,12 +34,13 @@ fn set_autostart(enabled: bool) -> Result<bool, String> {
         .map_err(|e| format!("Nao foi possivel abrir a chave de inicializacao do usuario: {e}"))?;
     if enabled {
         let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        run_key.set_value("MYRA", &format!("\"{}\"", exe.display()))
+        run_key
+            .set_value("MYRA", &format!("\"{}\"", exe.display()))
             .map_err(|e| format!("Nao foi possivel ativar a inicializacao: {e}"))?;
     } else {
         match run_key.delete_value("MYRA") {
-            Ok(()) => {},
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {},
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => return Err(format!("Nao foi possivel desativar a inicializacao: {e}")),
         }
     }
@@ -81,8 +84,13 @@ mod win32 {
 #[cfg(not(target_os = "windows"))]
 mod win32 {
     #[derive(Default, Clone, Copy)]
-    pub struct POINT { pub x: i32, pub y: i32 }
-    pub fn cursor_pos() -> POINT { POINT::default() }
+    pub struct POINT {
+        pub x: i32,
+        pub y: i32,
+    }
+    pub fn cursor_pos() -> POINT {
+        POINT::default()
+    }
 }
 
 // ============================================================
@@ -100,10 +108,14 @@ async fn get_task_status() -> Value {
             Err(_) => return serde_json::json!({ "state": "idle", "error": "client" }),
         };
         match client.get(format!("{}/task_status", AGENT_URL)).send() {
-            Ok(r) => r.json().unwrap_or_else(|_| serde_json::json!({ "state": "idle" })),
+            Ok(r) => r
+                .json()
+                .unwrap_or_else(|_| serde_json::json!({ "state": "idle" })),
             Err(_) => serde_json::json!({ "state": "idle", "error": "offline" }),
         }
-    }).await.unwrap_or_else(|_| serde_json::json!({ "state": "idle" }))
+    })
+    .await
+    .unwrap_or_else(|_| serde_json::json!({ "state": "idle" }))
 }
 
 #[tauri::command]
@@ -111,10 +123,14 @@ async fn cancel_task() -> Value {
     tauri::async_runtime::spawn_blocking(|| {
         let client = reqwest::blocking::Client::new();
         match client.post(format!("{}/task_cancel", AGENT_URL)).send() {
-            Ok(r) => r.json().unwrap_or_else(|_| serde_json::json!({ "status": "ok" })),
+            Ok(r) => r
+                .json()
+                .unwrap_or_else(|_| serde_json::json!({ "status": "ok" })),
             Err(_) => serde_json::json!({ "status": "erro" }),
         }
-    }).await.unwrap_or_else(|_| serde_json::json!({ "status": "erro" }))
+    })
+    .await
+    .unwrap_or_else(|_| serde_json::json!({ "status": "erro" }))
 }
 
 #[tauri::command]
@@ -136,7 +152,9 @@ async fn get_gpu_info() -> Value {
             .output()
         {
             Ok(o) => o,
-            Err(_) => return serde_json::json!({ "ok": false, "error": "nvidia-smi nao encontrado" }),
+            Err(_) => {
+                return serde_json::json!({ "ok": false, "error": "nvidia-smi nao encontrado" })
+            }
         };
         if !output.status.success() {
             return serde_json::json!({ "ok": false, "error": "nvidia-smi falhou" });
@@ -150,12 +168,16 @@ async fn get_gpu_info() -> Value {
         let used: u64 = parts[0].parse().unwrap_or(0);
         let total: u64 = parts[1].parse().unwrap_or(0);
         serde_json::json!({ "ok": true, "used": used, "total": total })
-    }).await.unwrap_or_else(|_| serde_json::json!({ "ok": false }))
+    })
+    .await
+    .unwrap_or_else(|_| serde_json::json!({ "ok": false }))
 }
 
 #[tauri::command]
 fn toggle_always_on_top(app: tauri::AppHandle, on_top: bool) -> Result<bool, String> {
-    let win = app.get_webview_window("main").ok_or("janela main nao encontrada")?;
+    let win = app
+        .get_webview_window("main")
+        .ok_or("janela main nao encontrada")?;
     win.set_always_on_top(on_top).map_err(|e| e.to_string())?;
     Ok(on_top)
 }
