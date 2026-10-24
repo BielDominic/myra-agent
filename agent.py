@@ -1,5 +1,6 @@
 import asyncio
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request
+from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from playwright.sync_api import sync_playwright
@@ -41,7 +42,16 @@ for _stream in (sys.stdout, sys.stderr):
     except Exception:
         pass
 
-app = FastAPI()
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    _telegram_startup()
+    try:
+        yield
+    finally:
+        _telegram_shutdown()
+
+
+app = FastAPI(lifespan=_lifespan)
 telegram_bot = criar_bot_do_ambiente()
 app.include_router(browser_bridge.router)
 
@@ -3838,7 +3848,6 @@ def telegram_stop():
     return telegram_bot.stop()
 
 
-@app.on_event("startup")
 def _telegram_startup():
     # Nunca habilita o bot sem token e chat IDs explicitamente autorizados.
     if telegram_bot.configured:
@@ -3847,7 +3856,6 @@ def _telegram_startup():
               else "[TELEGRAM] configuracao encontrada, mas o bot nao iniciou")
 
 
-@app.on_event("shutdown")
 def _telegram_shutdown():
     telegram_bot.stop()
 

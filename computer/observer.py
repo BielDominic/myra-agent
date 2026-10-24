@@ -90,7 +90,7 @@ def _capturar_screenshot_base64() -> str | None:
         import mss
         from PIL import Image
 
-        with mss.mss() as capturador:
+        with mss.MSS() as capturador:
             monitores = capturador.monitors
             if len(monitores) < 2:
                 return None
