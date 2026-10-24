@@ -160,7 +160,7 @@
 - [x] Cancelamento refletido visualmente quando o estado da task muda
 
 #### FASE 27.5 - Integracao REA
-![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
+![Concluida](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)
 
 **Repo:** https://github.com/morluto/rea
 **Descricao:** ferramenta opcional de analise local de apps JavaScript/Electron.
@@ -170,11 +170,13 @@
 - [x] Ferramentas registradas no planner e regras para uso autorizado.
 - [x] Analise limitada a raizes configuradas; sem instalacao global nem execucao no startup.
 - [x] Validado em 2026-10-22 com MYRA_REA_ALLOWED_ROOTS apontando para C:\\computer-agent e analise REA bem-sucedida de widget-tauri\\ui.
-- [x] Configuracao persistente por usuario em 2026-10-24: MYRA_REA_ALLOWED_ROOTS aponta somente para C:\\computer-agent\\widget-tauri\\ui; analise REA repetida com sucesso (Node 24.20.0, Evidence JSON, sem contradicoes de integridade).
+- [x] Configuracao persistente por usuario: raizes autorizadas limitadas a `workspace`, `widget-tauri\ui` e `src-tauri\target\release`; Ghidra 12.1.4 + JDK 21 configurados no ambiente do usuario.
 - [x] Conexao MCP real via SDK oficial e descoberta de 207 ferramentas com esquemas JSON.
-- [x] Ponte MCP integrada: rea_mcp_list_tools e rea_mcp_call, com allowlist explicita de 11 ferramentas de leitura, validacao de raiz autorizada para analise JavaScript e limites de tamanho/timeout.
-- [x] Validada chamada MCP real de `analyze_javascript_application` no `workspace\\rea_smoke_test`: retornou Evidence com `status=ok`, sem truncamento, respeitando a raiz autorizada.
-- [ ] Validar as ferramentas que dependem de um provedor binario aberto; `current_document` respondeu `target_unavailable` enquanto nenhum app estava aberto.
+- [x] Ponte MCP integrada: `rea_mcp_list_tools` e `rea_mcp_call`, allowlist explicita de 15 ferramentas de leitura, validacao de caminhos autorizados, limites de payload/timeout e encaminhamento controlado de variaveis Ghidra ao processo REA.
+- [x] Validada chamada MCP real de `analyze_javascript_application` em `widget-tauri\ui`: Evidence com `status=ok`, respeitando a raiz autorizada.
+- [x] Ghidra 12.1.4 validado em PE x64 de teste: `inspect_native_instruction`, `address_name` e `resolve_native_call_targets` retornaram Evidence; `inspect_go_binary` e `inspect_rust_binary` passaram no `myra-widget.exe` real.
+- [x] `PHASE27_5_REA.md` atualizado com resultados e limites verificados. A analise Ghidra completa do `myra-widget.exe` excedeu o prazo do provedor; esse resultado continua explicitamente nao aprovado, embora a analise estatica Go/Rust do mesmo alvo tenha passado.
+- [x] Smoke test de provedor concluido: Ghidra suporta inspecao de instrucao/endereco e resolucao de chamadas; `current_document/current_address/current_procedure` sao especificos do Hopper GUI e nao suportados no Windows.
 
 **Aviso legal:** usar somente software proprio ou explicitamente autorizado. Detalhes em PHASE27_5_REA.md.
 
@@ -512,7 +514,7 @@
 **Ordem revisada em 2026-10-22**, apos corrigir os dois bloqueadores da visao:
 
 1. **Concluir a validacao real da FASE 26 no navegador**: navegacao/leitura, scroll, pausa/retomada e clique em `Learn more` foram validados ao vivo. Um formulario local de smoke test tambem passou de ponta a ponta: abriu a URL, preencheu `Your name` com `MYRA`, clicou `Send` e a leitura posterior confirmou `Sent: MYRA`. Corrigidos thread-affinity do Playwright, campos opcionais Pydantic, aliases de argumentos do planner e verificacao de texto esperado apos interacao. A verificacao agora impede que ferramentas irrelevantes apaguem evidencia negativa. Suite completa apos as correcoes de contratos, ferramentas e visualizacao: 1.093 passed, 9 skipped, 35 xfailed, 1 warning e 3.198 subtests (116,07s). O aviso restante e do Starlette TestClient/AnyIO; pendentes: validacao real do widget e triagem dos xfail restantes.
-2. **FASE 27.5 (REA):** raiz permitida persistida por usuario e analise `widget-tauri\\ui` repetida com sucesso em 2026-10-24; pendente apenas testar ferramentas que dependem de provedor binario aberto.
+2. **FASE 27.5 (REA):** integracao e smoke tests Ghidra concluidos; analise JavaScript e inspecao estatica Go/Rust do executavel da MYRA passaram. A analise Ghidra completa do binario maior excedeu o prazo do provedor e esta documentada como limitacao, nao como teste aprovado.
 3. **Fechar FASE 28 (controle mobile)**: testar comandos no Telegram real, configurar Tailscale e validar a API remota protegida.
 4. **FASE 30 (distribuicao)**: build release, NSIS installer, instalacao/desinstalacao silenciosa e smoke launch foram validados. Auto-start opt-in por usuario, menu da bandeja e indicador de conexao estao implementados; pendem smoke visual do menu, teste real apos reboot e notificacoes nativas.
 
@@ -999,7 +1001,7 @@
 **Order revised on 2026-10-22:**
 
 1. **Continue PHASE 26 hardening and xfail triage**: live navigation/read/scroll, pause/resume, Learn more click, and a local form flow all passed. The form was filled and submitted, and a subsequent DOM read confirmed the exact Sent: MYRA text. Fixed Playwright thread affinity, optional Pydantic fields, planner argument aliases, deterministic URL/form routing, and verification of expected page text after interaction. A missing-text click fails explicitly; unrelated tools cannot erase negative evidence. Migrated FastAPI startup/shutdown to lifespan and updated the MSS capture API. Latest local unittest suite (2026-10-24): 1,049 tests, exit 0 (9 skipped, 31 expected failures); URL, search-term, click-text, type_text payload, and scroll inputs reject malformed types/values before enqueue; live Chrome Bridge smoke test also passed (`get_tabs` -> open `example.com` -> read DOM/text -> close tab). Remaining: more recovery tests and triage of the remaining xfails.
-2. **PHASE 27.5 (REA):** the allowed root is now persisted per-user and analysis of `widget-tauri\ui` passed again on 2026-10-24; only tools requiring an open binary-analysis provider remain to be tested.
+2. **PHASE 27.5 (REA):** integration and Ghidra smoke tests completed; JavaScript analysis and Go/Rust static inspection of MYRA executable passed. Full Ghidra analysis of the larger binary exceeded the provider deadline and is documented as a limitation, not a passing test.
 3. **PHASE 28 mobile control**: validate real Telegram commands, Tailscale, and the protected remote API.
 4. **PHASE 30 distribution**: release build, NSIS installer, silent install/uninstall, and smoke launch are validated. Per-user opt-in auto-start, tray menu, and connection indicator are implemented; Windows visual menu smoke test, real reboot test, and native notifications remain.
 

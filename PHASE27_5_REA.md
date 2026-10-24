@@ -1,49 +1,47 @@
-# FASE 27.5 — Integracao REA
+# FASE 27.5 - Integracao REA
 
 ## Estado
 
-Integracao inicial concluida; ponte MCP em validacao. Em 2026-10-24, a raiz permitida foi configurada de forma persistente no ambiente do usuario do Windows, e a analise real de `C:\computer-agent\widget-tauri\ui` executou com sucesso usando `MYRA_REA_ALLOWED_ROOTS=C:\computer-agent` configurado para o processo de validacao. A saida JSON foi limitada a 12.000 caracteres, conforme o limite de seguranca; a configuracao persistente no ambiente de deploy ainda precisa ser confirmada.
+**Concluida no escopo de integracao e validacao funcional (2026-10-24).** A ponte MCP, a allowlist de leitura, a analise JavaScript e a inspecao estatica de binarios foram testadas. O provedor Ghidra 12.1.4 tambem foi instalado e validado com operacoes reais de instrucao, nome de endereco e resolucao de chamadas em um PE x64 de teste. O executavel real da MYRA passou pela analise estatica Go/Rust; a analise completa do Ghidra para esse executavel maior excedeu o prazo de analise do provedor e nao e declarada como aprovada.
 
-## O que foi adicionado
+## Implementacao
 
 - `tasks/rea_tools.py`: ferramentas `rea_status`, `rea_catalog`, `rea_analyze_javascript`, `rea_mcp_list_tools` e `rea_mcp_call`.
-- `tools/rea_mcp_bridge.mjs`: cliente baseado no SDK oficial MCP para conectar ao servidor REA por stdio. O helper localiza dinamicamente o pacote fixado no cache npx (ou aceita `MYRA_REA_PACKAGE_ROOT`), valida a versao e nao depende de um hash/caminho de cache codificado no codigo.
-- Descoberta real confirmou 207 ferramentas no servidor; a MYRA expõe os nomes/descricoes do catalogo e os esquemas JSON de 15 ferramentas explicitamente permitidas para leitura, incluindo inspe??o est?tica de bin?rios Go/Rust sem executar o alvo.
-- `rea_mcp_call` rejeita ferramentas fora da allowlist, argumentos que nao sejam objeto JSON e payloads acima de 16.000 caracteres; para `analyze_javascript_application`, tambem valida que o caminho exista e esteja dentro de uma raiz autorizada.
-- Validacao real (2026-10-24): o helper portavel descobriu 207 ferramentas MCP; os esquemas foram expostos apenas para as ferramentas na allowlist. A analise real de `C:\\computer-agent\\widget-tauri\\ui` retornou Evidence JSON com `status=ok` (saida limitada a 12.000 caracteres). `open_binary` abriu o PE da MYRA e confirmou arquitetura x86_64 e SHA-256. A ponte agora restaura o alvo validado em cada chamada de contexto, pois cada invocacao cria uma sessao MCP nova. O teste interativo confirmou que `current_document`, `current_address` e `current_procedure` chegam ao REA, mas retornam `provider_unavailable`: esta maquina nao tem Java/Ghidra nem IDA/Hopper configurados. A analise estatica Go/Rust segue validada sem disassembler; o smoke test de provedor interativo permanece bloqueado pela dependencia ausente.
-- Registro das ferramentas no planner da MYRA.
-- Regras no prompt para restringir o uso a software proprio ou explicitamente autorizado.
-- O pacote REA nao e instalado globalmente. O `npx` usa a versao fixada `rea-agents@6.5.0` apenas quando a analise for chamada.
-- A analise exige uma pasta existente de app JavaScript/Electron e verifica se o caminho esta dentro de uma raiz permitida.
-- Nenhum comando do REA e executado automaticamente no startup.
+- `tools/rea_mcp_bridge.mjs`: cliente MCP pelo SDK oficial; localiza dinamicamente `rea-agents@6.5.0` no cache npx ou aceita `MYRA_REA_PACKAGE_ROOT`, valida a versao e nao depende de um hash de cache codificado.
+- Descoberta real: 207 ferramentas no servidor. A MYRA expoe os nomes/descricoes do catalogo e os esquemas JSON de 15 ferramentas explicitamente permitidas para leitura.
+- `rea_mcp_call` bloqueia ferramentas fora da allowlist, argumentos que nao sejam objeto JSON e payloads acima de 16.000 caracteres. Os caminhos sao canonizados e precisam estar em uma raiz autorizada; a analise JavaScript tambem verifica a existencia e o tipo do alvo.
+- A ponte restaura o alvo binario validado nas chamadas seguintes, porque cada invocacao cria uma nova sessao MCP.
+- A ponte encaminha somente variaveis de ambiente necessarias e explicitamente permitidas para o processo REA. Isso corrige o filtro padrao do SDK MCP, que nao encaminhava `JAVA_HOME`/`GHIDRA_INSTALL_DIR`; outras variaveis do processo, inclusive possiveis segredos, nao sao copiadas indiscriminadamente.
+- O planner da MYRA registra as ferramentas e restringe o uso a software proprio ou explicitamente autorizado.
+- O pacote REA nao e instalado globalmente; `npx` usa a versao fixada `rea-agents@6.5.0` quando uma ferramenta e chamada.
+- Nenhuma analise e executada automaticamente no startup.
 
-## Requisitos e configuracao
+## Validacao real (2026-10-24)
 
-- Node.js suportado pelo REA: 22.19+, 24.11+ ou 26+.
-- O padrao de raiz permitida e `C:\computer-agent\workspace`.
-- Para permitir outras pastas, defina `MYRA_REA_ALLOWED_ROOTS` com uma lista separada por ponto e virgula no Windows, por exemplo:
+- `node --check tools/rea_mcp_bridge.mjs`: aprovado.
+- `python -m pytest tests/test_rea_tools.py tests/test_rea_routing.py -q`: **14 passed** apos as alteracoes de seguranca/roteamento.
+- Descoberta MCP: 207 ferramentas encontradas; somente 15 esquemas da allowlist expostos.
+- Analise real de `C:\\computer-agent\\widget-tauri\\ui`: `status=ok`, Evidence JSON dentro do limite de 12.000 caracteres.
+- `open_binary` no `myra-widget.exe`: `status=ok`, formato PE, arquitetura x86_64, SHA-256 `d7475410841660b45b00e463d9beca1f52f606a0931da87e0a1089b66720ff1e`.
+- `inspect_go_binary` e `inspect_rust_binary` no executavel real da MYRA: ambos `status=ok`, sem executar o alvo.
+- Ghidra 12.1.4 + Eclipse Temurin JDK 21.0.12.1 instalados em `C:\\tools`; `GHIDRA_INSTALL_DIR`, `JAVA_HOME` e `REA_ANALYSIS_PROVIDER=ghidra` persistidos no ambiente do usuario.
+- Smoke test Ghidra em um PE x64 de 64 KiB: `inspect_native_instruction`, `address_name` e `resolve_native_call_targets` retornaram Evidence com `status=ok` e identificaram o provedor Ghidra 12.1.4.
+- `current_document`, `current_address` e `current_procedure` sao operacoes de cursor da integracao GUI do Hopper; o provedor Ghidra nao as declara. No Windows, Hopper nao e suportado. Isso e uma limitacao por provedor, nao uma falha da analise Ghidra.
+- A analise completa do `myra-widget.exe` pelo Ghidra excedeu o prazo de analise do provedor. Nao marcamos essa execucao como aprovada; a inspecao estatica Go/Rust do mesmo arquivo foi aprovada. Para investigacoes Ghidra detalhadas desse binario grande, pode ser necessario reduzir o alvo/escopo ou usar um perfil de analise mais leve.
 
-```powershell
-[Environment]::SetEnvironmentVariable(
-  "MYRA_REA_ALLOWED_ROOTS",
-  "C:\computer-agent\workspace;D:\Projetos",
-  "User"
-)
-```
+## Configuracao e seguranca
 
-Reinicie o backend depois de alterar variaveis de ambiente. O pacote REA sera baixado do npm na primeira analise; isso exige internet naquele momento, mas nao instala um pacote global.
+Raizes permitidas persistidas para o usuario Windows:
+
+- `C:\\computer-agent\\workspace`
+- `C:\\computer-agent\\widget-tauri\\ui`
+- `C:\\computer-agent\\widget-tauri\\src-tauri\\target\\release`
+
+Para adicionar/remover raizes, altere `MYRA_REA_ALLOWED_ROOTS` no ambiente do usuario e reinicie o backend. O pacote REA requer Node.js 22.19+, 24.11+ ou 26+. Nao ha `shell=True`; argumentos sao enviados como lista; a saida e limitada a 12.000 caracteres; as ferramentas de mutacao e execucao permanecem fora da allowlist.
 
 ## Como usar
 
-No planner da MYRA, solicite a analise de uma aplicacao JavaScript/Electron que esteja dentro de uma raiz autorizada. Tambem e possivel chamar `rea_status` para verificar Node/npx e as raizes configuradas.
-
-## Seguranca e limites
-
-- Use apenas software proprio ou com autorizacao explicita.
-- A ferramenta nao aceita caminhos fora das raizes permitidas.
-- A chamada usa argumentos separados, sem `shell=True`.
-- O processo tem timeout de 240 segundos e a resposta e limitada a 12.000 caracteres.
-- O comando integrado executa analise JavaScript e analise estatica PE Go/Rust. As ferramentas dependentes de contexto reabrem o alvo autorizado salvo, mas exigem um provedor compativel instalado e configurado (Ghidra/IDA/Hopper). A integracao nao instala esses motores automaticamente.
+No planner da MYRA, solicite a analise de uma aplicacao JavaScript/Electron ou de um binario local dentro de uma das raizes autorizadas. `rea_status` verifica Node/npx e as raizes configuradas; `rea_mcp_list_tools` mostra o catalogo e a allowlist de leitura.
 
 ## Referencias
 

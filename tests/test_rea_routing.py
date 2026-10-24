@@ -94,10 +94,12 @@ def test_mcp_javascript_rejeita_caminho_fora_das_raizes_autorizadas(tmp_path):
     bridge.assert_not_called()
 
 
-def test_mcp_call_invoca_apenas_ferramenta_allowlisted():
+def test_mcp_call_invoca_apenas_ferramenta_allowlisted(tmp_path):
     from tasks import rea_tools
 
-    with mock.patch.object(rea_tools, "_run_mcp_bridge", return_value={"result": {"content": [{"text": "document"}]}}) as bridge:
+    # Isolate the test from a real active-target record left by an REA session.
+    with mock.patch.object(rea_tools, "ACTIVE_TARGET_FILE", tmp_path / "missing-active-target.json"), \
+         mock.patch.object(rea_tools, "_run_mcp_bridge", return_value={"result": {"content": [{"text": "document"}]}}) as bridge:
         result = rea_tools.rea_mcp_call("current_document", {})
 
     assert result["status"] == "ok"

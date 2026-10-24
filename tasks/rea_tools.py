@@ -20,8 +20,7 @@ MAX_OUTPUT_CHARS = 12_000
 MCP_HELPER = Path(__file__).resolve().parents[1] / "tools" / "rea_mcp_bridge.mjs"
 MCP_TIMEOUT_SECONDS = 90
 ACTIVE_TARGET_FILE = WORKSPACE / ".myra_rea_active_target.json"
-# Allowlist deliberately excludes tools that write annotations, rename symbols,
-# change analysis databases, open arbitrary targets, or execute procedures.
+# Allowlist excludes mutation/execution tools and validates every local target path.
 REA_MCP_READ_ONLY_TOOLS = frozenset({
     "analyze_javascript_application",
     "open_binary",
@@ -386,7 +385,7 @@ def registrar_todas(registrar_ferramenta: Callable) -> None:
     registrar_ferramenta(
         "rea_mcp_call",
         rea_mcp_call,
-        "Executa ferramenta MCP REA somente na allowlist de leitura: analyze_javascript_application, current_document, current_address, current_procedure, address_name, comment, inline_comment, inspect_native_instruction, inspect_native_data_type, inspect_native_load_image ou resolve_native_call_targets. Argumentos em arguments como objeto JSON."
+        "Executa ferramenta MCP REA somente na allowlist de leitura: analyze_javascript_application, open_binary, inspect_binary_layout, inspect_go_binary, inspect_rust_binary, current_document, current_address, current_procedure, address_name, comment, inline_comment, inspect_native_instruction, inspect_native_data_type, inspect_native_load_image ou resolve_native_call_targets. Caminhos locais devem estar em MYRA_REA_ALLOWED_ROOTS. Argumentos em arguments como objeto JSON."
     )
     registrar_ferramenta(
         "rea_catalog",

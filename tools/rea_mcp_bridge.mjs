@@ -48,10 +48,31 @@ const requestText = await new Promise((resolve) => {
   process.stdin.on('data', chunk => value += chunk);
   process.stdin.on('end', () => resolve(value));
 });
+// MCP SDK intentionally filters inherited environment variables by default.
+// Forward only the standard Windows runtime values and explicit REA/Ghidra
+// configuration; do not leak unrelated process secrets into the analyzer.
+const childEnv = {};
+const forwardedEnvNames = new Set([
+  'PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'USERPROFILE',
+  'HOMEDRIVE', 'HOMEPATH', 'APPDATA', 'LOCALAPPDATA', 'PROGRAMDATA',
+  'COMSPEC', 'PATHEXT', 'PROCESSOR_ARCHITECTURE', 'PROCESSOR_LEVEL',
+  'PROCESSOR_REVISION', 'PROCESSOR_IDENTIFIER', 'NUMBER_OF_PROCESSORS', 'OS',
+  'JAVA_HOME', 'GHIDRA_INSTALL_DIR', 'REA_ANALYSIS_PROVIDER',
+  'REA_GHIDRA_STARTUP_TIMEOUT_MS', 'REA_GHIDRA_LANGUAGE_ID',
+  'REA_GHIDRA_COMPILER_SPEC_ID', 'REA_GHIDRA_DISABLED_ANALYZERS',
+  'REA_GHIDRA_SEED_FILE', 'REA_GHIDRA_NATIVEAOT_JAR', 'REA_IDA_MCP_CONFIG',
+  'REA_MCP_MAX_RESPONSE_BYTES', 'REA_MCP_INPUT_SCHEMA_PROFILE',
+  'REA_MCP_OUTPUT_SCHEMA_PROFILE', 'REA_LOG_LEVEL',
+  'MYRA_REA_ALLOWED_ROOTS', 'MYRA_WORKSPACE'
+]);
+for (const [key, value] of Object.entries(process.env)) {
+  if (forwardedEnvNames.has(key.toUpperCase())) childEnv[key] = value;
+}
 const transport = new StdioClientTransport({
   command: process.execPath,
   args: [path.join(packageRoot, 'scripts', 'rea.mjs'), '--mcp'],
   cwd: process.env.MYRA_WORKSPACE || process.cwd(),
+  env: childEnv,
   stderr: 'pipe'
 });
 const client = new Client({ name: 'myra-rea-bridge', version: '0.1.0' });
