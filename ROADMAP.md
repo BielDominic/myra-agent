@@ -713,6 +713,7 @@
 - [x] Per-user opt-in auto-start via HKCU Run; toggle in tray menu; state is read from the registry as source of truth and the checkmark is resynchronized after success/failure; real reboot test pending
 - [x] System tray (Show MYRA/Quit menu implemented; Windows visual smoke test pending)
 - [x] Native Windows notifications on task completion/failure; respects Do Not Disturb and uses generic privacy-preserving text; real toast smoke test pending
+- [x] Runtime smoke (2026-10-24): latest release executable launched and remained alive after 5 seconds; UI Automation observed the MYRA window. A real `task_simple` request (`que horas sao`) reached `done` while the widget remained open. Toast appearance is still not visually confirmed; tray-menu visual test and reboot test remain pending.
 - [x] Connection indicator in widget (green/accent when connected; red when local API is offline)
 
 #### PHASE 31 - Custom Interface

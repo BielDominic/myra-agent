@@ -90,6 +90,36 @@ fn set_autostart(_enabled: bool) -> Result<bool, String> {
 }
 
 const AGENT_URL: &str = "http://127.0.0.1:8000";
+const NOTIFICATION_APP_ID: &str = "com.myra.widget";
+
+#[cfg(target_os = "windows")]
+fn register_notification_app_id(app: &tauri::AppHandle) -> Result<(), String> {
+    use windows_registry::CURRENT_USER;
+
+    let key = CURRENT_USER
+        .create(format!(
+            r"Software\Classes\AppUserModelId\{NOTIFICATION_APP_ID}"
+        ))
+        .map_err(|e| format!("Falha ao registrar identidade de notificacao da MYRA: {e}"))?;
+    key.set_string("DisplayName", "MYRA")
+        .map_err(|e| format!("Falha ao registrar nome da MYRA para notificacoes: {e}"))?;
+    key.set_string("IconBackgroundColor", "0")
+        .map_err(|e| format!("Falha ao registrar fundo do icone da MYRA: {e}"))?;
+
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let icon_path = resource_dir.join("notification.png");
+        if icon_path.is_file() {
+            key.set_hstring("IconUri", &icon_path.as_path().into())
+                .map_err(|e| format!("Falha ao registrar icone de notificacao da MYRA: {e}"))?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn register_notification_app_id(_app: &tauri::AppHandle) -> Result<(), String> {
+    Ok(())
+}
 
 #[tauri::command]
 fn show_native_notification(
@@ -100,6 +130,7 @@ fn show_native_notification(
     if title.trim().is_empty() || body.trim().is_empty() {
         return Err("Titulo e mensagem da notificacao nao podem ficar vazios".to_string());
     }
+    register_notification_app_id(&app)?;
     app.notification()
         .builder()
         .title(title)
@@ -287,6 +318,9 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
+            if let Err(error) = register_notification_app_id(app.handle()) {
+                eprintln!("Falha ao registrar identidade de notificacao da MYRA: {error}");
+            }
             let show_item = MenuItem::with_id(app, "show", "Mostrar MYRA", true, None::<&str>)?;
             let autostart_item = CheckMenuItem::with_id(
                 app,
