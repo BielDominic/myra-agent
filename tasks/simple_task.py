@@ -576,7 +576,7 @@ def _decidir_proximo_passo(
                             "args": {"titulo": "Microsoft Store", "limite": 98},
                             "motivo": "aguardar a instalacao e recolher evidencias atualizadas da Microsoft Store",
                         }
-                    if proximo in (7, 9, 10, 11):
+                    if proximo in (7, 8, 9, 10, 11):
                         controles = historico[-1].get("resultado")
                         lista = controles.get("result", []) if isinstance(controles, dict) else []
                         if not isinstance(lista, list):
@@ -621,11 +621,6 @@ def _decidir_proximo_passo(
                             bool(re.search(r"\b(install|instalar|get|obter|download|baixar)\b", ultimo_alvo))
                             or ultimo_alvo in {"acquirenewproduct", "installbutton", "installbuttontextblock"}
                         )
-                        if proximo == 7 and _store_resultados_confirmam_telegram_instalado(lista):
-                            return {
-                                "acao": "finalizar",
-                                "resultado": "Telegram Desktop ja esta instalado: a Microsoft Store marca o resultado exato como Installed.",
-                            }
                         if _store_controles_confirmam_instalacao_telegram(lista):
                             return {
                                 "acao": "finalizar",
@@ -1460,7 +1455,7 @@ def executar_task(
                 and "microsoft store" in _normalizar_intencao(intencao_store_instalacao[0])
                 and re.search(r"\b(instale|instalar|instalacao)\b", _normalizar_intencao(objetivo))
             )
-            if eh_instalacao_store and verificacao.get("atingido") is True:
+            if eh_instalacao_store:
                 resultado_observado = r.get("resultado")
                 controles_observados = (
                     resultado_observado.get("result", [])
@@ -1468,19 +1463,33 @@ def executar_task(
                 )
                 if not isinstance(controles_observados, list):
                     controles_observados = []
-                confirmou_abrir = (
-                    ferramenta == "pc_list_controls"
-                    and (
-                        _store_controles_confirmam_instalacao_telegram(controles_observados)
-                        or _store_resultados_confirmam_telegram_instalado(controles_observados)
-                    )
+                consulta_store = ferramenta == "pc_list_controls"
+                pesquisa_enviada = any(
+                    h.get("ferramenta") == "pc_press_key"
+                    and str((h.get("args") or {}).get("key", "")).casefold() == "enter"
+                    and h.get("ok")
+                    for h in historico[:-1]
                 )
-                if not confirmou_abrir:
+                confirmou_abrir = (
+                    consulta_store and pesquisa_enviada
+                    and _store_controles_confirmam_instalacao_telegram(controles_observados)
+                )
+                # O card Installed prova estado, mas nao prova que a ficha do app foi aberta.
+                # A tarefa solicitada inclui abrir a ficha; so o controle Open/Abrir na ficha
+                # permite encerrar o fluxo, sem confundir a lista de resultados com a ficha.
+                if confirmou_abrir:
+                    verificacao = {
+                        **verificacao,
+                        "atingido": True,
+                        "confianca": "alta",
+                        "motivo": "Microsoft Store mostra o controle Abrir/Open na ficha do Telegram Desktop",
+                    }
+                elif verificacao.get("atingido") is True:
                     verificacao = {
                         **verificacao,
                         "atingido": None,
                         "confianca": "indeterminada",
-                        "motivo": "clique/consulta nao prova instalacao; aguardando evidencia do botao Abrir",
+                        "motivo": "clique/consulta nao prova instalacao; aguardando evidencia direta de Installed ou Abrir",
                     }
             entrada["verificacao"] = verificacao
             print(f"[VERIFICAR] atingido={verificacao.get('atingido')} "
