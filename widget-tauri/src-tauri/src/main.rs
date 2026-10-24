@@ -1,6 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde_json::Value;
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
 
 const AGENT_URL: &str = "http://127.0.0.1:8000";
@@ -163,6 +165,30 @@ fn get_cursor_relative_to_window(app: tauri::AppHandle) -> Value {
 
 fn main() {
     tauri::Builder::default()
+        .setup(|app| {
+            let show_item = MenuItem::with_id(app, "show", "Mostrar MYRA", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Sair da MYRA", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+            let icon = app.default_window_icon().cloned().ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::Other, "icone padrao ausente")
+            })?;
+            TrayIconBuilder::new()
+                .icon(icon)
+                .menu(&menu)
+                .tooltip("MYRA")
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .build(app)?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_task_status,
             cancel_task,
