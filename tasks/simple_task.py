@@ -238,6 +238,14 @@ def _extrair_intencao_app_abertura(objetivo: str) -> str | None:
 
 def _extrair_intencao_multiapp(objetivo: str) -> list[str] | None:
     """Reconhece apenas pedidos expl?citos para abrir dois ou tr?s apps locais."""
+    original = str(objetivo or "").casefold()
+    # URLs e pedidos de navegador nunca sao nomes de aplicativos locais. Sem
+    # esta guarda, a normalizacao remove :/ e transforma a URL num falso nome.
+    if (
+        re.search(r"https?://|\bwww\.", original)
+        or re.search(r"\b(navegador|site|pagina web|url|link|pagina atual)\b", original)
+    ):
+        return None
     texto = _normalizar_intencao(objetivo)
     texto = re.sub(
         r"\s+e\s+(?:confirme|verifique|certifique(?:-se)?|valide|cheque)\b.*$",

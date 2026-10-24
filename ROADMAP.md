@@ -506,7 +506,7 @@
 
 **Ordem revisada em 2026-10-22**, apos corrigir os dois bloqueadores da visao:
 
-1. **Concluir a validacao real da FASE 26 no navegador**: uma task real de dois passos abriu `https://example.com`, leu o corpo via `browser_read_active_tab` e extraiu o titulo `Example Domain` e o primeiro paragrafo. O verificador bloqueou o sucesso prematuro apos a navegacao. Ainda falta validar recuperacao e pausa/retomada reais.
+1. **Concluir a validacao real da FASE 26 no navegador**: a regressao de roteamento em que pedidos com URL eram interpretados como nomes de aplicativos locais foi corrigida e coberta por testes. A validacao ponta a ponta precisa ser repetida no backend reiniciado; depois validar leitura, recuperacao e pausa/retomada reais.
 2. **FASE 27.5 (REA):** analise real do app autorizado `widget-tauri\\ui` passou em 2026-10-22 com raiz autorizada configurada para a execucao; verificar configuracao persistente no ambiente final.
 3. **Fechar FASE 28 (controle mobile)**: testar comandos no Telegram real, configurar Tailscale e validar a API remota protegida.
 4. **FASE 30 (distribuicao)**: gerar e testar o instalador Windows; depois priorizar voz/interface propria conforme o objetivo do produto.
@@ -990,7 +990,7 @@
 
 **Order revised on 2026-10-22:**
 
-1. **Finish PHASE 26 real-browser validation**: a real two-step task opened `https://example.com`, read the body with `browser_read_active_tab`, and extracted `Example Domain` plus the first paragraph. The verifier blocked premature completion after navigation; real recovery and pause/resume remain pending.
+1. **Finish PHASE 26 real-browser validation**: fixed and regression-tested a routing bug where URL requests were misclassified as local application names. Repeat end-to-end validation with the backend restarted, then verify page reading, recovery, and pause/resume.
 2. **PHASE 27.5 (REA):** real analysis of the authorized `widget-tauri\ui` app passed on 2026-10-22 with an allowed root configured for the validation process; confirm persistent configuration in the final environment.
 3. **PHASE 28 mobile control**: validate real Telegram commands, Tailscale, and the protected remote API.
 4. **PHASE 30 distribution**: build and test the Windows installer before prioritizing the native UI and voice.

@@ -358,9 +358,14 @@ def test_multiapp_open_stops_after_unverified_or_failed_step(monkeypatch):
     assert "interrompido" in decision["resultado"]
 
 
-def test_multiapp_parser_does_not_capture_search_or_install_flows():
+def test_multiapp_parser_does_not_capture_search_install_or_browser_flows():
     assert simple_task._extrair_intencao_multiapp("Abra o Microsoft To Do e pesquise forza") is None
     assert simple_task._extrair_intencao_multiapp("Abra a Microsoft Store e instale Telegram") is None
+    assert simple_task._extrair_intencao_multiapp("Abra https://example.com") is None
+    assert simple_task._extrair_intencao_multiapp(
+        "Abra https://example.com no navegador e leia o título da página e o primeiro parágrafo."
+    ) is None
+    assert simple_task._extrair_intencao_multiapp("Abra o site example.com e leia a página atual") is None
 
 
 def test_app_open_parser_strips_confirmation_clause_and_preserves_compound_routes():
