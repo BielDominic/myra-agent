@@ -230,6 +230,34 @@ def test_multiapp_open_routes_each_app_only_after_verified_success(monkeypatch):
     assert "Bloco de Notas, Calculadora" in final["resultado"]
 
 
+def test_unverified_control_action_is_never_retried(monkeypatch):
+    calls = []
+    def click(**kwargs):
+        calls.append(kwargs)
+        return {"status": "unverified", "verified": False, "result": "effect not observable"}
+    monkeypatch.setitem(simple_task.FERRAMENTAS_DISPONIVEIS, "pc_control_action", click)
+    result = simple_task._executar_passo("pc_control_action", {
+        "titulo": "Example", "alvo": "Install", "acao": "click"
+    }, tentativas=3)
+    assert result["ok"] is False
+    assert result["resultado"]["status"] == "unverified"
+    assert len(calls) == 1
+
+
+def test_ambiguous_control_action_is_never_retried(monkeypatch):
+    calls = []
+    def click(**kwargs):
+        calls.append(kwargs)
+        return {"status": "ambiguous", "result": ["Install", "Install for all"]}
+    monkeypatch.setitem(simple_task.FERRAMENTAS_DISPONIVEIS, "pc_control_action", click)
+    result = simple_task._executar_passo("pc_control_action", {
+        "titulo": "Example", "alvo": "Install", "acao": "click"
+    }, tentativas=3)
+    assert result["ok"] is False
+    assert result["resultado"]["status"] == "ambiguous"
+    assert len(calls) == 1
+
+
 def test_multiapp_open_stops_after_unverified_or_failed_step(monkeypatch):
     monkeypatch.setitem(simple_task.FERRAMENTAS_DISPONIVEIS, "pc_open_application",
                         lambda nome: {"status": "ok", "nome": nome})

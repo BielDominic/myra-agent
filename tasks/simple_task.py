@@ -947,6 +947,13 @@ def _executar_passo(ferramenta: str, args: dict, tentativas: int = 2) -> dict:
             print(f"[TASK] executando {ferramenta}({list(args.keys())}) tentativa {tentativa}")
             resultado = fn(**args)
 
+            if isinstance(resultado, dict) and resultado.get("status") in {"unverified", "ambiguous"}:
+                # Ações com efeito colateral não devem ser repetidas quando o
+                # resultado é incerto: o primeiro clique pode ter sido aplicado.
+                detalhe = resultado.get("result", resultado.get("message", resultado.get("status")))
+                print(f"[TASK] {ferramenta} sem confirmação; interrompendo sem repetir: {str(detalhe)[:120]}")
+                return {"ok": False, "resultado": resultado, "erro": detalhe}
+
             if isinstance(resultado, dict) and (
                 resultado.get("status") == "erro"
                 or (

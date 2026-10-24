@@ -1016,6 +1016,7 @@
   - Added post-launch observation through Windows UI Automation: opening is `ok` only when a matching visible window title is observed; otherwise returns `unverified` and explicitly avoids automatic repeat attempts.
   - Automated tests cover verified visible-window success and unverified launch outcomes. Remaining: validate several real desktop app types, strengthen title matching for localized/dynamic titles, and extend post-action observation to click/type/window workflows.
   - Additional UI Automation guard: `set_text` and `focus` return success only when their resulting value/focus can be read back; generic click/toggle/select responses explicitly state that the downstream effect still needs observation.
+  - Safety fix (2026-10-24): `_executar_passo` now immediately stops on `unverified` or `ambiguous` tool results instead of retrying a potentially applied UI action. Regression tests prove that uncertain/ambiguous clicks are executed at most once.
 - [x] 32.9 - Expand inventory to installed-app registry entries; only expose a launch target when a concrete existing executable is identified.
   - Safety: never execute registry UninstallString; Start Menu entries remain preferred and duplicate display names are skipped.
   - Validation on 2026-10-24: inventory grew from 333 to 360 entries; 27 registry-only entries were added, 17 with verified executable paths. Entries without safe targets are discoverable but not launchable.
