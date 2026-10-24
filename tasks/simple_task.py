@@ -62,22 +62,39 @@ def _is_computer_activity_tool(name: str) -> bool:
 
 
 def _store_controles_confirmam_instalacao_telegram(controles) -> bool:
-    """Confirma apenas quando a UI visivel identifica Telegram Desktop e oferece Abrir."""
+    """Confirma a instalacao apenas com identidade do Telegram e botao Abrir visiveis."""
     if not isinstance(controles, list):
         return False
     visiveis = [
         c for c in controles
         if isinstance(c, dict) and c.get("visible") and c.get("enabled")
     ]
+
+    def normalizar(valor) -> str:
+        texto = unicodedata.normalize("NFKD", str(valor or ""))
+        texto = "".join(ch for ch in texto if not unicodedata.combining(ch))
+        return re.sub(r"[^a-z0-9]+", " ", texto.casefold()).strip()
+
     nomes = [
-        " ".join(str(c.get(k, "")) for k in ("nome", "automation_id")).casefold()
+        normalizar(" ".join(str(c.get(k, "")) for k in ("nome", "automation_id")))
         for c in visiveis
     ]
-    identifica_telegram = any("telegram desktop" in nome for nome in nomes)
+    # O nome pode vir do texto localizado da Store ou do identificador do pacote.
+    identifica_telegram = any(
+        "telegram desktop" in nome or "telegramdesktop" in nome.replace(" ", "")
+        or "telegram messenger llp telegram desktop" in nome
+        for nome in nomes
+    )
+    # UIA normalmente mantém control_type em ingles, mas o rotulo do botao
+    # acompanha o idioma do Windows/Store. Exigimos um rotulo de abertura conhecido.
+    rotulos_abrir = {
+        "open", "abrir", "launch", "iniciar", "offnen", "oeffnen", "ouvrir", "apri",
+        "openen", "otworz", "abrir aplicacion", "starten", "start",
+    }
     oferece_abrir = any(
-        str(c.get("control_type", "")).casefold() == "button"
-        and re.search(r"\b(open|abrir|launch|iniciar)\b", nome)
-        for c, nome in zip(visiveis, nomes)
+        normalizar(c.get("control_type")) == "button"
+        and normalizar(c.get("nome")) in rotulos_abrir
+        for c in visiveis
     )
     return identifica_telegram and oferece_abrir
 

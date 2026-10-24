@@ -276,6 +276,23 @@ def test_store_instalacao_so_confirma_com_telegram_e_botao_abrir_visiveis():
     assert confirmar(None) is False
 
 
+def test_store_instalacao_reconhece_rotulos_localizados_e_id_de_pacote():
+    confirmar = simple_task._store_controles_confirmam_instalacao_telegram
+    assert confirmar([
+        {"nome": "Telegram Desktop", "control_type": "Text", "visible": True, "enabled": True},
+        {"nome": chr(214) + "ffnen", "control_type": "Button", "visible": True, "enabled": True},
+    ]) is True
+    assert confirmar([
+        {"nome": "TelegramMessengerLLP.TelegramDesktop", "control_type": "Text", "visible": True, "enabled": True},
+        {"nome": "Ouvrir", "control_type": "Button", "visible": True, "enabled": True},
+    ]) is True
+    # Um botao com nome de acao diferente nao deve gerar falso positivo.
+    assert confirmar([
+        {"nome": "Telegram Desktop", "control_type": "Text", "visible": True, "enabled": True},
+        {"nome": "Install", "control_type": "Button", "visible": True, "enabled": True},
+    ]) is False
+
+
 def test_multiapp_open_stops_after_unverified_or_failed_step(monkeypatch):
     monkeypatch.setitem(simple_task.FERRAMENTAS_DISPONIVEIS, "pc_open_application",
                         lambda nome: {"status": "ok", "nome": nome})
