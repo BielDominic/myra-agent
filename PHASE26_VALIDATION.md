@@ -30,7 +30,7 @@ A green CI run verifies the deterministic tests and mocked service contracts. It
 - Called `get_tabs` through the running Chrome MV3 extension; the bridge returned the live tab list.
 - End-to-end smoke test passed: opened a new `https://example.com/` tab, read the page DOM/text through `read_page_url`, and closed the test tab. The close result explicitly confirmed `closed=true`; pre-existing user tabs were left untouched.
 - Hardened Browser Bridge input validation before enqueue: URL actions reject non-string inputs, malformed hosts/ports, whitespace/control characters, embedded credentials, and URLs over 2,000 characters; search terms and click text now reject non-string values instead of coercing them. Promoted all three invalid-input regression tests from expected failure to passing tests.
-- Full local unittest suite after the fix: Full local unittest suite after all input-validation changes: 1,049 tests in 118.7 seconds, exit code 0 (`OK`; 9 skipped, 32 expected failures). `git diff --check` passed.
+- Full local unittest suite after all input-validation changes: 1,049 tests in 258.7 seconds, exit code 0 (`OK`; 9 skipped, 31 expected failures). The latest hardening also rejects non-string `type_text` payloads, non-string scroll directions, and non-finite scroll amounts such as NaN. `git diff --check` passed.
 
 This validates the live Chrome extension queue and navigation/read/cleanup path. It does not replace the separate live validation of desktop vision + Ollama + the complete autonomous planner on a real task.
 

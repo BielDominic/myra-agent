@@ -482,8 +482,6 @@ class RunCommandValidacaoTests(_BaseBridge):
                 self.assertErro(self._chamar("scroll", direction=direcao), "direcao")
         self.assertFilaVazia()
 
-    # [xfail-2026-10-15] fila apagada apos timeout
-    @expectedFailure
     def test_scroll_quantidade_fora_dos_limites_ou_tipo_errado(self):
         for quantidade in (-1, 100001, 10 ** 9, True, False, "abc", [500], {"a": 1},
                            float("inf"), float("nan"), None):
@@ -511,9 +509,8 @@ class RunCommandValidacaoTests(_BaseBridge):
         self.assertEqual(args, {"direction": "down", "amount": 500.0})
 
     def test_type_text_campo_invalido(self):
-        # Campo vazio/espacos/longo. Valores nao-string passam por str() na
-        # producao (ex.: 7 -> "7"), por isso nao entram aqui.
-        for campo in ("", "   ", "\t\n ", "c" * 501, "#" + "x" * 500):
+        # Campo vazio/espacos/longo e tipos nao-string devem ser rejeitados.
+        for campo in ("", "   ", "\t\n ", "c" * 501, "#" + "x" * 500, None, 7, ["#q"]):
             with self.subTest(campo=str(campo)[:20]):
                 self.assertErro(self._chamar("type_text", campo=campo, texto="ok"), "campo")
         self.assertFilaVazia()
@@ -712,6 +709,14 @@ class RunCommandValidacaoTests(_BaseBridge):
 # ============================================================
 # 3. Contrato das 12 ferramentas
 # ============================================================
+
+def test_type_text_rejects_non_string_text_payloads():
+    for value in (None, 7, ["hello"], {"text": "hello"}, True):
+        result = bb._run_command("type_text", campo="#q", texto=value)
+        assert result["status"] == "erro"
+        assert "texto" in result["result"]
+
+
 
 class FerramentasContratoTests(_BaseBridge):
     """Acion + argumentos exatos de cada ferramenta publica."""

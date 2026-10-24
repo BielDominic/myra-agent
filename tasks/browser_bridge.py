@@ -9,6 +9,7 @@ from __future__ import annotations
 import hmac
 from contextlib import closing
 import json
+import math
 import os
 import sqlite3
 import threading
@@ -237,16 +238,21 @@ def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> 
         if "scroll_suave" in args:
             args["scroll_suave"] = bool(args["scroll_suave"])
     if action == "scroll":
-        direction = str(args.get("direction", "down")).strip().lower()
-        amount = args.get("amount", 500)
+        raw_direction = args.get("direction", "down")
+        if not isinstance(raw_direction, str):
+            return {"status": "erro", "result": 'direcao deve ser "up", "down", "top" ou "bottom".'}
+        direction = raw_direction.strip().lower()
+        raw_amount = args.get("amount", 500)
+        if isinstance(raw_amount, bool) or not isinstance(raw_amount, (int, float, str)):
+            return {"status": "erro", "result": "quantidade deve ser numerica."}
+        try:
+            amount = float(raw_amount)
+        except (TypeError, ValueError):
+            return {"status": "erro", "result": "quantidade deve ser numerica."}
+        if not math.isfinite(amount) or amount < 0 or amount > 100000:
+            return {"status": "erro", "result": "quantidade deve estar entre 0 e 100000 pixels."}
         if direction not in {"up", "down", "top", "bottom"}:
             return {"status": "erro", "result": 'direcao deve ser "up", "down", "top" ou "bottom".'}
-        try:
-            amount = float(amount)
-        except (TypeError, ValueError):
-            return {"status": "erro", "result": "quantidade deve ser numérica."}
-        if isinstance(args.get("amount", 500), bool) or amount < 0 or amount > 100000:
-            return {"status": "erro", "result": "quantidade deve estar entre 0 e 100000 pixels."}
         args["direction"] = direction
         args["amount"] = amount
     if action == "close_tab":
@@ -262,8 +268,14 @@ def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> 
         else:
             args.pop("tab_id", None)
     if action == "type_text":
-        campo = str(args.get("campo", "")).strip()
-        texto = str(args.get("texto", ""))
+        raw_campo = args.get("campo", "")
+        raw_texto = args.get("texto", "")
+        if not isinstance(raw_campo, str):
+            return {"status": "erro", "result": "campo deve ser texto (seletor CSS ou label), com ate 500 caracteres."}
+        if not isinstance(raw_texto, str):
+            return {"status": "erro", "result": "texto deve ser uma string com ate 5000 caracteres."}
+        campo = raw_campo.strip()
+        texto = raw_texto
         if not campo or len(campo) > 500:
             return {"status": "erro", "result": "Informe campo (seletor CSS ou label), com até 500 caracteres."}
         if len(texto) > 5000:
