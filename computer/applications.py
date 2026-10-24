@@ -95,3 +95,22 @@ def abrir_aplicativo(nome: str) -> dict:
         return {"status": "ok", "result": f"Solicitada abertura de {candidatos[0]['nome']}", "nome": candidatos[0]["nome"], "atalho": alvo}
     except OSError as exc:
         return {"status": "erro", "result": f"Falha ao abrir {candidatos[0]['nome']}: {type(exc).__name__}: {exc}"}
+
+
+def desinstalar_aplicativo(nome: str) -> dict:
+    """Desinstala um pacote Appx/MSIX pelo nome, sem aceitar comandos arbitrarios."""
+    nome = (nome or "").strip()
+    if not nome or len(nome) > 160 or any(ord(c) < 32 for c in nome):
+        return {"status": "erro", "result": "Informe um nome de aplicativo valido."}
+    if os.name != "nt":
+        return {"status": "erro", "result": "Disponivel apenas no Windows."}
+    script = "$ErrorActionPreference='Stop'; $n=[Console]::In.ReadToEnd() | ConvertFrom-Json; $name=[string]$n.nome; $p=@(Get-AppxPackage | Where-Object { $_.Name -eq $name -or $_.PackageFullName -eq $name }); if ($p.Count -eq 0) { $p=@(Get-AppxPackage | Where-Object { $_.Name -like ('*'+$name+'*') }) }; if ($p.Count -eq 0) { @{status='not_found';result='Nenhum pacote correspondente instalado neste perfil.'} | ConvertTo-Json -Compress; exit 0 }; if ($p.Count -ne 1) { @{status='ambiguous';result=@($p | ForEach-Object {$_.Name});message='Informe um nome exato; ha multiplos pacotes.'} | ConvertTo-Json -Compress; exit 0 }; $target=$p[0]; Remove-AppxPackage -Package $target.PackageFullName; $left=@(Get-AppxPackage | Where-Object {$_.Name -eq $target.Name}); if ($left.Count -eq 0) { @{status='ok';result=('Aplicativo '+$target.Name+' removido e verificado.');package=$target.PackageFullName;verified=$true} | ConvertTo-Json -Compress } else { @{status='erro';result='O pacote continua instalado.';verified=$false} | ConvertTo-Json -Compress }"
+    try:
+        proc=subprocess.run(["powershell.exe","-NoProfile","-NonInteractive","-Command",script], input=json.dumps({"nome":nome}), capture_output=True, text=True, timeout=90, encoding="utf-8", errors="replace")
+        lines=proc.stdout.strip().splitlines()
+        if proc.returncode != 0 or not lines:
+            return {"status":"erro","result":(proc.stderr or proc.stdout or "PowerShell falhou")[-1500:]}
+        try: return json.loads(lines[-1])
+        except ValueError: return {"status":"erro","result":lines[-1][:1500]}
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"status":"erro","result":f"{type(exc).__name__}: {exc}"}

@@ -339,6 +339,10 @@ class PCOpenApplication(BaseModel):
     nome: str = Field(min_length=1, max_length=160)
 
 
+class PCUninstallApplication(BaseModel):
+    nome: str = Field(min_length=1, max_length=160)
+
+
 class PCListControls(BaseModel):
     titulo: str = Field(min_length=1, max_length=200)
     limite: int = Field(default=100, ge=1, le=200)
@@ -2362,7 +2366,7 @@ from computer.controller import (
     scroll as _pc_scroll_fn,
 )
 from computer.screen import screenshot as _pc_screenshot_fn
-from computer.applications import listar_aplicativos as _pc_listar_aplicativos, abrir_aplicativo as _pc_abrir_aplicativo
+from computer.applications import listar_aplicativos as _pc_listar_aplicativos, abrir_aplicativo as _pc_abrir_aplicativo, desinstalar_aplicativo as _pc_desinstalar_aplicativo
 from computer.ui_automation import listar_controles as _pc_listar_controles, acionar_controle as _pc_acionar_controle, gerenciar_janela as _pc_gerenciar_janela
 from computer.windows import (
     get_windows as _pc_get_windows,
@@ -2438,6 +2442,12 @@ def pc_open_application(data: PCOpenApplication):
     """Abre um aplicativo por atalho conhecido, sem executar comandos arbitrarios."""
     print(f"[PC_OPEN_APPLICATION] nome={data.nome}")
     return _pc_abrir_aplicativo(data.nome)
+
+
+@app.post("/pc_uninstall_application")
+def pc_uninstall_application(data: PCUninstallApplication):
+    print(f"[PC_UNINSTALL_APPLICATION] nome={data.nome}")
+    return _pc_desinstalar_aplicativo(data.nome)
 
 
 @app.post("/pc_list_controls")

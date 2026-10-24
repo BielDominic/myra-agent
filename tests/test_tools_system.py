@@ -71,6 +71,7 @@ TABELA = (
     ("pc_focus_window", "/pc_focus_window", ("Titulo",), {}),
     ("pc_list_applications", "/pc_list_applications", (), {}),
     ("pc_open_application", "/pc_open_application", ("Notepad",), {}),
+    ("pc_uninstall_application", "/pc_uninstall_application", ("Telegram Desktop",), {}),
     ("pc_list_controls", "/pc_list_controls", ("Notepad",), {}),
     ("pc_control_action", "/pc_control_action", ("Notepad", "Save", "click"), {}),
     ("pc_window_action", "/pc_window_action", ("Notepad", "minimize"), {}),
@@ -688,10 +689,10 @@ class RotasEPayloadsTestCase(_BaseComCaptura):
 
     def test_tabela_de_rotas_completa_e_sem_duplicados(self):
         rotas_esperadas = [linha[1] for linha in TABELA]
-        self.assertEqual(len(rotas_esperadas), 32)
-        self.assertEqual(len(set(rotas_esperadas)), 32, "cada rota deve ser unica")
+        self.assertEqual(len(rotas_esperadas), 33)
+        self.assertEqual(len(set(rotas_esperadas)), 33, "cada rota deve ser unica")
         nomes = [linha[0] for linha in TABELA]
-        self.assertEqual(len(set(nomes)), 32)
+        self.assertEqual(len(set(nomes)), 33)
         for nome, rota, _args, _kwargs in TABELA:
             with self.subTest(nome=nome):
                 self.assertTrue(callable(getattr(st, nome)))
@@ -712,7 +713,7 @@ class IntegracaoWrapperTestCase(_BaseComCaptura):
                     resultado = getattr(st, nome)(*args, **kwargs)
                     self.assertEqual(resultado, {"status": "ok", "result": "ok"})
         self.assertEqual([p["rota"] for p in http.pedidos], [linha[1] for linha in TABELA])
-        self.assertEqual(len(http.pedidos), 32)
+        self.assertEqual(len(http.pedidos), 33)
         self.assertTrue(all(p["metodo"] == "POST" for p in http.pedidos))
         self.assertTrue(all(p["timeout"] == 120 for p in http.pedidos))
 
@@ -1017,7 +1018,7 @@ class SemEfeitosReaisTestCase(_BaseComCaptura):
             for nome, _rota, args, kwargs in TABELA:
                 with self.subTest(nome=nome):
                     self.assertEqual(getattr(st, nome)(*args, **kwargs), {"status": "ok"})
-        self.assertEqual(m.call_count, 32)
+        self.assertEqual(m.call_count, 33)
 
     def test_todos_os_wrappers_devolvem_erro_estruturado_sem_rede(self):
         with sem_rede():
@@ -1057,7 +1058,7 @@ class RegistroTestCase(_BaseComCaptura):
 
     def test_registra_32_ferramentas(self):
         registros = self._coletar()
-        self.assertEqual(len(registros), 32)
+        self.assertEqual(len(registros), 33)
         self.assertEqual(set(registros), {linha[0] for linha in TABELA})
 
     def test_mapeia_cada_nome_para_a_funcao_certa(self):
@@ -1078,8 +1079,8 @@ class RegistroTestCase(_BaseComCaptura):
     def test_nomes_sao_unicos_e_ordenados_por_grupo(self):
         nomes = []
         st.registrar_todas(lambda nome, fn, desc: nomes.append(nome))
-        self.assertEqual(len(nomes), 32)
-        self.assertEqual(len(set(nomes)), 32)
+        self.assertEqual(len(nomes), 33)
+        self.assertEqual(len(set(nomes)), 33)
         self.assertEqual(nomes, [linha[0] for linha in TABELA])
 
     def test_todos_os_wrappers_publicos_estao_registrados(self):
@@ -1105,7 +1106,7 @@ class RegistroTestCase(_BaseComCaptura):
         primeiro = set(self._coletar())
         segundo = set(self._coletar())
         self.assertEqual(primeiro, segundo)
-        self.assertEqual(len(segundo), 32)
+        self.assertEqual(len(segundo), 33)
 
     def test_registrador_recebe_sempre_tres_argumentos_do_tipo_certo(self):
         vistos = []

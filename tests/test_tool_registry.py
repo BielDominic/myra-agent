@@ -55,7 +55,7 @@ GRUPOS_ESPERADOS = {
         "pc_move_mouse", "pc_click", "pc_type_text", "pc_press_key",
         "pc_hotkey", "pc_screenshot", "pc_get_windows",
         "pc_get_active_window", "pc_focus_window",
-        "pc_list_applications", "pc_open_application", "pc_list_controls", "pc_control_action", "pc_window_action",
+        "pc_list_applications", "pc_open_application", "pc_uninstall_application", "pc_list_controls", "pc_control_action", "pc_window_action",
     }),
     "ficheiros": frozenset({
         "write_file", "read_file", "list_dir", "delete_file",
@@ -78,7 +78,7 @@ GRUPOS_ESPERADOS = {
 
 TAMANHOS_ESPERADOS = {
     "browser_bridge": 12,
-    "visao_pc": 17,
+    "visao_pc": 18,
     "ficheiros": 7,
     "codigo": 2,
     "email": 5,
@@ -90,7 +90,7 @@ TAMANHOS_ESPERADOS = {
 NOMES_ESPERADOS = frozenset(
     nome for grupo in GRUPOS_ESPERADOS.values() for nome in grupo
 )
-TOTAL_FERRAMENTAS = 61
+TOTAL_FERRAMENTAS = 62
 
 # Aliases legados (rotas HTTP antigas) que o registo do planner ja nao expoe.
 LEGADOS_ESPERADOS = frozenset({

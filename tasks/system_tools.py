@@ -158,6 +158,11 @@ def pc_open_application(nome: str) -> dict:
     return _post("/pc_open_application", {"nome": nome})
 
 
+def pc_uninstall_application(nome: str) -> dict:
+    """Desinstala um aplicativo Windows Appx/MSIX por nome."""
+    return _post("/pc_uninstall_application", {"nome": nome})
+
+
 def pc_list_controls(titulo: str, limite: int = 100) -> dict:
     return _post("/pc_list_controls", {"titulo": titulo, "limite": limite})
 
@@ -272,7 +277,9 @@ def registrar_todas(registrar_ferramenta):
     registrar_ferramenta("pc_list_applications", pc_list_applications,
         "Lista aplicativos acess?veis pelos atalhos do menu Iniciar e desktops do Windows.")
     registrar_ferramenta("pc_open_application", pc_open_application,
-        "Abre um aplicativo pelo nome do atalho conhecido. Obrigatorio: nome. Se houver nomes amb?guos, escolha um mais espec?fico.")
+        "Abre um aplicativo pelo nome do atalho conhecido. Obrigatorio: nome. Se houver nomes ambiguos, escolha um mais especifico.")
+    registrar_ferramenta("pc_uninstall_application", pc_uninstall_application,
+        "Desinstala um aplicativo Windows Appx/MSIX pelo nome exato ou correspondencia unica; verifica a remocao.")
     registrar_ferramenta("pc_list_controls", pc_list_controls,
         "Lista controles UI Automation de uma janela. Obrigatorio: titulo; opcional limite entre 1 e 200.")
     registrar_ferramenta("pc_control_action", pc_control_action,

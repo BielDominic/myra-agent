@@ -327,6 +327,22 @@ def _decidir_proximo_passo(
     # Roteamento deterministico para comandos compostos abrir + pesquisar em app.
     # Mantem cada acao como um passo auditavel no loop de autonomia.
     texto_intencao = _normalizar_intencao(objetivo)
+
+    # Roteamento deterministico para desinstalacao explicita de aplicativo.
+    # Nunca manda pedidos de uninstall ao browser; a ferramenta valida o alvo.
+    m_uninstall = re.fullmatch(
+        r"(?:por favor )?(?:desinstale|desinstalar|remova|remover|desinstala) "
+        r"(?:o|a|os|as )?(.+?)(?: agora mesmo| agora| do meu pc| do computador| do windows)?[.!?]*",
+        texto_intencao,
+    )
+    if m_uninstall and not historico:
+        nome_app = m_uninstall.group(1).strip()
+        if nome_app and "pc_uninstall_application" in FERRAMENTAS_DISPONIVEIS:
+            return {
+                "acao": "chamar", "ferramenta": "pc_uninstall_application",
+                "args": {"nome": nome_app},
+                "motivo": "pedido explicito de desinstalacao; executar via gerenciador de pacotes Windows e verificar o estado",
+            }
     intencao_app_busca = _extrair_intencao_app_busca(objetivo)
     if intencao_app_busca:
         # Garante registro tardio das ferramentas do PC antes de depender do LLM.
