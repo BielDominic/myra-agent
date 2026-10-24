@@ -499,6 +499,8 @@
 **Checklist PT-BR: 250 itens rastreados**
 **Progresso do checklist PT-BR: 36% (89 de 250 itens marcados).**
 
+**Progresso geral combinado dos checklists PT-BR + EN: 32% (157 de 484 itens marcados).**
+
 *Este percentual é a contagem simples dos checkboxes da seção em português; não pondera complexidade nem significa prontidão para produção.*
 
 ---
@@ -993,7 +995,7 @@
 
 **Order revised on 2026-10-22:**
 
-1. **Finish PHASE 26 real-browser validation**: live navigation/read/scroll, pause/resume, Learn more click, and a local form flow all passed. The form was filled and submitted, and a subsequent DOM read confirmed the exact Sent: MYRA text. Fixed Playwright thread affinity, optional Pydantic fields, planner argument aliases, deterministic URL/form routing, and verification of expected page text after interaction. A missing-text click fails explicitly; unrelated tools cannot erase negative evidence. Full suite: 1,075 passed, 9 skipped, 52 xfailed, 80 warnings, and 3,018 subtests. Remaining: more recovery tests, triage xfails, and review FastAPI/mss deprecations.
+1. **Finish PHASE 26 real-browser validation**: live navigation/read/scroll, pause/resume, Learn more click, and a local form flow all passed. The form was filled and submitted, and a subsequent DOM read confirmed the exact Sent: MYRA text. Fixed Playwright thread affinity, optional Pydantic fields, planner argument aliases, deterministic URL/form routing, and verification of expected page text after interaction. A missing-text click fails explicitly; unrelated tools cannot erase negative evidence. Migrated FastAPI startup/shutdown to lifespan and updated the MSS capture API. Latest full suite: 1,075 passed, 9 skipped, 52 xfailed, 1 warning, and 3,018 subtests. Remaining: more recovery tests and triage xfails.
 2. **PHASE 27.5 (REA):** the allowed root is now persisted per-user and analysis of `widget-tauri\ui` passed again on 2026-10-24; only tools requiring an open binary-analysis provider remain to be tested.
 3. **PHASE 28 mobile control**: validate real Telegram commands, Tailscale, and the protected remote API.
 4. **PHASE 30 distribution**: release build, NSIS installer, silent install/uninstall, and smoke launch are validated. Continue with auto-start, system tray, native notifications, and connection indicator.
