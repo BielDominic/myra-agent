@@ -999,7 +999,7 @@
 
 ---
 
-**Last updated:** 2026-10-23
+**Last updated:** 2026-10-24
 
 
 ## PHASE 32 - Universal Windows Application Access
@@ -1012,7 +1012,10 @@
 - [x] 32.6 - Add controlled UIA actions: click, set text, focus, toggle and select; reject ambiguous/disabled controls.
 - [x] 32.7 - Add controlled window actions (minimize/maximize/restore/close) with state verification.
 - [ ] 32.8 - Validate multi-application workflows with observe-act-verify and recovery.
-- [ ] 32.9 - Expand inventory to installed-app registry entries where safe launch targets are available.
+  - Progress (2026-10-24): deterministic 2-3 app launch flow implemented and tested end-to-end through /task_simple; Portuguese aliases added. Independent window visibility verification is still pending, so this phase remains open.
+- [x] 32.9 - Expand inventory to installed-app registry entries; only expose a launch target when a concrete existing executable is identified.
+  - Safety: never execute registry UninstallString; Start Menu entries remain preferred and duplicate display names are skipped.
+  - Validation on 2026-10-24: inventory grew from 333 to 360 entries; 27 registry-only entries were added, 17 with verified executable paths. Entries without safe targets are discoverable but not launchable.
 
 **Security boundary:** no arbitrary command-line execution, no implicit elevation, and no bypass of existing confirmations for consequential actions. Shortcut discovery and launching run as the logged-in Windows user.
 

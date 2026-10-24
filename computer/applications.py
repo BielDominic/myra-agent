@@ -48,6 +48,49 @@ def _apps_menu_iniciar() -> list[dict]:
         return []
 
 
+
+def _apps_registro_desinstalacao() -> list[dict]:
+    """L? entradas de desinstala??o dos hives padr?o, sem executar comandos."""
+    if os.name != "nt":
+        return []
+    script = r"""
+$ErrorActionPreference='SilentlyContinue'
+$roots=@('HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')
+$items=@(foreach($root in $roots) { Get-ItemProperty -Path $root | Where-Object { $_.DisplayName -and $_.DisplayName.Trim() -and $_.SystemComponent -ne 1 } | ForEach-Object { [PSCustomObject]@{ Name=[string]$_.DisplayName; Publisher=[string]$_.Publisher; DisplayVersion=[string]$_.DisplayVersion; InstallLocation=[string]$_.InstallLocation; DisplayIcon=[string]$_.DisplayIcon } } })
+ConvertTo-Json -InputObject @($items) -Compress -Depth 3
+"""
+    try:
+        proc = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, text=True, timeout=12, check=False, encoding="utf-8", errors="replace")
+        if proc.returncode != 0 or not proc.stdout.strip():
+            return []
+        dados = json.loads(proc.stdout)
+        if isinstance(dados, dict):
+            dados = [dados]
+        resultado = []
+        for item in dados if isinstance(dados, list) else []:
+            nome = str(item.get("Name") or "").strip()
+            if not nome:
+                continue
+            candidatos = []
+            for campo in ("DisplayIcon", "InstallLocation"):
+                valor = str(item.get(campo) or "").strip().strip('"')
+                if valor and os.path.isabs(valor):
+                    alvo = valor.split(",", 1)[0].strip('"') if campo == "DisplayIcon" else valor
+                    caminho = Path(alvo)
+                    if caminho.is_file() and caminho.suffix.lower() in {".exe", ".com"}:
+                        candidatos.append(str(caminho))
+                    elif caminho.is_dir():
+                        try:
+                            candidatos.extend(str(x) for x in list(caminho.glob("*.exe"))[:3])
+                        except OSError:
+                            pass
+            executavel = next((x for x in candidatos if Path(x).is_file()), None)
+            resultado.append({"nome": nome, "atalho": executavel, "origem": "Windows Uninstall Registry", "publisher": str(item.get("Publisher") or ""), "versao": str(item.get("DisplayVersion") or ""), "launchable": bool(executavel)})
+        return resultado
+    except (OSError, subprocess.SubprocessError, ValueError, TypeError):
+        return []
+
+
 def listar_aplicativos() -> dict:
     """Lista atalhos de aplicativos disponíveis nos menus Iniciar e desktops."""
     try:
@@ -66,6 +109,14 @@ def listar_aplicativos() -> dict:
         # que podem não possuir um atalho .lnk nos diretórios pesquisados.
         for app in _apps_menu_iniciar():
             chave = f"startapps:{app['atalho'].casefold()}"
+            encontrados.setdefault(chave, app)
+        # S? marca como abr?vel quando h? execut?vel concreto; nunca executa UninstallString.
+        nomes_existentes = {str(app.get("nome") or "").casefold() for app in encontrados.values()}
+        for app in _apps_registro_desinstalacao():
+            # O nome j? exposto pelo menu Iniciar tem destino de lan?amento preferencial.
+            if app["nome"].casefold() in nomes_existentes:
+                continue
+            chave = f"registry:{app['nome'].casefold()}:{app.get('atalho') or ''}"
             encontrados.setdefault(chave, app)
         apps = sorted(encontrados.values(), key=lambda x: x["nome"].casefold())
         return {"status": "ok", "total": len(apps), "result": apps}
@@ -95,6 +146,12 @@ def abrir_aplicativo(nome: str) -> dict:
     consulta = aliases.get(consulta, consulta)
     exatos = [a for a in apps if a["nome"].casefold() == consulta]
     candidatos = exatos or [a for a in apps if consulta in a["nome"].casefold()]
+    # Entradas sem destino de execu??o seguro s?o list?veis, n?o abr?veis.
+    abriveis = [a for a in candidatos if a.get("launchable", True) and a.get("atalho")]
+    if abriveis:
+        candidatos = abriveis
+    elif candidatos and not any(a.get("launchable", True) and a.get("atalho") for a in candidatos):
+        return {"status": "not_launchable", "result": f"{nome!r} aparece no registro de aplicativos, mas n?o h? execut?vel seguro identificado."}
     if not candidatos:
         return {"status": "erro", "result": f"Nenhum atalho encontrado para {nome!r}. Liste os aplicativos para ver nomes disponíveis."}
     if len(candidatos) > 1:

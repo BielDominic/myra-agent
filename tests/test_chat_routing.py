@@ -261,3 +261,31 @@ def test_application_open_supports_common_portuguese_aliases(monkeypatch):
     assert applications.abrir_aplicativo("bloco de notas")["status"] == "ok"
     assert applications.abrir_aplicativo("calculadora")["status"] == "ok"
     assert len(launched) == 2
+
+
+
+def test_registry_inventory_never_uses_uninstall_command_as_launch_target(monkeypatch):
+    from computer import applications
+    monkeypatch.setattr(applications, "_atalhos_raiz", lambda: [])
+    monkeypatch.setattr(applications, "_apps_menu_iniciar", lambda: [])
+    monkeypatch.setattr(applications, "_apps_registro_desinstalacao", lambda: [
+        {"nome": "Unsafe Registry App", "atalho": None, "origem": "Windows Uninstall Registry", "launchable": False}
+    ])
+    inventory = applications.listar_aplicativos()
+    assert inventory["status"] == "ok"
+    assert inventory["result"][0]["launchable"] is False
+    assert applications.abrir_aplicativo("Unsafe Registry App")["status"] == "not_launchable"
+
+
+def test_registry_inventory_deduplicates_start_menu_apps(monkeypatch):
+    from computer import applications
+    monkeypatch.setattr(applications, "_atalhos_raiz", lambda: [])
+    monkeypatch.setattr(applications, "_apps_menu_iniciar", lambda: [
+        {"nome": "Example App", "atalho": "shell:AppsFolder\\Example.App!App", "origem": "Windows StartApps"}
+    ])
+    monkeypatch.setattr(applications, "_apps_registro_desinstalacao", lambda: [
+        {"nome": "Example App", "atalho": "C:\\Apps\\example.exe", "origem": "Windows Uninstall Registry", "launchable": True}
+    ])
+    inventory = applications.listar_aplicativos()
+    assert len(inventory["result"]) == 1
+    assert inventory["result"][0]["origem"] == "Windows StartApps"
