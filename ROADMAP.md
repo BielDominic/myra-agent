@@ -1015,6 +1015,7 @@
 - [x] 32.2 - Expose app inventory through FastAPI (`POST /pc_list_applications`) and open-app API (`POST /pc_open_application`).
 - [x] 32.3 - Register app inventory/open actions as planner tools.
 - [x] 32.4 - Open a known shortcut by exact/unique name; reject ambiguous matches.
+  - Input validation (2026-10-24): app-open and app-uninstall entry points reject non-string names with a structured error before inventory, registry or PowerShell work; regression tests cover null/list/dict/number inputs.
 - [x] 32.5 - Add UI Automation (UIA) control listing with name/type/AutomationId.
 - [x] 32.6 - Add controlled UIA actions: click, set text, focus, toggle and select; reject ambiguous/disabled controls.
 - [x] 32.7 - Add controlled window actions (minimize/maximize/restore/close) with state verification.

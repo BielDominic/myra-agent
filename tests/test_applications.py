@@ -46,3 +46,13 @@ class ApplicationWindowVerificationTests(TestCase):
     def test_invalid_app_name_is_not_verified(self):
         self.assertIsNone(applications._verificar_janela_aplicativo(None))
         self.assertIsNone(applications._verificar_janela_aplicativo("   "))
+
+    def test_open_app_rejects_non_string_names_without_exception(self):
+        for nome in (None, [], {}, 123):
+            with self.subTest(nome=nome):
+                self.assertEqual(applications.abrir_aplicativo(nome)["status"], "erro")
+
+    def test_uninstall_rejects_non_string_names_without_exception(self):
+        for nome in (None, [], {}, 123):
+            with self.subTest(nome=nome):
+                self.assertEqual(applications.desinstalar_aplicativo(nome)["status"], "erro")

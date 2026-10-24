@@ -181,7 +181,9 @@ def _verificar_janela_aplicativo(nome: str, timeout: float = 2.5) -> str | None:
 
 def abrir_aplicativo(nome: str) -> dict:
     """Abre um atalho conhecido por nome exato ou correspondência inequívoca."""
-    nome = (nome or "").strip()
+    if not isinstance(nome, str):
+        return {"status": "erro", "result": "Informe um nome de aplicativo textual válido."}
+    nome = nome.strip()
     if not nome or len(nome) > 160 or any(ord(c) < 32 for c in nome):
         return {"status": "erro", "result": "Informe um nome de aplicativo válido (1–160 caracteres)."}
     inventario = listar_aplicativos()
@@ -230,7 +232,9 @@ def abrir_aplicativo(nome: str) -> dict:
 
 def desinstalar_aplicativo(nome: str) -> dict:
     """Desinstala um pacote Appx/MSIX pelo nome, sem aceitar comandos arbitrarios."""
-    nome = (nome or "").strip()
+    if not isinstance(nome, str):
+        return {"status": "erro", "result": "Informe um nome de aplicativo textual valido."}
+    nome = nome.strip()
     if not nome or len(nome) > 160 or any(ord(c) < 32 for c in nome):
         return {"status": "erro", "result": "Informe um nome de aplicativo valido."}
     if os.name != "nt":
