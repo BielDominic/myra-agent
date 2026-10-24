@@ -54,6 +54,34 @@ class UIAutomationTests(TestCase):
         self.assertEqual(result["status"], "unverified")
         self.assertFalse(result["verified"])
 
+    def test_toggle_so_e_ok_quando_estado_muda(self):
+        self.control.get_toggle_state.side_effect = [0, 1]
+        result = uia.acionar_controle("Notepad", "saveButton", "toggle")
+        self.assertEqual(result["status"], "ok")
+        self.assertTrue(result["verified"])
+        self.assertEqual(result["estado_antes"], 0)
+        self.assertEqual(result["estado_depois"], 1)
+        self.control.toggle.assert_called_once_with()
+
+    def test_toggle_sem_estado_confirmavel_retorna_unverified(self):
+        self.control.get_toggle_state.side_effect = RuntimeError("provider unavailable")
+        result = uia.acionar_controle("Notepad", "saveButton", "toggle")
+        self.assertEqual(result["status"], "unverified")
+        self.assertFalse(result["verified"])
+
+    def test_select_so_e_ok_quando_selecao_confirmada(self):
+        self.control.is_selected.return_value = True
+        result = uia.acionar_controle("Notepad", "saveButton", "select")
+        self.assertEqual(result["status"], "ok")
+        self.assertTrue(result["verified"])
+        self.control.select.assert_called_once_with()
+
+    def test_select_sem_confirmacao_retorna_unverified(self):
+        self.control.is_selected.side_effect = RuntimeError("provider unavailable")
+        result = uia.acionar_controle("Notepad", "saveButton", "select")
+        self.assertEqual(result["status"], "unverified")
+        self.assertFalse(result["verified"])
+
     def test_acao_nao_permitida_e_bloqueada(self):
         result = uia.acionar_controle("Notepad", "saveButton", "delete")
         self.assertEqual(result["status"], "erro")

@@ -107,6 +107,12 @@ def acionar_controle(titulo: str, alvo: str, acao: str, texto: str = "") -> dict
         if len(candidatos) > 1:
             return {"status": "ambiguous", "result": [{"nome": c.element_info.name, "automation_id": c.element_info.automation_id, "control_type": c.element_info.control_type} for c in candidatos[:20]], "message": "Controle ambíguo; use automation_id ou nome único."}
         c = candidatos[0]
+        estado_toggle_antes = None
+        if acao == "toggle":
+            try:
+                estado_toggle_antes = int(c.get_toggle_state())
+            except Exception:
+                estado_toggle_antes = None
         if not c.is_visible() or not c.is_enabled():
             return {"status": "erro", "result": "O controle está oculto ou desabilitado; nenhuma ação foi executada."}
         if acao == "click":
@@ -135,6 +141,25 @@ def acionar_controle(titulo: str, alvo: str, acao: str, texto: str = "") -> dict
             return {"status": "ok" if verificado else "unverified", "verified": verificado,
                     "janela": janela.window_text(), "controle": alvo, "acao": acao,
                     "result": "Foco confirmado." if verificado else "Foco solicitado, mas não confirmado."}
+        if acao == "toggle":
+            estado_toggle_depois = None
+            try:
+                estado_toggle_depois = int(c.get_toggle_state())
+                verificado = estado_toggle_antes in (0, 1) and estado_toggle_depois in (0, 1) and estado_toggle_depois != estado_toggle_antes
+            except Exception:
+                verificado = False
+            return {"status": "ok" if verificado else "unverified", "verified": verificado,
+                    "janela": janela.window_text(), "controle": alvo, "acao": acao,
+                    "estado_antes": estado_toggle_antes, "estado_depois": estado_toggle_depois,
+                    "result": "Mudan?a do estado toggle confirmada." if verificado else "Toggle enviado, mas a mudan?a de estado n?o p?de ser confirmada."}
+        if acao == "select":
+            try:
+                verificado = bool(c.is_selected())
+            except Exception:
+                verificado = False
+            return {"status": "ok" if verificado else "unverified", "verified": verificado,
+                    "janela": janela.window_text(), "controle": alvo, "acao": acao,
+                    "result": "Sele??o confirmada." if verificado else "Sele??o solicitada, mas n?o confirmada."}
         return {"status": "ok", "verified": False, "janela": janela.window_text(), "controle": alvo, "acao": acao,
                 "result": "Ação enviada; o efeito final ainda precisa ser observado separadamente."}
     except Exception as exc:
