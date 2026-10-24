@@ -143,6 +143,29 @@ def _normalizar_intencao(objetivo: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", texto).strip()
 
 
+def _extrair_intencao_multiapp(objetivo: str) -> list[str] | None:
+    """Reconhece apenas pedidos expl?citos para abrir dois ou tr?s apps locais."""
+    texto = _normalizar_intencao(objetivo)
+    m = re.fullmatch(
+        r"(?:por favor )?(?:abra|abre|abrir|inicie|iniciar|execute|executar) "
+        r"(?:o|a|os|as )?(.+)", texto
+    )
+    if not m:
+        return None
+    resto = m.group(1).strip()
+    # N?o captura fluxos de busca/instala??o nem pedidos com a??es diferentes.
+    if re.search(r"\b(pesquise|pesquisar|busque|buscar|procure|procurar|instale|instalar|"
+                 r"desinstale|remova|delete|apague|clique|digite|acesse|visite)\b", resto):
+        return None
+    partes = re.split(r"\s+e\s+", resto)
+    if not 2 <= len(partes) <= 3:
+        return None
+    nomes = [re.sub(r"^(?:o|a|os|as)\s+", "", x.strip()).strip() for x in partes]
+    if any(not n or len(n) > 100 for n in nomes):
+        return None
+    return nomes
+
+
 def _extrair_intencao_app_busca(objetivo: str) -> tuple[str, str] | None:
     """Extrai o objetivo comum de pedidos equivalentes para pesquisar dentro de um app.
 
@@ -343,6 +366,28 @@ def _decidir_proximo_passo(
                 "args": {"nome": nome_app},
                 "motivo": "pedido explicito de desinstalacao; executar via gerenciador de pacotes Windows e verificar o estado",
             }
+    # Fluxo multiaplicativo determin?stico: s? avan?a quando a etapa anterior
+    # retornou status ok; nunca interpreta uma tentativa de abertura como sucesso.
+    nomes_multiapp = _extrair_intencao_multiapp(objetivo)
+    if nomes_multiapp and "pc_open_application" in FERRAMENTAS_DISPONIVEIS:
+        if not historico:
+            return {"acao": "chamar", "ferramenta": "pc_open_application",
+                    "args": {"nome": nomes_multiapp[0]},
+                    "motivo": "abrir o primeiro aplicativo do fluxo multiaplicativo"}
+        if any(not h.get("ok") or not isinstance(h.get("resultado"), dict)
+               or h["resultado"].get("status") != "ok" for h in historico):
+            return {"acao": "finalizar", "resultado":
+                    "Fluxo multiaplicativo interrompido: uma abertura falhou ou n?o foi confirmada; os pr?ximos aplicativos n?o foram abertos."}
+        proximo = len(historico)
+        if proximo < len(nomes_multiapp):
+            return {"acao": "chamar", "ferramenta": "pc_open_application",
+                    "args": {"nome": nomes_multiapp[proximo]},
+                    "motivo": f"abrir aplicativo {proximo + 1} de {len(nomes_multiapp)} ap?s confirma??o da etapa anterior"}
+        if proximo == len(nomes_multiapp):
+            nomes_abertos = [str(h["resultado"].get("nome") or h["args"].get("nome") or "aplicativo") for h in historico]
+            return {"acao": "finalizar", "resultado":
+                    "Abertura solicitada confirmada para: " + ", ".join(nomes_abertos) + "."}
+
     intencao_app_busca = _extrair_intencao_app_busca(objetivo)
     if intencao_app_busca:
         # Garante registro tardio das ferramentas do PC antes de depender do LLM.

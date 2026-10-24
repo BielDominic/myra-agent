@@ -206,3 +206,58 @@ def test_app_search_intent_is_used_for_same_deterministic_plan(monkeypatch):
         assert decision["acao"] == "chamar"
         assert decision["ferramenta"] == "pc_open_application"
         assert decision["args"]["nome"] in {"microsoft store", "loja da microsoft"}
+
+
+
+def test_multiapp_open_routes_each_app_only_after_verified_success(monkeypatch):
+    monkeypatch.setitem(simple_task.FERRAMENTAS_DISPONIVEIS, "pc_open_application",
+                        lambda nome: {"status": "ok", "nome": nome})
+    objective = "Abra o Bloco de Notas e a Calculadora"
+    assert simple_task._extrair_intencao_multiapp(objective) == ["bloco de notas", "calculadora"]
+    history = []
+    first = simple_task._decidir_proximo_passo(objective, history)
+    assert first["ferramenta"] == "pc_open_application"
+    assert first["args"] == {"nome": "bloco de notas"}
+    history.append({"ok": True, "ferramenta": first["ferramenta"], "args": first["args"],
+                    "resultado": {"status": "ok", "nome": "Bloco de Notas"}})
+    second = simple_task._decidir_proximo_passo(objective, history)
+    assert second["ferramenta"] == "pc_open_application"
+    assert second["args"] == {"nome": "calculadora"}
+    history.append({"ok": True, "ferramenta": second["ferramenta"], "args": second["args"],
+                    "resultado": {"status": "ok", "nome": "Calculadora"}})
+    final = simple_task._decidir_proximo_passo(objective, history)
+    assert final["acao"] == "finalizar"
+    assert "Bloco de Notas, Calculadora" in final["resultado"]
+
+
+def test_multiapp_open_stops_after_unverified_or_failed_step(monkeypatch):
+    monkeypatch.setitem(simple_task.FERRAMENTAS_DISPONIVEIS, "pc_open_application",
+                        lambda nome: {"status": "ok", "nome": nome})
+    objective = "Abra o Bloco de Notas e a Calculadora"
+    history = [{"ok": True, "ferramenta": "pc_open_application",
+                "args": {"nome": "bloco de notas"},
+                "resultado": {"status": "erro", "result": "atalho n?o encontrado"}}]
+    decision = simple_task._decidir_proximo_passo(objective, history)
+    assert decision["acao"] == "finalizar"
+    assert "interrompido" in decision["resultado"]
+
+
+def test_multiapp_parser_does_not_capture_search_or_install_flows():
+    assert simple_task._extrair_intencao_multiapp("Abra o Microsoft To Do e pesquise forza") is None
+    assert simple_task._extrair_intencao_multiapp("Abra a Microsoft Store e instale Telegram") is None
+
+
+
+def test_application_open_supports_common_portuguese_aliases(monkeypatch):
+    from computer import applications
+    launched = []
+    monkeypatch.setattr(applications, "listar_aplicativos", lambda: {
+        "status": "ok", "total": 2, "result": [
+            {"nome": "Notepad", "atalho": "shell:AppsFolder\\Microsoft.WindowsNotepad!App", "origem": "test"},
+            {"nome": "Calculator", "atalho": "shell:AppsFolder\\Microsoft.WindowsCalculator!App", "origem": "test"},
+        ]
+    })
+    monkeypatch.setattr(applications.os, "startfile", lambda target: launched.append(target), raising=False)
+    assert applications.abrir_aplicativo("bloco de notas")["status"] == "ok"
+    assert applications.abrir_aplicativo("calculadora")["status"] == "ok"
+    assert len(launched) == 2

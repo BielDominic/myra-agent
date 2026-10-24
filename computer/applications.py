@@ -83,6 +83,16 @@ def abrir_aplicativo(nome: str) -> dict:
         return inventario
     apps = inventario["result"]
     consulta = nome.casefold()
+    # Aliases PT-BR comuns para aplicativos cujo nome oficial no Windows est? em ingl?s.
+    aliases = {
+        "bloco de notas": "notepad",
+        "notas": "notepad",
+        "calculadora": "calculator",
+        "gerenciador de tarefas": "task manager",
+        "explorador de arquivos": "file explorer",
+        "prompt de comando": "command prompt",
+    }
+    consulta = aliases.get(consulta, consulta)
     exatos = [a for a in apps if a["nome"].casefold() == consulta]
     candidatos = exatos or [a for a in apps if consulta in a["nome"].casefold()]
     if not candidatos:
