@@ -168,7 +168,8 @@
 - [x] Criado tasks/rea_tools.py com rea_status, rea_catalog e rea_analyze_javascript.
 - [x] Ferramentas registradas no planner e regras para uso autorizado.
 - [x] Analise limitada a raizes configuradas; sem instalacao global nem execucao no startup.
-- [x] Validado em 2026-10-22 com MYRA_REA_ALLOWED_ROOTS apontando para C:\\computer-agent e analise REA bem-sucedida de widget-tauri\\ui (evidencia JSON; resultado truncado pelo limite de saida de 12.000 caracteres). A variavel foi configurada para a execucao de validacao; configuracao persistente ainda depende do ambiente de deploy.
+- [x] Validado em 2026-10-22 com MYRA_REA_ALLOWED_ROOTS apontando para C:\\computer-agent e analise REA bem-sucedida de widget-tauri\\ui.
+- [x] Configuracao persistente por usuario em 2026-10-24: MYRA_REA_ALLOWED_ROOTS aponta somente para C:\\computer-agent\\widget-tauri\\ui; analise REA repetida com sucesso (Node 24.20.0, Evidence JSON, sem contradicoes de integridade).
 - [x] Conexao MCP real via SDK oficial e descoberta de 207 ferramentas com esquemas JSON.
 - [x] Ponte MCP integrada: rea_mcp_list_tools e rea_mcp_call, com allowlist explicita de 11 ferramentas de leitura, validacao de raiz autorizada para analise JavaScript e limites de tamanho/timeout.
 - [x] Validada chamada MCP real de `analyze_javascript_application` no `workspace\\rea_smoke_test`: retornou Evidence com `status=ok`, sem truncamento, respeitando a raiz autorizada.
@@ -217,10 +218,10 @@
 - [ ] Publicacao (opcional: TestFlight)
 
 #### FASE 30 - Distribuicao
-![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
+![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
 
-- [ ] cargo tauri build + .exe
-- [ ] Instalador NSIS
+- [x] `npm install` reproduzivel com `package-lock.json`; `cargo tauri build` gerou `myra-widget.exe` (release)
+- [x] Instalador NSIS gerado e smoke-testado: instalacao silenciosa em diretorio temporario, executavel `MYRA` abriu/respondia, desinstalacao concluiu; artefatos temporarios removidos
 - [ ] Auto-start no boot
 - [ ] Bandeja do sistema
 - [ ] Notificacao nativa Windows
@@ -495,8 +496,8 @@
 | Documentacao | 6 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
 | Meta / Estrategico | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
-**Checklist PT-BR: 242 itens rastreados**
-**Progresso do checklist PT-BR: 33% (79 de 242 itens marcados).**
+**Checklist PT-BR: 250 itens rastreados**
+**Progresso do checklist PT-BR: 36% (89 de 250 itens marcados).**
 
 *Este percentual é a contagem simples dos checkboxes da seção em português; não pondera complexidade nem significa prontidão para produção.*
 
@@ -506,14 +507,14 @@
 
 **Ordem revisada em 2026-10-22**, apos corrigir os dois bloqueadores da visao:
 
-1. **Concluir a validacao real da FASE 26 no navegador**: apos reiniciar o backend, a task composta abriu `https://example.com`, leu a pagina via `browser_read_active_tab` e retornou o titulo `Example Domain` e o primeiro paragrafo correto. A correcao de roteamento tem cobertura de regressao. Pendentes: testar recuperacao de falha e pausa/retomada reais; investigar texto extra com codificacao incorreta devolvido apos o conteudo principal.
-2. **FASE 27.5 (REA):** analise real do app autorizado `widget-tauri\\ui` passou em 2026-10-22 com raiz autorizada configurada para a execucao; verificar configuracao persistente no ambiente final.
+1. **Concluir a validacao real da FASE 26 no navegador**: navegacao/leitura, scroll, pausa/retomada e clique em `Learn more` foram validados ao vivo. Um formulario local de smoke test tambem passou de ponta a ponta: abriu a URL, preencheu `Your name` com `MYRA`, clicou `Send` e a leitura posterior confirmou `Sent: MYRA`. Corrigidos thread-affinity do Playwright, campos opcionais Pydantic, aliases de argumentos do planner e verificacao de texto esperado apos interacao. A verificacao agora impede que ferramentas irrelevantes apaguem evidencia negativa. Suite completa: 1.075 passed, 9 skipped, 52 xfailed, 80 warnings e 3.018 subtests (114,23s). Pendentes: recuperacao de falha adicional, triagem dos xfail e warnings/depreciacoes.
+2. **FASE 27.5 (REA):** raiz permitida persistida por usuario e analise `widget-tauri\\ui` repetida com sucesso em 2026-10-24; pendente apenas testar ferramentas que dependem de provedor binario aberto.
 3. **Fechar FASE 28 (controle mobile)**: testar comandos no Telegram real, configurar Tailscale e validar a API remota protegida.
-4. **FASE 30 (distribuicao)**: gerar e testar o instalador Windows; depois priorizar voz/interface propria conforme o objetivo do produto.
+4. **FASE 30 (distribuicao)**: build release, NSIS installer, instalacao/desinstalacao silenciosa e smoke launch foram validados. Continuar com auto-start, bandeja do sistema, notificacoes nativas e indicador de conexao.
 
-**Ultima validacao automatizada (2026-10-22):** `pytest -q` — 1.017 passed, 9 skipped, 52 xfailed, 79 warnings e 2.907 subtests aprovados (115,58s). Os `xfail` sao falhas esperadas/documentadas e ainda merecem triagem.
+**Ultima validacao automatizada (2026-10-24):** `pytest -q` — 1.075 passed, 9 skipped, 52 xfailed, 80 warnings e 3.018 subtests aprovados (114,23s). Os `xfail` sao falhas esperadas/documentadas e ainda merecem triagem.
 
-**Validacao real parcial (2026-10-22):** 9 testes opt-in de integracao passaram com Ollama, servico de visao, backend e Browser Bridge ativos. Uma task real de dois passos abriu `https://example.com`, leu o corpo via `browser_read_active_tab` e extraiu o titulo `Example Domain` e o primeiro paragrafo. O verificador deterministico impediu sucesso prematuro apos a navegacao. Recuperacao real e pausa/retomada no navegador continuam pendentes.
+**Validacao real atualizada (2026-10-24):** tarefas reais validaram abrir/ler/rolar `https://example.com`, clicar em `Learn more`, pausar/retomar e preencher/enviar um formulario local. O formulario foi confirmado pela leitura do DOM com o texto exato `Sent: MYRA`. Corrigidos thread-affinity do Playwright Sync API, campos opcionais Pydantic, aliases de argumentos de clique e roteamento deterministico para fluxos web compostos com URL. O verificador exige a frase esperada apos a interacao e impede que uma ferramenta irrelevante apague evidencia negativa. Um clique em texto inexistente falha explicitamente, sem sucesso falso nem repeticoes ilimitadas. Suite completa em 2026-10-24: 1.075 passed, 9 skipped, 52 xfailed, 80 warnings e 3.018 subtests. Pendentes: testar mais recuperacoes, triagem de xfail e migrar os handlers FastAPI deprecados para lifespan; revisar aviso deprecado de `mss.mss`.
 
 **Nota:** a FASE 25 (`vision_locate`) esta concluida e a FASE 24.5 foi concluida pela FASE 26.
 
@@ -701,10 +702,10 @@
 - [ ] Publishing (optional: TestFlight)
 
 #### PHASE 30 - Distribution
-![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square)
+![In progress](https://img.shields.io/badge/-IN_PROGRESS-yellow?style=flat-square)
 
-- [ ] cargo tauri build + .exe
-- [ ] NSIS installer
+- [x] Reproducible `npm install` with `package-lock.json`; `cargo tauri build` generated the release `myra-widget.exe`
+- [x] NSIS installer generated and smoke-tested: silent install to a temporary directory, `MYRA` executable launched/responded, uninstall succeeded; temporary artifacts removed
 - [ ] Auto-start on boot
 - [ ] System tray
 - [ ] Native Windows notification
@@ -979,8 +980,10 @@
 | Documentation | 6 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
 | Strategic / Meta | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
-**PT-BR checklist: 242 tracked items**
-**PT-BR checklist progress: 33% (79 of 242 items checked).**
+**PT-BR checklist: 250 tracked items**
+**PT-BR checklist progress: 36% (89 of 250 items checked).**
+
+**EN checklist progress: 29% (68 of 234 items checked).**
 
 *This is a simple count of checkboxes in the Portuguese section; it does not weight complexity or imply production readiness.*
 
@@ -990,10 +993,10 @@
 
 **Order revised on 2026-10-22:**
 
-1. **Finish PHASE 26 real-browser validation**: after restarting the backend, a compound task opened `https://example.com`, read it with `browser_read_active_tab`, and returned the correct `Example Domain` title and first paragraph. Routing regression tests pass. Remaining: test real recovery and pause/resume, and investigate incorrectly encoded extra text returned after the main content.
-2. **PHASE 27.5 (REA):** real analysis of the authorized `widget-tauri\ui` app passed on 2026-10-22 with an allowed root configured for the validation process; confirm persistent configuration in the final environment.
+1. **Finish PHASE 26 real-browser validation**: live navigation/read/scroll, pause/resume, Learn more click, and a local form flow all passed. The form was filled and submitted, and a subsequent DOM read confirmed the exact Sent: MYRA text. Fixed Playwright thread affinity, optional Pydantic fields, planner argument aliases, deterministic URL/form routing, and verification of expected page text after interaction. A missing-text click fails explicitly; unrelated tools cannot erase negative evidence. Full suite: 1,075 passed, 9 skipped, 52 xfailed, 80 warnings, and 3,018 subtests. Remaining: more recovery tests, triage xfails, and review FastAPI/mss deprecations.
+2. **PHASE 27.5 (REA):** the allowed root is now persisted per-user and analysis of `widget-tauri\ui` passed again on 2026-10-24; only tools requiring an open binary-analysis provider remain to be tested.
 3. **PHASE 28 mobile control**: validate real Telegram commands, Tailscale, and the protected remote API.
-4. **PHASE 30 distribution**: build and test the Windows installer before prioritizing the native UI and voice.
+4. **PHASE 30 distribution**: release build, NSIS installer, silent install/uninstall, and smoke launch are validated. Continue with auto-start, system tray, native notifications, and connection indicator.
 
 **Note:** PHASE 25 (`vision_locate`) is complete and PHASE 24.5 was completed by PHASE 26.
 

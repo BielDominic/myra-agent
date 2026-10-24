@@ -71,12 +71,67 @@ class VerificarTestCase(unittest.TestCase):
         self.assertEqual(v["confianca"], "alta")
         self.assertIn("interacao solicitada", v["motivo"])
 
+    def test_leitura_apos_interacao_confirmada_pode_completar_objetivo_composto(self):
+        obs = {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "texto lido"}
+        historico = [
+            passo(1, "browser_click_text", {"descricao": "Send"}, True,
+                  resultado={"status": "ok", "result": "Cliquei em Send."}),
+            passo(2, "browser_read_active_tab", {}, True, observacao=obs,
+                  resultado={"status": "ok", "url": "http://127.0.0.1:8765/",
+                             "title": "Form", "text": "Sent: MYRA"}),
+        ]
+        v = autonomy.verificar(
+            "preencha o campo Your name com MYRA e clique em Send; confirme que a pagina mostra Sent: MYRA.",
+            historico, obs,
+        )
+        self.assertTrue(v["atingido"])
+
     def test_leitura_de_pagina_satisfaz_objetivo_de_extracao(self):
         obs = {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "titulo e paragrafo extraidos"}
         resultado = {"status": "ok", "url": "https://example.com/", "title": "Example Domain",
                      "text": "This domain is for use in documentation examples."}
         historico = [passo(1, "browser_read_page", {}, True, observacao=obs, resultado=resultado)]
         v = autonomy.verificar("leia o conteudo da pagina e informe o primeiro paragrafo", historico, obs)
+        self.assertTrue(v["atingido"])
+
+    def test_leitura_nao_confirma_frase_esperada_ausente(self):
+        obs = {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "pagina lida"}
+        resultado = {"status": "ok", "url": "http://127.0.0.1:8765/",
+                     "title": "Form", "text": "Your name Send Waiting"}
+        historico = [passo(1, "browser_read_active_tab", {}, True,
+                           observacao=obs, resultado=resultado)]
+        v = autonomy.verificar(
+            "leia a pagina e confirme que mostra Sent: MYRA.", historico, obs
+        )
+        self.assertFalse(v["atingido"])
+        self.assertIn("texto esperado na pagina nao foi encontrado", v["motivo"])
+
+    def test_ferramenta_irrelevante_nao_apaga_falha_de_texto_esperado(self):
+        historico = [
+            passo(1, "browser_click_text", {"descricao": "Send"}, True,
+                  resultado={"status": "ok", "result": "Cliquei em Send."}),
+            passo(2, "browser_read_active_tab", {}, True,
+                  resultado={"status": "ok", "url": "http://127.0.0.1:8765/",
+                             "title": "Form", "text": "Your name Send Waiting"}),
+            passo(3, "rea_status", {}, True,
+                  resultado={"status": "ok", "result": "REA disponivel"}),
+        ]
+        v = autonomy.verificar(
+            "preencha o campo Your name com MYRA e clique em Send; confirme que a pagina mostra Sent: MYRA.",
+            historico,
+        )
+        self.assertFalse(v["atingido"])
+        self.assertIn("nao mostrou o texto esperado", v["motivo"])
+
+    def test_leitura_confirma_frase_esperada_ignorando_pontuacao_final(self):
+        obs = {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "pagina lida"}
+        resultado = {"status": "ok", "url": "http://127.0.0.1:8765/",
+                     "title": "Form", "text": "Your name Send Sent: MYRA"}
+        historico = [passo(1, "browser_read_active_tab", {}, True,
+                           observacao=obs, resultado=resultado)]
+        v = autonomy.verificar(
+            "leia a pagina e confirme que mostra Sent: MYRA.", historico, obs
+        )
         self.assertTrue(v["atingido"])
 
     def test_leitura_sem_texto_nao_satisfaz_objetivo_de_extracao(self):

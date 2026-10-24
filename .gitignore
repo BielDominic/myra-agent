@@ -134,6 +134,7 @@ resultado.json
 config_local.*
 *.local.json
 # Tauri / Rust
+widget-tauri/node_modules/
 widget-tauri/src-tauri/target/
 widget-tauri/src-tauri/gen/
 **/*.rs.bk

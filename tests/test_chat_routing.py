@@ -358,6 +358,31 @@ def test_multiapp_open_stops_after_unverified_or_failed_step(monkeypatch):
     assert "interrompido" in decision["resultado"]
 
 
+def test_browser_form_flow_is_planned_deterministically():
+    objetivo = (
+        "Abra http://127.0.0.1:8765, preencha o campo Your name com MYRA "
+        "e clique em Send; confirme que a pagina mostra Sent: MYRA."
+    )
+    historico = []
+    esperados = [
+        ("browser_new_tab", {"url": "http://127.0.0.1:8765"}),
+        ("browser_type_text", {"campo": "Your name", "texto": "MYRA"}),
+        ("browser_click_text", {"descricao": "Send"}),
+        ("browser_read_active_tab", {}),
+    ]
+    for ferramenta_esperada, args_esperados in esperados:
+        passo = simple_task._decidir_proximo_passo(objetivo, historico)
+        assert passo["acao"] == "chamar"
+        assert passo["ferramenta"] == ferramenta_esperada
+        assert passo["args"] == args_esperados
+        historico.append({
+            "ferramenta": ferramenta_esperada,
+            "args": args_esperados,
+            "ok": True,
+            "resultado": {"status": "ok", "result": "passo simulado"},
+        })
+
+
 def test_multiapp_parser_does_not_capture_search_install_or_browser_flows():
     assert simple_task._extrair_intencao_multiapp("Abra o Microsoft To Do e pesquise forza") is None
     assert simple_task._extrair_intencao_multiapp("Abra a Microsoft Store e instale Telegram") is None

@@ -166,14 +166,14 @@ class SearchGoogle(BaseModel):
 
 
 class ClickElement(BaseModel):
-    text: str = None
-    selector: str = None
+    text: str | None = None
+    selector: str | None = None
 
 
 class TypeText(BaseModel):
-    selector: str = None
+    selector: str | None = None
     text: str
-    field_text: str = None
+    field_text: str | None = None
 
 
 class PressKey(BaseModel):
@@ -3578,8 +3578,14 @@ def _t_browser_close_tab(tab_id: int = None):
 def _t_browser_type_text(campo: str, texto: str):
     return _t_playwright_type_text(text=texto, field_text=campo)
 
-def _t_browser_click_text(text: str):
-    return _t_playwright_click_element(text=text)
+def _t_browser_click_text(
+    text: str = "", descricao: str = "", selector: str = "",
+    campo: str = "", texto: str = "",
+):
+    # O planner pode emitir nomes de argumentos em PT-BR (descricao/campo/texto)
+    # mesmo quando seleciona a ferramenta de clique. Normalize-os sem TypeError.
+    alvo = text or descricao or campo or texto
+    return _t_playwright_click_element(text=alvo, selector=selector)
 
 def _t_browser_scroll(direcao: str = "down", quantidade: int = 500):
     return _t_playwright_scroll(direcao=direcao, quantidade=quantidade)
@@ -3674,9 +3680,8 @@ except Exception as _e:
     print(f"[STORE] aviso: nao foi possivel marcar tasks interrompidas: {_e}")
 
 
-@app.post("/task_simple")
-def task_simple(data: TaskSimple):
-    """Executa uma task simples: planeja -> executa -> sintetiza."""
+def _task_simple_impl(data: TaskSimple):
+    """Executa uma task simples dentro do executor serializado da MYRA."""
     print(f"[TASK_SIMPLE] objetivo={data.objetivo!r} max_passos={data.max_passos}")
 
     resetar()        # limpa cancelamento anterior
@@ -3749,6 +3754,16 @@ def task_simple(data: TaskSimple):
         }
 
 
+@app.post("/task_simple")
+def task_simple(data: TaskSimple):
+    """Executa tasks no mesmo thread serializado usado pela retomada.
+
+    O Playwright Sync API exige afinidade de thread. Sem serializar a task
+    inicial e a retomada no mesmo executor, um contexto global do navegador
+    criado por uma thread podia ser reutilizado por outra e falhar com
+    "Sync API inside the asyncio loop" / "Cannot switch to a different thread".
+    """
+    return _get_task_pool().submit(_task_simple_impl, data).result()
 
 
 # ============================================================

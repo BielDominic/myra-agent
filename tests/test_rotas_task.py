@@ -9,6 +9,7 @@ persistido. /task_resume nao e exercitado aqui porque depende do planner
 import os
 import shutil
 import tempfile
+import threading
 import unittest
 from unittest import mock
 from pathlib import Path
@@ -42,6 +43,36 @@ class RotasTaskTestCase(unittest.TestCase):
         os.environ.pop("MYRA_TASK_DB", None)
         shutil.rmtree(self.tmp, ignore_errors=True)
 
+    def test_browser_click_text_aceita_selector_ausente(self):
+        esperado = {"status": "ok", "result": "simulado"}
+        with mock.patch.object(agent_module, "click_element", return_value=esperado) as clicar:
+            resultado = agent_module._t_playwright_click_element(text="Elemento inexistente")
+        self.assertEqual(resultado, esperado)
+        dados = clicar.call_args.args[0]
+        self.assertEqual(dados.text, "Elemento inexistente")
+        self.assertIsNone(dados.selector)
+
+    def test_browser_click_text_aceita_aliases_do_planner(self):
+        esperado = {"status": "ok", "result": "simulado"}
+        with mock.patch.object(agent_module, "click_element", return_value=esperado) as clicar:
+            resultado = agent_module._t_browser_click_text(descricao="Learn more")
+        self.assertEqual(resultado, esperado)
+        self.assertEqual(clicar.call_args.args[0].text, "Learn more")
+
+        with mock.patch.object(agent_module, "click_element", return_value=esperado) as clicar:
+            resultado = agent_module._t_browser_click_text(campo="Send", texto="")
+        self.assertEqual(resultado, esperado)
+        self.assertEqual(clicar.call_args.args[0].text, "Send")
+
+    def test_browser_type_text_aceita_campo_sem_selector(self):
+        esperado = {"status": "ok", "result": "simulado"}
+        with mock.patch.object(agent_module, "type_text", return_value=esperado) as digitar:
+            resultado = agent_module._t_playwright_type_text(text="abc", field_text="campo de busca")
+        self.assertEqual(resultado, esperado)
+        dados = digitar.call_args.args[0]
+        self.assertEqual(dados.field_text, "campo de busca")
+        self.assertIsNone(dados.selector)
+
     def test_browser_wait_nao_tenta_abrir_perfil_persistente(self):
         with mock.patch.object(agent_module.time, "sleep") as dormir, \
              mock.patch.object(agent_module, "start_browser", side_effect=AssertionError("nao deve abrir navegador")) as iniciar:
@@ -56,6 +87,26 @@ class RotasTaskTestCase(unittest.TestCase):
             resultado = agent_module._t_browser_wait(ms=999999)
         self.assertEqual(resultado["status"], "ok")
         dormir.assert_called_once_with(30.0)
+
+    def test_task_simple_usa_o_mesmo_executor_serializado_da_retomada(self):
+        thread_ids = []
+        thread_executor = agent_module._get_task_pool().submit(threading.get_ident).result(timeout=5)
+
+        def executar(objetivo, max_passos):
+            thread_ids.append(threading.get_ident())
+            return {
+                "status": "falhou", "objetivo": objetivo, "plano": [],
+                "historico": [], "resultado_final": None, "erro": "falha simulada",
+            }
+
+        with mock.patch.object(agent_module, "executar_task", side_effect=executar):
+            resposta = self.client.post(
+                "/task_simple", json={"objetivo": "teste serializacao", "max_passos": 1}
+            )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.json()["status"], "falhou")
+        self.assertEqual(thread_ids, [thread_executor])
 
     def test_task_pause_marca_flag_e_responde_task_id(self):
         agent_module._widget_set(state="running", task_id="task-abc")

@@ -466,6 +466,45 @@ def _decidir_proximo_passo(
     # Mantem cada acao como um passo auditavel no loop de autonomia.
     texto_intencao = _normalizar_intencao(objetivo)
 
+    # Fluxo web composto explicito (URL + preencher campo + clicar + confirmar).
+    # Evita que um planner pequeno escolha ferramentas irrelevantes, e mantem
+    # cada interacao observavel/verificavel no ciclo normal de autonomia.
+    url_match = re.search(r"https?://[^\s'\"<>]+", str(objetivo or ""), re.IGNORECASE)
+    texto_original = str(objetivo or "")
+    campo_match = re.search(
+        r"\b(?:preencha|preencher|digite|digitar|escreva|escrever)\s+(?:o\s+)?campo\s+['\"]?(.+?)['\"]?\s+com\s+['\"]?(.+?)['\"]?(?=\s+e\s+(?:clique|confirme|verifique|leia)|[.;]|$)",
+        texto_original,
+        re.IGNORECASE,
+    )
+    clique_match = re.search(
+        r"\bclique\s+(?:(?:em|no|na)\s+)?(?:bot[aã]o\s+|link\s+|texto\s+)?['\"]?(.+?)['\"]?(?=\s+e\s+(?:confirme|verifique|leia)|[.;]|$)",
+        texto_original,
+        re.IGNORECASE,
+    )
+    browser_tools = {"browser_new_tab", "browser_type_text", "browser_click_text", "browser_read_active_tab"}
+    fluxo_formulario_web = bool(
+        url_match and campo_match and clique_match
+        and all(nome in FERRAMENTAS_DISPONIVEIS for nome in browser_tools)
+    )
+    if fluxo_formulario_web and not any(not h.get("ok") for h in historico):
+        url = url_match.group(0).rstrip(".,;:!?)]")
+        campo = campo_match.group(1).strip().strip("'").strip('"')
+        valor = campo_match.group(2).strip().strip("'").strip('"')
+        alvo_clique = clique_match.group(1).strip().strip("'").strip('"')
+        ferramentas_usadas = [h.get("ferramenta") for h in historico]
+        if "browser_new_tab" not in ferramentas_usadas:
+            return {"acao": "chamar", "ferramenta": "browser_new_tab",
+                    "args": {"url": url}, "motivo": "abrir a URL explicita antes de interagir com o formulario"}
+        if "browser_type_text" not in ferramentas_usadas:
+            return {"acao": "chamar", "ferramenta": "browser_type_text",
+                    "args": {"campo": campo, "texto": valor}, "motivo": "preencher o campo explicitamente solicitado"}
+        if "browser_click_text" not in ferramentas_usadas:
+            return {"acao": "chamar", "ferramenta": "browser_click_text",
+                    "args": {"descricao": alvo_clique}, "motivo": "clicar no controle explicitamente solicitado"}
+        if "browser_read_active_tab" not in ferramentas_usadas:
+            return {"acao": "chamar", "ferramenta": "browser_read_active_tab",
+                    "args": {}, "motivo": "ler o resultado apos preencher e clicar para confirmar o objetivo"}
+
     # Roteamento deterministico para desinstalacao explicita de aplicativo.
     # Nunca manda pedidos de uninstall ao browser; a ferramenta valida o alvo.
     m_uninstall = re.fullmatch(

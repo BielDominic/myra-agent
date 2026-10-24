@@ -15,6 +15,7 @@ Duas responsabilidades, ambas deterministicas (nao chamam LLM):
 from __future__ import annotations
 
 import json
+import re
 import unicodedata
 
 # Limites de recuperacao
@@ -160,6 +161,24 @@ def _resultado_contem_conteudo_pagina(resultado) -> bool:
     return False
 
 
+def _texto_esperado_pagina(objetivo: str) -> str | None:
+    """Extrai uma frase que o usuario exige ver na pagina, sem pontuacao final."""
+    match = re.search(
+        r"\b(?:mostra|exibe|contem|contém|diz|aparece)\s+['\"“]?(.+?)['\"”]?(?=[.!?;]|$)",
+        str(objetivo or ""),
+        re.IGNORECASE,
+    )
+    if not match:
+        return None
+    esperado = match.group(1).strip().strip("'").strip('"').strip(" .!?;,:")
+    return esperado or None
+
+
+def _normalizar_texto_evidencia(texto: str) -> str:
+    texto = unicodedata.normalize("NFKD", str(texto or "")).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^a-z0-9]+", " ", texto.casefold()).strip()
+
+
 def verificar(objetivo: str, historico: list, observacao: dict | None = None) -> dict:
     """Verifica se o objetivo foi atingido, sempre com base em evidencia.
 
@@ -182,6 +201,52 @@ def verificar(objetivo: str, historico: list, observacao: dict | None = None) ->
             "motivo": "nenhuma acao executada ainda",
             "evidencia": "",
         }
+
+    # Objetivos web compostos que exigem uma frase especifica precisam de
+    # evidencia posterior a uma interacao real. Uma ferramenta irrelevante
+    # executada depois (ex.: rea_status) nao pode apagar uma leitura negativa
+    # nem permitir que o planner sintetize sucesso sem a frase esperada.
+    esperado_pagina = _texto_esperado_pagina(objetivo)
+    if esperado_pagina and _objetivo_exige_interacao_pagina(objetivo):
+        ferramentas_interacao = {
+            "browser_click_text", "browser_type_text", "vision_click", "vision_type",
+            "click_element", "type_text", "click_by_description", "pc_control_action",
+        }
+        indices_interacao = [
+            i for i, h in enumerate(historico)
+            if h.get("ok")
+            and h.get("ferramenta") in ferramentas_interacao
+            and isinstance(h.get("resultado"), dict)
+            and h["resultado"].get("status") == "ok"
+        ]
+        if indices_interacao:
+            ultima_interacao = max(indices_interacao)
+            leituras_posteriores = [
+                (i, h) for i, h in enumerate(historico)
+                if i > ultima_interacao
+                and h.get("ok")
+                and h.get("ferramenta") in {"browser_read_page", "browser_read_active_tab"}
+                and isinstance(h.get("resultado"), dict)
+                and h["resultado"].get("status") == "ok"
+                and _resultado_contem_conteudo_pagina(h.get("resultado"))
+            ]
+            if leituras_posteriores:
+                _indice_leitura, ultima_leitura = leituras_posteriores[-1]
+                resultado_leitura = ultima_leitura["resultado"]
+                texto_leitura = resultado_leitura.get("text") or resultado_leitura.get("result") or ""
+                if _normalizar_texto_evidencia(esperado_pagina) in _normalizar_texto_evidencia(texto_leitura):
+                    return {
+                        "atingido": True,
+                        "confianca": "alta",
+                        "motivo": f"interacao confirmada e texto esperado encontrado na pagina: {esperado_pagina[:120]}",
+                        "evidencia": str(texto_leitura)[:200],
+                    }
+                return {
+                    "atingido": False,
+                    "confianca": "alta",
+                    "motivo": f"apos a interacao, a pagina nao mostrou o texto esperado: {esperado_pagina[:120]}",
+                    "evidencia": str(texto_leitura)[:200],
+                }
 
     # A ferramenta responder apenas sintetiza a saida; ela nao substitui a
     # evidencia da ultima acao real nem pode apagar uma falha anterior.
@@ -237,7 +302,18 @@ def verificar(objetivo: str, historico: list, observacao: dict | None = None) ->
     }
     exige_leitura = _objetivo_exige_leitura_pagina(objetivo)
     exige_interacao = _objetivo_exige_interacao_pagina(objetivo)
-    if ferramenta in ferramentas_navegacao_leitura and exige_interacao:
+    ferramentas_interacao = {
+        "browser_click_text", "browser_type_text", "vision_click", "vision_type",
+        "click_element", "type_text", "click_by_description", "pc_control_action",
+    }
+    interacao_confirmada = any(
+        passo.get("ok")
+        and passo.get("ferramenta") in ferramentas_interacao
+        and isinstance(passo.get("resultado"), dict)
+        and passo["resultado"].get("status") == "ok"
+        for passo in historico[:indice_evidencia]
+    )
+    if ferramenta in ferramentas_navegacao_leitura and exige_interacao and not interacao_confirmada:
         return {
             "atingido": False,
             "confianca": "alta",
@@ -274,8 +350,22 @@ def verificar(objetivo: str, historico: list, observacao: dict | None = None) ->
     if (
         ferramenta in {"browser_read_page", "browser_read_active_tab"}
         and exige_leitura
+        and isinstance(resultado, dict)
+        and resultado.get("status") == "ok"
         and _resultado_contem_conteudo_pagina(resultado)
     ):
+        esperado_pagina = _texto_esperado_pagina(objetivo)
+        if esperado_pagina:
+            texto_pagina = resultado.get("text") or resultado.get("result") or ""
+            esperado_normalizado = _normalizar_texto_evidencia(esperado_pagina)
+            pagina_normalizada = _normalizar_texto_evidencia(texto_pagina)
+            if esperado_normalizado and esperado_normalizado not in pagina_normalizada:
+                return {
+                    "atingido": False,
+                    "confianca": "alta",
+                    "motivo": f"o texto esperado na pagina nao foi encontrado: {esperado_pagina[:120]}",
+                    "evidencia": str(texto_pagina)[:200],
+                }
         return {
             "atingido": True,
             "confianca": "alta",
