@@ -5,6 +5,42 @@ use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
 
+fn command_matches_executable(command: &str, executable: &str) -> bool {
+    command
+        .trim()
+        .trim_matches('"')
+        .eq_ignore_ascii_case(executable)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::command_matches_executable;
+
+    #[test]
+    fn autostart_command_matches_quoted_windows_path() {
+        assert!(command_matches_executable(
+            "\"C:\\Program Files\\MYRA\\myra-widget.exe\"",
+            "C:\\Program Files\\MYRA\\myra-widget.exe"
+        ));
+    }
+
+    #[test]
+    fn autostart_command_match_ignores_windows_path_case_and_outer_whitespace() {
+        assert!(command_matches_executable(
+            "  \"c:\\program files\\myra\\MYRA-WIDGET.EXE\"  ",
+            "C:\\Program Files\\MYRA\\myra-widget.exe"
+        ));
+    }
+
+    #[test]
+    fn autostart_command_rejects_a_different_executable() {
+        assert!(!command_matches_executable(
+            "\"C:\\MYRA\\old-widget.exe\"",
+            "C:\\MYRA\\myra-widget.exe"
+        ));
+    }
+}
+
 #[cfg(target_os = "windows")]
 fn autostart_enabled() -> bool {
     use winreg::{enums::HKEY_CURRENT_USER, RegKey};
@@ -16,7 +52,7 @@ fn autostart_enabled() -> bool {
         return false;
     };
     std::env::current_exe()
-        .map(|exe| command == format!("\"{}\"", exe.display()))
+        .map(|exe| command_matches_executable(&command, &exe.to_string_lossy()))
         .unwrap_or(false)
 }
 
@@ -259,10 +295,15 @@ fn main() {
                         }
                     }
                     "autostart" => {
-                        let requested = !autostart_item_for_event.is_checked().unwrap_or(false);
-                        if let Ok(enabled) = set_autostart(requested) {
-                            let _ = autostart_item_for_event.set_checked(enabled);
-                        }
+                        // Read the registry as the source of truth instead of trusting the
+                        // native menu's transient check state (which varies by platform).
+                        let requested = !autostart_enabled();
+                        let checked = match set_autostart(requested) {
+                            Ok(enabled) => enabled,
+                            Err(_) => autostart_enabled(),
+                        };
+                        // Keep the checkmark synchronized even if writing the registry fails.
+                        let _ = autostart_item_for_event.set_checked(checked);
                     }
                     "quit" => app.exit(0),
                     _ => {}
