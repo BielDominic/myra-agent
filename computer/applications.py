@@ -167,8 +167,10 @@ def abrir_aplicativo(nome: str) -> dict:
     # Aliases PT-BR comuns para aplicativos cujo nome oficial no Windows est? em ingl?s.
     aliases = {
         "bloco de notas": "notepad",
+        "bloco de notas do windows": "notepad",
         "notas": "notepad",
         "calculadora": "calculator",
+        "calculadora do windows": "calculator",
         "gerenciador de tarefas": "task manager",
         "explorador de arquivos": "file explorer",
         "prompt de comando": "command prompt",

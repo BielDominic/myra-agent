@@ -202,9 +202,48 @@ def _normalizar_intencao(objetivo: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", texto).strip()
 
 
+def _extrair_intencao_app_abertura(objetivo: str) -> str | None:
+    """Extrai pedidos simples de abertura, removendo clausulas de verificacao."""
+    original = str(objetivo or "").casefold()
+    if (
+        re.search(r"https?://|\bwww\.", original)
+        or re.search(r"\b(site|navegador|pagina web|url|link)\b", original)
+    ):
+        return None
+    texto = _normalizar_intencao(objetivo)
+    texto = re.sub(
+        r"\s+e\s+(?:confirme|verifique|certifique(?:-se)?|valide|cheque)\b.*$",
+        "",
+        texto,
+    ).strip(" .!?")
+    m = re.fullmatch(
+        r"(?:por favor )?(?:abra|abre|abrir|inicie|iniciar|execute|executar) "
+        r"(?:o|a|os|as )?(.+)",
+        texto,
+    )
+    if not m:
+        return None
+    nome = m.group(1).strip()
+    # Fluxos compostos pertencem aos seus roteadores dedicados.
+    if not nome or re.search(
+        r"\b(pesquise|pesquisar|busque|buscar|procure|procurar|instale|instalar|"
+        r"desinstale|remova|delete|apague|clique|digite|acesse|visite|\be\b)\b",
+        nome,
+    ):
+        return None
+    if len(nome) > 160:
+        return None
+    return nome
+
+
 def _extrair_intencao_multiapp(objetivo: str) -> list[str] | None:
     """Reconhece apenas pedidos expl?citos para abrir dois ou tr?s apps locais."""
     texto = _normalizar_intencao(objetivo)
+    texto = re.sub(
+        r"\s+e\s+(?:confirme|verifique|certifique(?:-se)?|valide|cheque)\b.*$",
+        "",
+        texto,
+    ).strip()
     m = re.fullmatch(
         r"(?:por favor )?(?:abra|abre|abrir|inicie|iniciar|execute|executar) "
         r"(?:o|a|os|as )?(.+)", texto
@@ -456,6 +495,45 @@ def _decidir_proximo_passo(
             return {"acao": "finalizar", "resultado":
                     "Abertura solicitada confirmada para: " + ", ".join(nomes_abertos) + "."}
 
+    # Abertura simples: o proprio pc_open_application verifica janela visivel.
+    # Remover a clausula "e confirme/verifique..." evita trata-la como parte do nome.
+    nome_app_abertura = _extrair_intencao_app_abertura(objetivo)
+    if nome_app_abertura and "pc_open_application" in FERRAMENTAS_DISPONIVEIS:
+        if not historico:
+            return {
+                "acao": "chamar", "ferramenta": "pc_open_application",
+                "args": {"nome": nome_app_abertura},
+                "motivo": "abrir o aplicativo solicitado e confirmar uma janela visivel",
+            }
+        primeiro = historico[0]
+        resultado_abertura = primeiro.get("resultado")
+        if (
+            len(historico) == 1
+            and primeiro.get("ferramenta") == "pc_open_application"
+            and primeiro.get("ok")
+            and isinstance(resultado_abertura, dict)
+            and resultado_abertura.get("status") == "ok"
+        ):
+            return {
+                "acao": "finalizar",
+                "resultado": (
+                    f"Aplicativo {resultado_abertura.get('nome') or nome_app_abertura} aberto; "
+                    f"janela visivel confirmada: {resultado_abertura.get('janela_visivel') or 'sim'}."
+                ),
+            }
+        if len(historico) == 1 and (
+            not primeiro.get("ok")
+            or not isinstance(resultado_abertura, dict)
+            or resultado_abertura.get("status") != "ok"
+        ):
+            return {
+                "acao": "finalizar",
+                "resultado": (
+                    f"Nao foi possivel confirmar a abertura de {nome_app_abertura}: "
+                    f"{primeiro.get('erro') or (resultado_abertura or {}).get('result', 'janela visivel nao confirmada')}."
+                ),
+            }
+
     intencao_app_busca = _extrair_intencao_app_busca(objetivo)
     if intencao_app_busca:
         # Garante registro tardio das ferramentas do PC antes de depender do LLM.
@@ -575,6 +653,15 @@ def _decidir_proximo_passo(
                             "acao": "chamar", "ferramenta": "pc_list_controls",
                             "args": {"titulo": "Microsoft Store", "limite": 98},
                             "motivo": "aguardar a instalacao e recolher evidencias atualizadas da Microsoft Store",
+                        }
+                    if proximo == 8 and historico[-1].get("ferramenta") == "pc_control_action":
+                        # O clique no card apenas navega; observar novamente a ficha antes
+                        # de decidir se precisa instalar ou se ja existe o botao Abrir.
+                        time.sleep(3)
+                        return {
+                            "acao": "chamar", "ferramenta": "pc_list_controls",
+                            "args": {"titulo": "Microsoft Store", "limite": 200},
+                            "motivo": "reinspecionar a ficha do Telegram Desktop depois do clique no resultado",
                         }
                     if proximo in (7, 8, 9, 10, 11):
                         controles = historico[-1].get("resultado")
@@ -1055,6 +1142,36 @@ def _sintetizar(objetivo: str, historico: list) -> str:
     if not historico:
         return "Nao foi executada nenhuma ferramenta. Verifique a decisao do planner e tente reformular o objetivo."
 
+    # Resultado deterministico para Microsoft Store: nao deixar o LLM contradizer
+    # evidencia UIA especifica do botao Open na ficha exata do Telegram Desktop.
+    intencao_store = _extrair_intencao_app_busca(objetivo)
+    eh_instalacao_store = bool(
+        intencao_store
+        and "microsoft store" in _normalizar_intencao(intencao_store[0])
+        and re.search(r"\b(instale|instalar|instalacao)\b", _normalizar_intencao(objetivo))
+    )
+    if eh_instalacao_store:
+        pesquisa_enviada = any(
+            h.get("ferramenta") == "pc_press_key"
+            and str((h.get("args") or {}).get("key", "")).casefold() == "enter"
+            and h.get("ok")
+            for h in historico
+        )
+        if pesquisa_enviada:
+            for passo in reversed(historico):
+                resultado = passo.get("resultado")
+                controles = resultado.get("result", []) if isinstance(resultado, dict) else []
+                if (
+                    passo.get("ferramenta") == "pc_list_controls"
+                    and passo.get("ok")
+                    and _store_controles_confirmam_instalacao_telegram(controles)
+                ):
+                    return (
+                        "Telegram Desktop ja esta instalado. A pesquisa foi enviada, "
+                        "a ficha do aplicativo foi aberta e a Microsoft Store exibiu "
+                        "o controle Open/Abrir na ficha. Nenhuma instalacao adicional foi necessaria."
+                    )
+
     # Resposta deterministica para status REA: nao deixar a sintese do LLM
     # substituir valores observados por uma promessa de execucao ou omiti-los.
     if _eh_pedido_status_rea(objetivo):
@@ -1412,7 +1529,21 @@ def executar_task(
                     break
                 continue
 
-            if acoes_repetidas[chave] > MAX_REPETICOES_MESMA_ACAO:
+            # Uma leitura UIA repetida pode ser necessaria para observar o estado
+            # posterior a um clique: a mesma chamada de listagem antes/depois nao
+            # significa que a interface ficou igual. Permitir uma leitura apos clique,
+            # mantendo o limite normal para qualquer outro ciclo sem progresso.
+            repeticao_observacao_pos_clique = bool(
+                ferramenta == "pc_list_controls"
+                and historico
+                and historico[-1].get("ferramenta") == "pc_control_action"
+                and (historico[-1].get("args") or {}).get("acao") == "click"
+                and (args.get("titulo") == "Microsoft Store")
+            )
+            if (
+                acoes_repetidas[chave] > MAX_REPETICOES_MESMA_ACAO
+                and not repeticao_observacao_pos_clique
+            ):
                 print(f"[TASK] Acao repetida {acoes_repetidas[chave]}x. Abortando.")
                 erro_encerramento = (
                     f"acao repetida {acoes_repetidas[chave]}x sem progresso: {chave}"

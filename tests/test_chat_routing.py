@@ -305,6 +305,29 @@ def test_store_instalacao_reconhece_rotulos_localizados_e_id_de_pacote():
     ]) is False
 
 
+def test_store_sintese_nao_contradiz_ficha_com_botao_open_confirmado():
+    objetivo = (
+        "Abra a Microsoft Store, pesquise Telegram Desktop, abra a ficha do aplicativo "
+        "e verifique se está instalado; se não estiver, instale e confirme pelo botão Abrir."
+    )
+    historico = [
+        {"ferramenta": "pc_press_key", "args": {"key": "enter"}, "ok": True},
+        {
+            "ferramenta": "pc_list_controls",
+            "ok": True,
+            "resultado": {"result": [
+                {"nome": "Telegram Desktop", "control_type": "Text", "visible": True, "enabled": True},
+                {"nome": "Open", "control_type": "Button", "automation_id": "OpenInstalledProduct",
+                 "visible": True, "enabled": True},
+            ]},
+        },
+    ]
+    resposta = simple_task._sintetizar(objetivo, historico)
+    assert "ja esta instalado" in resposta
+    assert "Open/Abrir" in resposta
+    assert "nao foi possivel instalar" not in resposta
+
+
 def test_store_resultados_so_confirmam_instalacao_com_card_exato_installed():
     confirmar = simple_task._store_resultados_confirmam_telegram_instalado
     assert confirmar([
@@ -340,6 +363,18 @@ def test_multiapp_parser_does_not_capture_search_or_install_flows():
     assert simple_task._extrair_intencao_multiapp("Abra a Microsoft Store e instale Telegram") is None
 
 
+def test_app_open_parser_strips_confirmation_clause_and_preserves_compound_routes():
+    assert simple_task._extrair_intencao_app_abertura(
+        "Abra a Calculadora do Windows e confirme que a janela está visível."
+    ) == "calculadora do windows"
+    assert simple_task._extrair_intencao_app_abertura(
+        "Abra a Microsoft Store, pesquise Telegram Desktop e instale."
+    ) is None
+    assert simple_task._extrair_intencao_app_abertura(
+        "Abra o Bloco de Notas e a Calculadora"
+    ) is None
+
+
 
 def test_application_open_supports_common_portuguese_aliases(monkeypatch):
     from computer import applications
@@ -354,9 +389,11 @@ def test_application_open_supports_common_portuguese_aliases(monkeypatch):
     monkeypatch.setattr(applications, "_verificar_janela_aplicativo", lambda nome: {"Notepad": "Untitled - Notepad", "Calculator": "Calculator"}.get(nome))
     resultado_notas = applications.abrir_aplicativo("bloco de notas")
     resultado_calc = applications.abrir_aplicativo("calculadora")
+    resultado_calc_windows = applications.abrir_aplicativo("calculadora do windows")
     assert resultado_notas["status"] == "ok" and resultado_notas["verified"] is True
     assert resultado_calc["status"] == "ok" and resultado_calc["verified"] is True
-    assert len(launched) == 2
+    assert resultado_calc_windows["status"] == "ok" and resultado_calc_windows["verified"] is True
+    assert len(launched) == 3
 
 
 def test_application_open_reports_unverified_when_no_visible_window(monkeypatch):
