@@ -2,7 +2,7 @@
 
 ## Estado
 
-Integracao inicial concluida; ponte MCP em validacao. Em 2026-10-22, a analise real de `C:\computer-agent\widget-tauri\ui` executou com sucesso usando `MYRA_REA_ALLOWED_ROOTS=C:\computer-agent` configurado para o processo de validacao. A saida JSON foi limitada a 12.000 caracteres, conforme o limite de seguranca; a configuracao persistente no ambiente de deploy ainda precisa ser confirmada.
+Integracao inicial concluida; ponte MCP em validacao. Em 2026-10-24, a raiz permitida foi configurada de forma persistente no ambiente do usuario do Windows, e a analise real de `C:\computer-agent\widget-tauri\ui` executou com sucesso usando `MYRA_REA_ALLOWED_ROOTS=C:\computer-agent` configurado para o processo de validacao. A saida JSON foi limitada a 12.000 caracteres, conforme o limite de seguranca; a configuracao persistente no ambiente de deploy ainda precisa ser confirmada.
 
 ## O que foi adicionado
 
