@@ -198,7 +198,8 @@
 - [x] Allowlist MYRA_TELEGRAM_ALLOWED_CHAT_IDS; bot desativado sem token/allowlist.
 - [x] HTTP 409 interrompe polling local para evitar conflito repetitivo; start() evita threads concorrentes durante encerramento.
 - [x] Poll bem-sucedido limpa erro transitorio antigo em `/telegram/status`; teste de regressao cobre recuperacao apos timeout.
-- [x] Backend Uvicorn fica limitado a 127.0.0.1; verificacao local confirmou Tailscale conectado e `api_exposed=false`. O status atual do bot mostrou `running=true`, com um `ReadTimeout` transitorio ainda visivel no processo anterior; reinicio e revalidacao pendentes apos o patch.
+- [x] Backend reiniciado apos a correcao; `/telegram/status` confirmou `running=true` e `last_error=null`; `/remote_access/status` confirmou Tailscale `connected` e `api_exposed=false`; a API segue limitada a 127.0.0.1.
+- [x] API real do Telegram validada via `getMe`; `getWebhookInfo` confirmou ausencia de webhook (o transporte e long polling).
 - [x] Rotas locais /telegram/status, /telegram/start e /telegram/stop.
 - [ ] Validar comandos com Telegram real e confirmar entrega dos resultados no chat autorizado.
 
@@ -208,13 +209,13 @@
 - [x] Servidor legado corrigido para escutar em 127.0.0.1, nunca 0.0.0.0 por padrao; verificado apos restart.
 - [x] Script scripts/setup_remote_api.ps1 gera token aleatorio de 256 bits e salva no ambiente de usuario Windows.
 - [x] App SwiftUI em mobile-ios/MyraMobile: status, envio/cancelamento, HTTPS remoto e token no Keychain.
-- [x] AppIntents Siri para enviar tarefa e consultar estado; build CI aprovado em 2026-10-25 (run 40197053453).
+- [x] AppIntents Siri para enviar tarefa e consultar estado; build CI macOS aprovado em 2026-10-25 (run 40198612123, commit bb87cb41), incluindo o target WidgetKit.
 - [x] WidgetKit Home Screen/Lock Screen com estado/progresso, timestamp de atualizacao e sem texto de tarefa sensivel.
 - [x] App e Siri rejeitam URLs com credenciais, query/fragmento ou caminho diferente de `/remote/v1`, evitando enviar o Bearer token a uma rota de API diferente.
 - [x] Entitlements App Group group.com.myra.mobile incluidos no app e extensao; requerem registro Apple Developer para assinatura/dispositivo.
 - [x] Projeto Xcode e workflow macOS de build sem assinatura em .github/workflows/ios-mobile-build.yml.
 - [x] Testes direcionados: 41 passed, 1 warning (test_telegram_bot, test_remote_api_auth, test_remote_access); suite completa desta revisao: 1.128 passed, 9 skipped, 31 xfailed, 1 warning e 3.231 subtests (264,70s).
-- [ ] Confirmar build CI do target WidgetKit apos adicionar a extensao.
+- [x] Build CI do target WidgetKit confirmado no runner macOS (run 40198612123, sucesso).
 - [ ] Registrar App Group na conta Apple Developer e validar assinatura/instalacao no dispositivo.
 - [ ] Gerar/guardar token remoto e reiniciar backend; o processo atualmente ativo nao tem MYRA_REMOTE_API_TOKEN e a API permanece desativada.
 - [ ] Adicionar o iPhone ao tailnet, configurar Serve limitado a /remote/v1 e provar que a raiz/rotas locais nao ficam expostas.

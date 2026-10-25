@@ -19,12 +19,12 @@ O diagnostico retorna apenas o estado do proprio PC, nome do dispositivo e IPv4 
 - A integracao **nao instala Tailscale, nao faz login, nao altera firewall e nao publica portas**.
 - O endpoint informa explicitamente `api_exposed: false`.
 - O backend da MYRA continua vinculado a `127.0.0.1:8000`.
-- Nao exponha o FastAPI inteiro ao tailnet antes de implementar autenticacao/autorizacao para as rotas de controle do computador.
+- A API remota Bearer ja existe, mas retorna HTTP 503 enquanto `MYRA_REMOTE_API_TOKEN` nao estiver carregado no backend. Nao exponha o FastAPI inteiro ao tailnet; publique somente `/remote/v1` depois de configurar o token e validar a regra de path.
 - O Telegram pode controlar a MYRA por long polling sem Tailscale; Tailscale e a base opcional para futuros clientes diretos, incluindo um app iOS.
 
 ## Pendencias para fechar a fase
 
-- [ ] Instalar e autenticar Tailscale no PC.
+- [x] Instalar e autenticar Tailscale no PC; o endpoint local confirmou `connected`.
 - [ ] Instalar e autenticar Tailscale no iPhone com a mesma conta.
-- [ ] Confirmar estado `connected` no endpoint local.
-- [ ] Antes de habilitar acesso direto remoto, implementar autenticacao de API e restringir rotas sensiveis.
+- [x] Confirmar estado `connected` no endpoint local e `api_exposed: false`.
+- [ ] Configurar e validar Serve restrito a `/remote/v1` somente depois de configurar `MYRA_REMOTE_API_TOKEN`; nao expor rotas locais antigas.
