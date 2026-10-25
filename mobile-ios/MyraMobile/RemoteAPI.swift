@@ -185,7 +185,7 @@ final class RemoteAPI: ObservableObject {
     }
 }
 
-private enum KeychainTokenStore {
+enum KeychainTokenStore {
     private static let service = "com.myra.mobile.remote-api"
     private static let account = "bearer-token"
 

@@ -9,12 +9,14 @@
 		A10000000000000000000001 /* MyraMobileApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* MyraMobileApp.swift */; };
 		A10000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* ContentView.swift */; };
 		A10000000000000000000003 /* RemoteAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* RemoteAPI.swift */; };
+		A10000000000000000000004 /* MyraShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* MyraShortcuts.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		A20000000000000000000001 /* MyraMobileApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyraMobileApp.swift; sourceTree = "<group>"; };
 		A20000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A20000000000000000000003 /* RemoteAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAPI.swift; sourceTree = "<group>"; };
+		A20000000000000000000005 /* MyraShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyraShortcuts.swift; sourceTree = "<group>"; };
 		A20000000000000000000004 /* MyraMobile.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyraMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -39,6 +41,7 @@
 				A20000000000000000000001 /* MyraMobileApp.swift */,
 				A20000000000000000000002 /* ContentView.swift */,
 				A20000000000000000000003 /* RemoteAPI.swift */,
+				A20000000000000000000005 /* MyraShortcuts.swift */,
 			);
 		};
 		A40000000000000000000003 /* Products */ = {
@@ -95,7 +98,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A30000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001 /* MyraMobileApp.swift in Sources */, A10000000000000000000002 /* ContentView.swift in Sources */, A10000000000000000000003 /* RemoteAPI.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
+		A30000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001 /* MyraMobileApp.swift in Sources */, A10000000000000000000002 /* ContentView.swift in Sources */, A10000000000000000000003 /* RemoteAPI.swift in Sources */, A10000000000000000000004 /* MyraShortcuts.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
