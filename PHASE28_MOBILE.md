@@ -55,7 +55,7 @@ Para diagnosticar sem revelar segredos, consulte `GET http://127.0.0.1:8000/tele
 
 ## Seguranca
 
-- O backend permanece vinculado a `127.0.0.1:8000` por padrao.
+- O backend permanece vinculado a `127.0.0.1:8000`; confirmado por `netstat` em 2026-10-25 e por teste TCP negativo em `100.127.243.80:8000` (`TcpTestSucceeded=False`). O acesso remoto passa exclusivamente pelo Tailscale Serve HTTPS no caminho `/remote/v1`.
 - O token remoto nao e habilitado automaticamente pelo script; e preciso reiniciar o backend para aplicar a variavel de ambiente.
 - O Tailscale Serve esta configurado e confirmado por `tailscale serve status --json`; o unico handler configurado e `/remote/v1` -> `http://127.0.0.1:8000/remote/v1`. Revalidar a restricao se a configuracao Serve mudar.
 - Nenhum segredo foi adicionado ao repositorio.
