@@ -26,7 +26,8 @@
 - [x] Workflow macOS em `.github/workflows/ios-mobile-build.yml` compila app e extensao iOS Simulator sem assinatura; o target WidgetKit foi confirmado no CI (run 40198612123, sucesso).
 - [x] Script `scripts/setup_remote_api.ps1` para gerar token aleatorio de 256 bits e guarda-lo no ambiente do usuario Windows; mostra o segredo uma vez para ser guardado manualmente.
 - [x] Suite direcionada em 2026-10-25: `pytest tests/test_telegram_bot.py tests/test_remote_api_auth.py tests/test_remote_access.py -q` — **41 passed, 1 warning**.
-- [x] Suite completa da revisao anterior: `pytest -q -rxX` — **1.128 passed, 9 skipped, 31 xfailed, 1 warning e 3.231 subtests** (264,70s).
+- [x] Suite completa apos ajuste do fallback de sintese: `pytest -q -rxX` — **1.129 passed, 9 skipped, 31 xfailed, 1 warning e 3.231 subtests** (261,91s).
+- [x] Regressao de fallback do planner: quando o LLM de sintese falha, a resposta identifica explicitamente a indisponibilidade da sintese e preserva as evidencias reais da ferramenta; suite direcionada `test_rea_routing.py`, `test_chat_routing.py` e `test_remote_api_auth.py`: **53 passed**.
 
 ## Bloqueios e validacoes externas pendentes
 

@@ -1314,7 +1314,7 @@ def _sintetizar(objetivo: str, historico: list) -> str:
             else:
                 partes.append(f"{ferramenta}: falhou — {h.get('erro') or 'erro sem detalhes'}")
         if partes:
-            return "Nao consegui gerar uma sintese pelo modelo. Resultados obtidos:\n" + "\n".join(partes)
+            return f"Sintese automatica indisponivel ({type(e).__name__}); evidencias reais das ferramentas:\n" + "\n".join(partes)
         return f"Nao foi possivel concluir a tarefa nem gerar uma sintese ({type(e).__name__}: {e})."
 
 

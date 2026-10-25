@@ -245,3 +245,26 @@ def test_run_mcp_bridge_extende_timeout_apenas_quando_pedido():
     assert result["status"] == "ok"
     assert run.call_args.kwargs["timeout"] == 260
     assert run.call_args.kwargs["shell"] is False
+
+
+def test_sintese_fallback_indica_evidencias_reais_quando_llm_falha():
+    objetivo = "Abra a Calculadora e confirme a janela visivel."
+    historico = [{
+        "passo": 1,
+        "ferramenta": "pc_open_application",
+        "args": {"nome": "calculadora"},
+        "ok": True,
+        "resultado": {
+            "status": "ok",
+            "verified": True,
+            "janela_visivel": "Calculator",
+            "result": "Aplicativo aberto; janela visivel verificada: Calculator",
+        },
+    }]
+    with mock.patch.object(simple_task, "_llm", side_effect=RuntimeError("modelo indisponivel")):
+        resposta = simple_task._sintetizar(objetivo, historico)
+
+    assert "Sintese automatica indisponivel (RuntimeError)" in resposta
+    assert "evidencias reais das ferramentas" in resposta
+    assert "janela visivel verificada: Calculator" in resposta
+    assert "Nao consegui concluir a tarefa" not in resposta

@@ -214,7 +214,7 @@
 - [x] App e Siri rejeitam URLs com credenciais, query/fragmento ou caminho diferente de `/remote/v1`, evitando enviar o Bearer token a uma rota de API diferente.
 - [x] Entitlements App Group group.com.myra.mobile incluidos no app e extensao; requerem registro Apple Developer para assinatura/dispositivo.
 - [x] Projeto Xcode e workflow macOS de build sem assinatura em .github/workflows/ios-mobile-build.yml.
-- [x] Testes direcionados: 41 passed, 1 warning (test_telegram_bot, test_remote_api_auth, test_remote_access); suite completa desta revisao: 1.128 passed, 9 skipped, 31 xfailed, 1 warning e 3.231 subtests (264,70s).
+- [x] Testes direcionados: 41 passed, 1 warning (test_telegram_bot, test_remote_api_auth, test_remote_access); suite completa apos ajuste do fallback de sintese: 1.129 passed, 9 skipped, 31 xfailed, 1 warning e 3.231 subtests (261,91s).
 - [x] Build CI do target WidgetKit confirmado no runner macOS (run 40198612123, sucesso).
 - [ ] Registrar App Group na conta Apple Developer e validar assinatura/instalacao no dispositivo.
 - [x] Gerar token remoto aleatorio de 256 bits, salva-lo no ambiente de usuario e reiniciar o backend. Validado em 2026-10-25: `GET /remote/v1/status` retorna HTTP 200 com Bearer correto e HTTP 401 sem token; a API continua vinculada somente a `127.0.0.1:8000`.
