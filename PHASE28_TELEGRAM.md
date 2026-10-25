@@ -2,7 +2,7 @@
 
 ## Estado
 
-Codigo implementado; token e allowlist estao configurados neste PC. A validacao ao vivo esta bloqueada por HTTP 409 (outro poller getUpdates); o codigo agora para ao detectar o conflito e impede reinicio concorrente do thread. Reiniciar o backend e confirmar `/telegram/status` ainda sao necessarios.
+Codigo implementado; token e allowlist estao configurados neste PC. Em 2026-10-25, o backend foi reiniciado como processo Uvicorn unico vinculado a `127.0.0.1` (em vez do modo `python agent.py` com processo supervisor e worker). Depois do restart, `/telegram/status` confirmou `running=true` e `last_error=null`, sem novo HTTP 409 observado. A entrega de comandos reais ainda precisa ser validada pelo chat autorizado.
 
 ## Decisao de arquitetura
 
@@ -47,16 +47,16 @@ A tarefa roda em uma thread separada para que o bot continue recebendo `/status`
 - O bot usa o backend local em `127.0.0.1:8000`; nao deve ser exposto publicamente.
 - O token nunca deve ser commitado ou colocado em arquivos versionados.
 
-## Diagnostico de polling duplicado (2026-10-24)
+## Diagnostico de polling duplicado (2026-10-24 a 2026-10-25)
 
-- O endpoint real `/telegram/status` informou `HTTP 409 Conflict: terminated by other getUpdates request`.
-- `getMe` confirmou que o token atual e valido; `getWebhookInfo` confirmou que nao ha webhook configurado. A inspecao local encontrou apenas um backend MYRA ativo, por isso nao e possivel afirmar se o outro poller esta noutro processo/PC ou se houve uma corrida anterior de start/stop.
-- O polling agora para ao receber 409, em vez de repetir a requisicao a cada 3 segundos; `start()` tambem recusa criar um segundo thread enquanto o anterior ainda esta encerrando.
-- A alteracao requer reiniciar o backend para entrar em vigor. Depois, consultar `/telegram/status`. Se o 409 persistir, localizar e parar a outra instancia que usa o mesmo token; nao revogar o token automaticamente.
+- Antes do restart, `/telegram/status` informou `HTTP 409 Conflict: terminated by other getUpdates request`.
+- A verificacao dos processos encontrou o launcher `python agent.py` e seu processo servidor; a inicializacao pelo script `abrir_tudo.ps1` usa `python agent.py`, enquanto `start.ps1` usa Uvicorn diretamente.
+- Para evitar o modo multiprocesso nesse caminho de execucao, o servidor foi reiniciado com `python -m uvicorn agent:app --host 127.0.0.1 --port 8000`. Tambem foi corrigido o bloco `if __name__ == '__main__'` para usar `127.0.0.1`.
+- Depois do restart, `/telegram/status` confirmou `running=true` e `last_error=null`, sem novo 409 observado; `netstat` confirmou que a API escuta apenas em `127.0.0.1:8000`.
+- Continuar monitorando o estado e validar os comandos reais a partir do chat autorizado. Nao revogar o token automaticamente.
 
 ## Pendencias de validacao
 
-- Criar bot e configurar token/chat ID no computador do usuario.
-- Testar /status, /task, /cancel, /pause, /resume, /screenshot e /see com o Telegram real.
-- Configurar Tailscale separadamente se for necessario acesso direto ao backend/widget fora da rede local.
-- App iOS nativo e widgets iOS permanecem fora desta entrega.
+- Testar `/status`, `/task`, `/cancel`, `/pause`, `/resume`, `/screenshot` e `/see` com o Telegram real e confirmar os resultados no chat autorizado.
+- Tailscale esta instalado/conectado no PC, mas nao ha peer iOS no tailnet; adicionar o iPhone para acesso direto.
+- O app iOS possui fontes SwiftUI e projeto Xcode inicial em `mobile-ios/`; build CI, execucao em dispositivo e widgets/Siri/notificacoes ainda precisam de validacao/implementacao.

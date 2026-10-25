@@ -2,7 +2,7 @@
 
 ## Entrega atual
 
-Esta fase entrega a primeira camada de acesso remoto autenticado e o codigo-fonte SwiftUI inicial. O app ainda **nao foi compilado nem executado**: este projeto esta num PC Windows, e a compilacao/assinatura iOS requer Xcode num Mac.
+Esta fase entrega a primeira camada de acesso remoto autenticado, fontes SwiftUI e um projeto Xcode inicial (`mobile-ios/MyraMobile.xcodeproj`). O app ainda **nao foi compilado nem executado** localmente: este PC e Windows e nao possui Xcode. O workflow `.github/workflows/ios-mobile-build.yml` faz a validacao e compilacao para iOS Simulator num runner macOS; o resultado do CI deve ser confirmado antes de declarar o build aprovado.
 
 ### API remota protegida
 
@@ -18,15 +18,11 @@ Esta fase entrega a primeira camada de acesso remoto autenticado e o codigo-font
 Execute no PowerShell **local do PC da MYRA**:
 
 ```powershell
-$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-$bytes = New-Object byte[] 32
-$rng.GetBytes($bytes)
-$token = [Convert]::ToBase64String($bytes)
-[Environment]::SetEnvironmentVariable("MYRA_REMOTE_API_TOKEN", $token, "User")
-$token
+Set-Location C:\computer-agent
+powershell -ExecutionPolicy Bypass -File .\scripts\setup_remote_api.ps1
 ```
 
-Guarde o token num gestor de senhas e cole-o no app iOS. Reinicie o backend MYRA depois de definir a variavel. Nunca commit o token nem o envie por chat.
+O script gera um token criptograficamente aleatorio de 256 bits, guarda-o no ambiente do usuario Windows e mostra o valor uma unica vez. Guarde-o num gestor de senhas e cole-o no app iOS. Se ja existir um token, o script pede confirmacao explicita antes de o substituir; `-Force` tambem pode ser usado quando se deseja rotacionar o token deliberadamente. Reinicie completamente o backend MYRA depois de definir/rotacionar a variavel, pois processos ja iniciados nao recebem automaticamente as mudancas do ambiente. Nunca commit o token nem o envie por chat. Sem token carregado pelo processo, a API permanece desativada com HTTP 503.
 
 ### Expor somente a rota autenticada pelo Tailscale
 

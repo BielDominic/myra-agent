@@ -1,0 +1,36 @@
+name: MYRA iOS mobile build
+
+on:
+  push:
+    paths:
+      - 'mobile-ios/**'
+      - '.github/workflows/ios-mobile-build.yml'
+  pull_request:
+    paths:
+      - 'mobile-ios/**'
+      - '.github/workflows/ios-mobile-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ios-simulator-build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Show Xcode version
+        run: xcodebuild -version
+      - name: Validate Xcode project and scheme
+        run: xcodebuild -list -project mobile-ios/MyraMobile.xcodeproj
+      - name: Build for iOS Simulator without signing
+        run: >-
+          xcodebuild
+          -project mobile-ios/MyraMobile.xcodeproj
+          -scheme MyraMobile
+          -sdk iphonesimulator
+          -configuration Debug
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          build

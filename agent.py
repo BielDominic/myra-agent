@@ -4265,4 +4265,6 @@ async def openai_list_models():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, workers=1)
+    # Keep the legacy local API bound to loopback. Remote access must go through
+    # the dedicated Bearer-authenticated /remote/v1 routes and a private proxy.
+    uvicorn.run(app, host="127.0.0.1", port=8000, workers=1)

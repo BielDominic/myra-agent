@@ -2,7 +2,7 @@
 
 ## Estado
 
-O diagnostico local foi implementado em `tasks/remote_access.py` e exposto em `GET /remote_access/status`. A instalacao, autenticacao e validacao com o iPhone continuam pendentes porque exigem a conta e a aprovacao interativa do usuario.
+O diagnostico local foi implementado em `tasks/remote_access.py` e exposto em `GET /remote_access/status`. O cliente Tailscale 1.104.2 foi instalado no PC Windows em 2026-10-25 e agora informa `Running`, com IPv4 Tailscale atribuido. A consulta resumida encontrou zero peers no tailnet, incluindo zero peers iOS; portanto, o PC esta conectado, mas ainda nao ha iPhone visivel para validar. O login/adicao do iPhone e a validacao entre dispositivos continuam pendentes.
 
 ## Instalar e conectar
 

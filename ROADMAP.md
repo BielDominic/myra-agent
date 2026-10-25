@@ -185,30 +185,33 @@
 ![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
 
 ##### 28.1 - Infra de acesso remoto (Tailscale)
-- [x] Diagnostico local implementado em tasks/remote_access.py e GET /remote_access/status.
-- [x] O diagnostico valida o IPv4 Tailscale do proprio PC e nao expoe a lista de peers.
-- [x] Documentadas instalacao oficial e etapas de conexao: PHASE28_1_TAILSCALE.md.
-- [ ] Instalar e autenticar Tailscale no PC Windows.
-- [ ] Instalar e autenticar Tailscale no iPhone na mesma conta.
-- [ ] Antes de acesso direto remoto, implementar autenticacao de API e restringir rotas sensiveis.
+- [x] Diagnostico local implementado em tasks/remote_access.py e GET /remote_access/status; nao lista peers nem expoe a API.
+- [x] Instalacao e passos de conexao documentados em PHASE28_1_TAILSCALE.md.
+- [x] Cliente Tailscale 1.104.2 instalado no Windows; estado `Running` e IPv4 Tailscale atribuido.
+- [ ] Adicionar/autenticar o iPhone no mesmo tailnet; consulta resumida encontrou zero peers iOS.
+- [ ] Validar conectividade do tailnet e Serve limitado exclusivamente a /remote/v1; nao usar Funnel nem expor outras rotas.
 
 ##### 28.2 - Telegram Bot
-- [x] Bot valido configurado no Windows; token e allowlist detectados sem expor segredos.
-- [x] Polling para ao detectar HTTP 409 e `start()` recusa thread concorrente durante encerramento.
-- [x] Integracao via long polling em tasks/telegram_bot.py (sem porta publica/webhook).
-- [x] Comandos implementados: /task, /status, /cancel, /pause, /resume, /screenshot, /see, /help.
-- [x] Autenticacao por allowlist MYRA_TELEGRAM_ALLOWED_CHAT_IDS; bot desativado sem token/allowlist.
-- [x] Rotas locais /telegram/status, /telegram/start, /telegram/stop.
-- [ ] Validar todos os comandos com Telegram real e configurar notificacoes no dispositivo.
+- [x] Bot e allowlist configurados no ambiente do Windows sem expor segredos.
+- [x] Long polling em tasks/telegram_bot.py; sem webhook, porta publica ou necessidade de expor FastAPI.
+- [x] Comandos implementados: /task, /status, /cancel, /pause, /resume, /screenshot, /see, /tasks, /taskinfo, /ping, /models, /model, /newchat e /help.
+- [x] Allowlist MYRA_TELEGRAM_ALLOWED_CHAT_IDS; bot desativado sem token/allowlist.
+- [x] HTTP 409 interrompe polling local para evitar conflito repetitivo; start() evita threads concorrentes durante encerramento.
+- [x] Backend reiniciado como Uvicorn de processo unico em 127.0.0.1; `/telegram/status` confirmado `running=true`, `last_error=null` e API sem bind publico.
+- [x] Rotas locais /telegram/status, /telegram/start e /telegram/stop.
+- [ ] Validar comandos com Telegram real e confirmar entrega dos resultados no chat autorizado.
 
-##### 28.3 - App iOS Nativo
-- [x] API remota separada e protegida por MYRA_REMOTE_API_TOKEN (Bearer); desativada sem segredo.
-- [x] Endpoints autenticados: GET /remote/v1/status, POST /remote/v1/task, POST /remote/v1/cancel.
-- [x] Scaffold SwiftUI inicial em mobile-ios/MyraMobile (status, tarefa, cancelamento).
-- [x] Token guardado no Keychain; HTTPS obrigatorio fora de localhost.
-- [ ] Criar projeto Xcode e compilar/testar no macOS (nao disponivel neste PC Windows).
-- [ ] Configurar e validar Tailscale Serve com caminho restrito /remote/v1.
-- [ ] Widgets Lock Screen/Home Screen, Siri Shortcuts e notificacoes APNs.
+##### 28.3 - App iOS Nativo e API remota
+- [x] API Bearer separada: GET /remote/v1/status, POST /remote/v1/task e POST /remote/v1/cancel.
+- [x] Token ausente desativa API com HTTP 503; token ausente/invalido retorna HTTP 401; limites de tarefa e conflito cobertos por testes.
+- [x] Script scripts/setup_remote_api.ps1 gera token aleatorio de 256 bits e salva no ambiente de usuario Windows.
+- [x] Scaffold SwiftUI em mobile-ios/MyraMobile: status, envio/cancelamento, HTTPS remoto e token no Keychain.
+- [x] Projeto Xcode inicial e workflow macOS de compilacao para Simulator adicionados; build CI ainda pendente.
+- [x] Testes direcionados: 40 passed, 1 warning (test_telegram_bot, test_remote_api_auth, test_remote_access).
+- [ ] Gerar/guardar token remoto e reiniciar backend; o processo atualmente ativo nao tem MYRA_REMOTE_API_TOKEN e a API permanece desativada.
+- [ ] Confirmar build no workflow macOS e executar no Simulator/iPhone.
+- [ ] Testar status, tarefa, cancelamento e reconexao no iPhone via Tailscale.
+- [ ] Widgets Lock Screen/Home Screen, Siri Shortcuts e notificacoes APNs permanecem fora do escopo minimo de controle remoto.
 
 #### FASE 29 - Integracao CarPlay
 ![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
@@ -476,7 +479,7 @@
 | Visao com coordenadas (FASE 25) | 6 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
 | Ciclo autonomo (FASE 26) | 5 | ![80%](https://img.shields.io/badge/-80%25-yellow?style=flat-square) |
 | Overlay TARS (FASE 27) | 7 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
-| Mobile (FASE 28) | 19 | ![58%](https://img.shields.io/badge/-58%25-yellow?style=flat-square) |
+| Mobile (FASE 28) | 23 | ![70%](https://img.shields.io/badge/-70%25-yellow?style=flat-square) |
 | CarPlay (FASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Distribuicao (FASE 30) | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
 | Interface propria (FASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |
@@ -519,7 +522,7 @@
 3. **Fechar FASE 28 (controle mobile)**: testar comandos no Telegram real, configurar Tailscale e validar a API remota protegida.
 4. **FASE 30 (distribuicao)**: build release, NSIS installer, instalacao/desinstalacao silenciosa e smoke launch foram validados. Auto-start opt-in por usuario, menu da bandeja e indicador de conexao estao implementados; pendem smoke visual do menu, teste real apos reboot e notificacoes nativas.
 
-**Ultima validacao automatizada (2026-10-24):** `pytest -q -rxX` — 1.093 passed, 9 skipped, 35 xfailed, 1 warning e 3.198 subtests aprovados (116,07s). O aviso restante vem do Starlette TestClient/AnyIO; os `xfail` restantes continuam em triagem.
+**Ultima validacao automatizada (2026-10-25):** `pytest -q -rxX` — 1.127 passed, 9 skipped, 31 xfailed, 1 warning e 3.231 subtests aprovados (265,77s). O aviso restante vem do Starlette TestClient/AnyIO; os `xfail` restantes continuam em triagem.
 
 **Validacao real atualizada (2026-10-24):** tarefas reais validaram abrir/ler/rolar `https://example.com`, clicar em `Learn more`, pausar/retomar e preencher/enviar um formulario local. O formulario foi confirmado pela leitura do DOM com o texto exato `Sent: MYRA`. Corrigidos thread-affinity do Playwright Sync API, campos opcionais Pydantic, aliases de argumentos de clique e roteamento deterministico para fluxos web compostos com URL. O verificador exige a frase esperada apos a interacao e impede que uma ferramenta irrelevante apague evidencia negativa. Um clique em texto inexistente falha explicitamente, sem sucesso falso nem repeticoes ilimitadas. Suite completa em 2026-10-24: 1.093 passed, 9 skipped, 35 xfailed, 1 warning e 3.198 subtests. A migracao FastAPI lifespan e a API `mss.MSS()` ja estao aplicadas; pendentes: mais testes de recuperacao, triagem de xfail e validacao visual do widget Windows.
 
@@ -674,27 +677,30 @@
 - [x] Cancellation reflected visually when task state changes
 
 #### PHASE 28 - Mobile Control
-![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square)
+![In progress](https://img.shields.io/badge/-IN_PROGRESS-yellow?style=flat-square)
+
+Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 
 ##### 28.1 - Remote access infrastructure (Tailscale)
-- [ ] Tailscale on Windows PC
-- [ ] Tailscale on iPhone
-- [ ] Stable IP (100.x.y.z)
+- [x] Local Tailscale diagnostic; reports only this PC and never exposes the API automatically.
+- [ ] Install/authenticate Tailscale on Windows and iPhone under the same account.
+- [ ] Validate tailnet connectivity and Serve restricted exclusively to `/remote/v1`; no Funnel/public ports.
 
 ##### 28.2 - Telegram Bot
-- [ ] Bot in @BotFather
-- [ ] Webhook in agent.py
-- [ ] Commands: /task, /status, /cancel, /screenshot, /see
-- [ ] Auto-notification on completion
-- [ ] chat_id authentication
+- [x] Long polling, allowlist authentication and commands implemented in `tasks/telegram_bot.py`; no webhook/public API required.
+- [x] HTTP 409 polling conflict stops the local poller rather than retrying indefinitely.
+- [ ] Resolve the current HTTP 409 caused by another `getUpdates` poller and validate commands against real Telegram.
 
-##### 28.3 - Native iOS App
-- [ ] App shell (Swift/SwiftUI)
-- [ ] Chat screen
-- [ ] Lock screen widget
-- [ ] Home screen widget
-- [ ] Siri Shortcuts
-- [ ] APNs notifications
+##### 28.3 - Native iOS App and protected API
+- [x] Bearer-authenticated API: `GET /remote/v1/status`, `POST /remote/v1/task`, `POST /remote/v1/cancel`.
+- [x] API disabled without `MYRA_REMOTE_API_TOKEN`; invalid/missing bearer is rejected; task limits and duplicate-task conflict tested.
+- [x] SwiftUI source scaffold, HTTPS required for remote URLs, token stored in iOS Keychain.
+- [x] `scripts/setup_remote_api.ps1` creates a random 256-bit token and stores it in the Windows user environment.
+- [x] Focused tests: 40 passed, 1 warning (`test_telegram_bot`, `test_remote_api_auth`, `test_remote_access`).
+- [ ] Configure token and restart backend; the currently running process does not have `MYRA_REMOTE_API_TOKEN` and the remote API is disabled.
+- [ ] Build/run in Xcode on macOS and validate on Simulator/iPhone (Xcode is unavailable on this Windows PC).
+- [ ] Validate remote status/task/cancel/reconnect through Tailscale.
+- [ ] Lock Screen/Home Screen widgets, Siri Shortcuts and APNs notifications are outside the minimum remote-control scope.
 
 #### PHASE 29 - CarPlay Integration
 ![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square)
@@ -963,7 +969,7 @@
 | Vision with coordinates (PHASE 25) | 6 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
 | Autonomous loop (PHASE 26) | 5 | ![80%](https://img.shields.io/badge/-80%25-yellow?style=flat-square) |
 | TARS overlay (PHASE 27) | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
-| Mobile (PHASE 28) | 17 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Mobile (PHASE 28) | 23 | ![70%](https://img.shields.io/badge/-70%25-yellow?style=flat-square) |
 | CarPlay (PHASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Distribution (PHASE 30) | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
 | Custom interface (PHASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |
