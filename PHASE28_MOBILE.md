@@ -19,8 +19,11 @@
 - [x] Limites de payload: objetivo de 1 a 1.200 caracteres e `max_passos` de 1 a 50; tarefa duplicada retorna HTTP 409.
 - [x] Corrigido o bind do servidor iniciado por `python agent.py`: agora usa `127.0.0.1`, nao `0.0.0.0`. Backend reiniciado e confirmado por `netstat` escutando somente em loopback.
 - [x] Scaffold SwiftUI em `mobile-ios/MyraMobile/`, incluindo status, envio/cancelamento de tarefa, HTTPS fora de localhost e token no Keychain.
-- [x] Projeto Xcode inicial em `mobile-ios/MyraMobile.xcodeproj` incluindo os tres fontes Swift.
-- [x] Workflow macOS em `.github/workflows/ios-mobile-build.yml` para validar o projeto e compilar para iOS Simulator sem assinatura; a compilacao CI ainda precisa passar.
+- [x] Projeto Xcode em `mobile-ios/MyraMobile.xcodeproj`; o app e os AppIntents Siri passaram no build macOS em 2026-10-25.
+- [x] AppIntents Siri para enviar tarefa e consultar estado, usando o mesmo endpoint HTTPS e token do Keychain.
+- [x] WidgetKit Home Screen/Lock Screen implementado em `mobile-ios/MyraWidgetExtension/`, mostrando apenas estado/progresso e horario da ultima atualizacao.
+- [x] App Group `group.com.myra.mobile` configurado nos entitlements do app e da extensao; exige registro na conta Apple Developer para uso assinado.
+- [x] Workflow macOS em `.github/workflows/ios-mobile-build.yml` para compilar app/extensao para iOS Simulator sem assinatura; o target WidgetKit ainda precisa passar no CI.
 - [x] Script `scripts/setup_remote_api.ps1` para gerar token aleatorio de 256 bits e guarda-lo no ambiente do usuario Windows; mostra o segredo uma vez para ser guardado manualmente.
 - [x] Suite direcionada: `pytest tests/test_telegram_bot.py tests/test_remote_api_auth.py tests/test_remote_access.py -q` — **40 passed, 1 warning**.
 - [x] Suite completa apos as alteracoes: `pytest -q -rxX` — **1.127 passed, 9 skipped, 31 xfailed, 1 warning e 3.231 subtests** (265,77s).
@@ -33,7 +36,9 @@
 - [ ] Adicionar/autenticar o iPhone no mesmo tailnet. A consulta resumida encontrou zero peers, incluindo zero peers iOS.
 - [ ] Gerar/guardar `MYRA_REMOTE_API_TOKEN` com `scripts/setup_remote_api.ps1` e reiniciar o backend para que o processo carregue o segredo. No diagnostico atual, o processo ativo nao tem esse token; a API remota permanece desativada com HTTP 503.
 - [ ] Configurar Tailscale Serve para encaminhar exclusivamente `/remote/v1`; verificar com testes negativos que a raiz e as rotas locais nao ficam acessiveis pelo tailnet. Nao habilitar Funnel nem abrir portas publicas.
-- [ ] Confirmar o build do projeto Xcode no workflow macOS `ios-mobile-build.yml` e executar no Simulator/iPhone. O projeto e o workflow ja existem, mas o build ainda nao foi executado/confirmado.
+- [ ] Confirmar o build do target WidgetKit no workflow macOS `ios-mobile-build.yml`; o app e os AppIntents ja passaram no CI, mas a extensao foi adicionada depois.
+- [ ] Registrar o App Group `group.com.myra.mobile` na conta Apple Developer e testar a extensao assinada.
+- [ ] Implementar/validar notificacoes APNs push; exigem Team ID, chave APNs e registro do dispositivo, que nao estao configurados neste ambiente.
 - [ ] Testar no iPhone status, envio de tarefa, conflito de tarefa em execucao, cancelamento e reconexao apos perda de rede.
 
 ## Como validar localmente

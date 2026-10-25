@@ -2,7 +2,7 @@
 
 ## Entrega atual
 
-Esta fase entrega a primeira camada de acesso remoto autenticado, fontes SwiftUI e um projeto Xcode inicial (`mobile-ios/MyraMobile.xcodeproj`). O app ainda **nao foi compilado nem executado** localmente: este PC e Windows e nao possui Xcode. O workflow `.github/workflows/ios-mobile-build.yml` faz a validacao e compilacao para iOS Simulator num runner macOS; o resultado do CI deve ser confirmado antes de declarar o build aprovado.
+A fundacao iOS esta em `mobile-ios/MyraMobile.xcodeproj`: app SwiftUI, dois AppIntents Siri e extensao WidgetKit para Home Screen/Lock Screen. O build da app e dos AppIntents passou no runner macOS; a extensao WidgetKit e as entitlements de App Group foram adicionadas depois e ainda precisam passar no CI. Este PC Windows nao possui Xcode, portanto nao foi executada no iPhone real.
 
 ### API remota protegida
 
@@ -39,19 +39,23 @@ Nao use Tailscale Funnel e nao exponha a raiz do FastAPI: as rotas locais antiga
 
 ### Codigo SwiftUI
 
-Os arquivos em `mobile-ios/MyraMobile/` fornecem:
+Os arquivos e targets em `mobile-ios/` fornecem:
 
-- tela de conexao e status;
-- envio de tarefas e cancelamento;
-- atualizacao de status a cada 5 segundos;
-- token salvo no Keychain do iOS;
-- URL remota HTTPS obrigatoria (HTTP so e permitido para localhost durante desenvolvimento).
+- app SwiftUI com conexao, status, envio e cancelamento;
+- polling de status a cada 5 segundos enquanto o app esta ativo;
+- token Bearer guardado no Keychain;
+- HTTPS obrigatorio para endpoints remotos (HTTP so e permitido em localhost);
+- Siri AppIntents para enviar uma tarefa e consultar o estado atual;
+- WidgetKit para Home Screen e Lock Screen, mostrando apenas estado e progresso (sem expor o texto da tarefa na tela bloqueada);
+- App Group `group.com.myra.mobile` para compartilhar o estado resumido entre app e widget.
 
-Para compilar: num Mac com Xcode, crie um projeto iOS App SwiftUI (iOS 17+) chamado `MyraMobile`, adicione `MyraMobileApp.swift`, `ContentView.swift` e `RemoteAPI.swift ao target, e execute primeiro no Simulator. Depois configure o endpoint MagicDNS HTTPS do Tailscale terminado em `/remote/v1` e o token gerado no Windows.
+Abra `mobile-ios/MyraMobile.xcodeproj` no Xcode (iOS 17+). Para usar o widget em dispositivo assinado, registre `group.com.myra.mobile` na conta Apple Developer e habilite o mesmo App Group para app e extensao. O workflow `.github/workflows/ios-mobile-build.yml` compila o app e a extensao no runner macOS sem assinatura; build da extensao ainda precisa ser confirmado. Configure o endpoint MagicDNS HTTPS do Tailscale terminado em `/remote/v1` e o token gerado no Windows.
 
 ## Pendencias de validacao
 
-- [ ] Criar/validar o projeto Xcode e compilar no macOS.
-- [ ] Confirmar que o endpoint Serve so encaminha `/remote/v1` e nao a raiz da API.
-- [ ] Testar status, tarefa e cancelamento no iPhone via Tailscale.
-- [ ] Implementar Face ID/biometria, notificacoes, widgets iOS e Siri Shortcuts em fases posteriores.
+- [ ] Confirmar o build CI do target WidgetKit no runner macOS.
+- [ ] Registrar o App Group `group.com.myra.mobile` na conta Apple Developer e validar assinatura/instalacao.
+- [ ] Guardar o token remoto no iPhone e confirmar que o backend foi reiniciado com `MYRA_REMOTE_API_TOKEN`.
+- [ ] Autenticar o iPhone no tailnet, configurar Serve limitado a `/remote/v1` e provar que a raiz/rotas locais nao ficam expostas.
+- [ ] Testar status, tarefa, cancelamento, Siri e widget no iPhone real via Tailscale.
+- [ ] Notificacoes APNs push exigem Apple Developer Team, chave APNs e registro do dispositivo; ainda nao ha credenciais nem endpoint de entrega configurados. Nao declarar push validado antes do teste real.

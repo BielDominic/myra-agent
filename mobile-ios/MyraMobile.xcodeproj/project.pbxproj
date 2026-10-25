@@ -10,6 +10,8 @@
 		A10000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* ContentView.swift */; };
 		A10000000000000000000003 /* RemoteAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* RemoteAPI.swift */; };
 		A10000000000000000000004 /* MyraShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* MyraShortcuts.swift */; };
+		B10000000000000000000001 /* MyraWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* MyraWidget.swift */; };
+		B10000000000000000000002 /* MyraWidgetExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* MyraWidgetExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -18,11 +20,20 @@
 		A20000000000000000000003 /* RemoteAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAPI.swift; sourceTree = "<group>"; };
 		A20000000000000000000005 /* MyraShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyraShortcuts.swift; sourceTree = "<group>"; };
 		A20000000000000000000004 /* MyraMobile.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyraMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B20000000000000000000001 /* MyraWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyraWidget.swift; sourceTree = "<group>"; };
+		B20000000000000000000002 /* MyraWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = wrapper.app-extension; includeInIndex = 0; path = MyraWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B20000000000000000000003 /* MyraMobile.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyraMobile.entitlements; sourceTree = "<group>"; };
+		B20000000000000000000004 /* MyraWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyraWidgetExtension.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A30000000000000000000001 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		B30000000000000000000003 /* Widget Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B30000000000000000000001 /* Embed App Extensions */ = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 13; files = (B10000000000000000000002 /* MyraWidgetExtension.appex in Embed App Extensions */,); name = "Embed App Extensions"; runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXGroup section */
 		A40000000000000000000001 = {
@@ -30,6 +41,7 @@
 			children = (
 				A40000000000000000000002 /* MyraMobile */,
 				A40000000000000000000003 /* Products */,
+				B40000000000000000000001 /* MyraWidgetExtension */,
 			);
 			sourceTree = "<group>";
 		};
@@ -42,6 +54,7 @@
 				A20000000000000000000002 /* ContentView.swift */,
 				A20000000000000000000003 /* RemoteAPI.swift */,
 				A20000000000000000000005 /* MyraShortcuts.swift */,
+				B20000000000000000000003 /* MyraMobile.entitlements */,
 			);
 		};
 		A40000000000000000000003 /* Products */ = {
@@ -50,6 +63,16 @@
 			sourceTree = "<group>";
 			children = (
 				A20000000000000000000004 /* MyraMobile.app */,
+				B20000000000000000000002 /* MyraWidgetExtension.appex */,
+			);
+		};
+		B40000000000000000000001 /* MyraWidgetExtension */ = {
+			isa = PBXGroup;
+			path = MyraWidgetExtension;
+			sourceTree = "<group>";
+			children = (
+				B20000000000000000000001 /* MyraWidget.swift */,
+				B20000000000000000000004 /* MyraWidgetExtension.entitlements */,
 			);
 		};
 /* End PBXGroup section */
@@ -62,15 +85,35 @@
 				A30000000000000000000002 /* Sources */,
 				A30000000000000000000001 /* Frameworks */,
 				A30000000000000000000003 /* Resources */,
+				B30000000000000000000001 /* Embed App Extensions */,
 			);
 			buildRules = ();
-			dependencies = ();
+			dependencies = (B50000000000000000000002 /* PBXTargetDependency */,);
 			name = MyraMobile;
 			productName = MyraMobile;
 			productReference = A20000000000000000000004 /* MyraMobile.app */;
 			productType = "com.apple.product-type.application";
 		};
+		B50000000000000000000001 /* MyraWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B60000000000000000000003 /* Build configuration list for PBXNativeTarget "MyraWidgetExtension" */;
+			buildPhases = (B30000000000000000000002 /* Widget Sources */, B30000000000000000000003 /* Widget Frameworks */, B30000000000000000000004 /* Widget Resources */,);
+			buildRules = ();
+			dependencies = ();
+			name = MyraWidgetExtension;
+			productName = MyraWidgetExtension;
+			productReference = B20000000000000000000002 /* MyraWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
+
+/* Begin PBXContainerItemProxy section */
+		B60000000000000000000001 /* PBXContainerItemProxy */ = {isa = PBXContainerItemProxy; containerPortal = A70000000000000000000001 /* Project object */; proxyType = 1; remoteGlobalIDString = B50000000000000000000001; remoteInfo = MyraWidgetExtension; };
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		B50000000000000000000002 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = B50000000000000000000001 /* MyraWidgetExtension */; targetProxy = B60000000000000000000001 /* PBXContainerItemProxy */; };
+/* End PBXTargetDependency section */
 
 /* Begin PBXProject section */
 		A70000000000000000000001 /* Project object */ = {
@@ -78,7 +121,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastUpgradeCheck = 1600;
-				TargetAttributes = { A50000000000000000000001 = { CreatedOnToolsVersion = 16.0; }; };
+				TargetAttributes = { A50000000000000000000001 = { CreatedOnToolsVersion = 16.0; }; B50000000000000000000001 = { CreatedOnToolsVersion = 16.0; }; };
 			};
 			buildConfigurationList = A60000000000000000000001 /* Build configuration list for PBXProject "MyraMobile" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -89,28 +132,33 @@
 			productRefGroup = A40000000000000000000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
-			targets = (A50000000000000000000001 /* MyraMobile */,);
+			targets = (A50000000000000000000001 /* MyraMobile */, B50000000000000000000001 /* MyraWidgetExtension */,);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		A30000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		B30000000000000000000004 /* Widget Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A30000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001 /* MyraMobileApp.swift in Sources */, A10000000000000000000002 /* ContentView.swift in Sources */, A10000000000000000000003 /* RemoteAPI.swift in Sources */, A10000000000000000000004 /* MyraShortcuts.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
+		B30000000000000000000002 /* Widget Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (B10000000000000000000001 /* MyraWidget.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
 		A80000000000000000000001 /* Debug project */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; }; name = Debug; };
 		A80000000000000000000002 /* Release project */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; }; name = Release; };
-		A80000000000000000000003 /* Debug target */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = MYRA; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity"; INFOPLIST_KEY_UILaunchScreen_Generation = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.myra.mobile; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
-		A80000000000000000000004 /* Release target */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = MYRA; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity"; INFOPLIST_KEY_UILaunchScreen_Generation = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.myra.mobile; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Release; };
+		A80000000000000000000003 /* Debug target */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_ENTITLEMENTS = MyraMobile/MyraMobile.entitlements; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = MYRA; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity"; INFOPLIST_KEY_UILaunchScreen_Generation = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.myra.mobile; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
+		A80000000000000000000004 /* Release target */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_ENTITLEMENTS = MyraMobile/MyraMobile.entitlements; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = MYRA; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity"; INFOPLIST_KEY_UILaunchScreen_Generation = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.myra.mobile; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Release; };
+		B80000000000000000000001 /* Debug widget target */ = {isa = XCBuildConfiguration; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = MyraWidgetExtension/MyraWidgetExtension.entitlements; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_NSExtension_NSExtensionPointIdentifier = "com.apple.widgetkit-extension"; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.myra.mobile.widget; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
+		B80000000000000000000002 /* Release widget target */ = {isa = XCBuildConfiguration; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = MyraWidgetExtension/MyraWidgetExtension.entitlements; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_NSExtension_NSExtensionPointIdentifier = "com.apple.widgetkit-extension"; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.myra.mobile.widget; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Release; };
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
 		A60000000000000000000001 /* Build configuration list for PBXProject "MyraMobile" */ = {isa = XCConfigurationList; buildConfigurations = (A80000000000000000000001 /* Debug project */, A80000000000000000000002 /* Release project */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 		A60000000000000000000002 /* Build configuration list for PBXNativeTarget "MyraMobile" */ = {isa = XCConfigurationList; buildConfigurations = (A80000000000000000000003 /* Debug target */, A80000000000000000000004 /* Release target */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		B60000000000000000000003 /* Build configuration list for PBXNativeTarget "MyraWidgetExtension" */ = {isa = XCConfigurationList; buildConfigurations = (B80000000000000000000001 /* Debug widget target */, B80000000000000000000002 /* Release widget target */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
 	};
 	rootObject = A70000000000000000000001 /* Project object */;

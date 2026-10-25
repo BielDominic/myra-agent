@@ -204,14 +204,20 @@
 ##### 28.3 - App iOS Nativo e API remota
 - [x] API Bearer separada: GET /remote/v1/status, POST /remote/v1/task e POST /remote/v1/cancel.
 - [x] Token ausente desativa API com HTTP 503; token ausente/invalido retorna HTTP 401; limites de tarefa e conflito cobertos por testes.
+- [x] Servidor legado corrigido para escutar em 127.0.0.1, nunca 0.0.0.0 por padrao; verificado apos restart.
 - [x] Script scripts/setup_remote_api.ps1 gera token aleatorio de 256 bits e salva no ambiente de usuario Windows.
-- [x] Scaffold SwiftUI em mobile-ios/MyraMobile: status, envio/cancelamento, HTTPS remoto e token no Keychain.
-- [x] Projeto Xcode inicial e workflow macOS de compilacao para Simulator adicionados; build CI ainda pendente.
-- [x] Testes direcionados: 40 passed, 1 warning (test_telegram_bot, test_remote_api_auth, test_remote_access).
+- [x] App SwiftUI em mobile-ios/MyraMobile: status, envio/cancelamento, HTTPS remoto e token no Keychain.
+- [x] AppIntents Siri para enviar tarefa e consultar estado; build CI aprovado em 2026-10-25 (run 40197053453).
+- [x] WidgetKit Home Screen/Lock Screen com estado/progresso, timestamp de atualizacao e sem texto de tarefa sensivel.
+- [x] Entitlements App Group group.com.myra.mobile incluidos no app e extensao; requerem registro Apple Developer para assinatura/dispositivo.
+- [x] Projeto Xcode e workflow macOS de build sem assinatura em .github/workflows/ios-mobile-build.yml.
+- [x] Testes direcionados: 40 passed, 1 warning (test_telegram_bot, test_remote_api_auth, test_remote_access); suite completa: 1.127 passed, 9 skipped, 31 xfailed.
+- [ ] Confirmar build CI do target WidgetKit apos adicionar a extensao.
+- [ ] Registrar App Group na conta Apple Developer e validar assinatura/instalacao no dispositivo.
 - [ ] Gerar/guardar token remoto e reiniciar backend; o processo atualmente ativo nao tem MYRA_REMOTE_API_TOKEN e a API permanece desativada.
-- [ ] Confirmar build no workflow macOS e executar no Simulator/iPhone.
-- [ ] Testar status, tarefa, cancelamento e reconexao no iPhone via Tailscale.
-- [ ] Widgets Lock Screen/Home Screen, Siri Shortcuts e notificacoes APNs permanecem fora do escopo minimo de controle remoto.
+- [ ] Adicionar o iPhone ao tailnet, configurar Serve limitado a /remote/v1 e provar que a raiz/rotas locais nao ficam expostas.
+- [ ] Testar status, tarefa, cancelamento, Siri, widget e reconexao no iPhone real via Tailscale.
+- [ ] Implementar/validar APNs push; exige Team ID, chave APNs e registro do dispositivo, ainda nao configurados.
 
 #### FASE 29 - Integracao CarPlay
 ![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
@@ -479,7 +485,7 @@
 | Visao com coordenadas (FASE 25) | 6 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
 | Ciclo autonomo (FASE 26) | 5 | ![80%](https://img.shields.io/badge/-80%25-yellow?style=flat-square) |
 | Overlay TARS (FASE 27) | 7 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
-| Mobile (FASE 28) | 23 | ![70%](https://img.shields.io/badge/-70%25-yellow?style=flat-square) |
+| Mobile (FASE 28) | 29 | ![69%](https://img.shields.io/badge/-69%25-yellow?style=flat-square) |
 | CarPlay (FASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Distribuicao (FASE 30) | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
 | Interface propria (FASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |
@@ -682,25 +688,32 @@
 Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 
 ##### 28.1 - Remote access infrastructure (Tailscale)
-- [x] Local Tailscale diagnostic; reports only this PC and never exposes the API automatically.
-- [ ] Install/authenticate Tailscale on Windows and iPhone under the same account.
+- [x] Local diagnostic and Windows Tailscale 1.104.2 installed; PC is Running with a Tailscale IPv4.
+- [ ] Add/authenticate the iPhone in the same tailnet; no iOS peer is currently visible.
 - [ ] Validate tailnet connectivity and Serve restricted exclusively to `/remote/v1`; no Funnel/public ports.
 
 ##### 28.2 - Telegram Bot
 - [x] Long polling, allowlist authentication and commands implemented in `tasks/telegram_bot.py`; no webhook/public API required.
 - [x] HTTP 409 polling conflict stops the local poller rather than retrying indefinitely.
-- [ ] Resolve the current HTTP 409 caused by another `getUpdates` poller and validate commands against real Telegram.
+- [x] Restarted as a single Uvicorn process bound to `127.0.0.1`; `/telegram/status` confirmed `running=true`, `last_error=null`.
+- [ ] Validate real Telegram commands and confirm results arrive in the authorized chat.
 
 ##### 28.3 - Native iOS App and protected API
 - [x] Bearer-authenticated API: `GET /remote/v1/status`, `POST /remote/v1/task`, `POST /remote/v1/cancel`.
 - [x] API disabled without `MYRA_REMOTE_API_TOKEN`; invalid/missing bearer is rejected; task limits and duplicate-task conflict tested.
-- [x] SwiftUI source scaffold, HTTPS required for remote URLs, token stored in iOS Keychain.
+- [x] Legacy API binds to `127.0.0.1`, not `0.0.0.0` by default.
+- [x] SwiftUI app with HTTPS enforcement and token stored in iOS Keychain.
+- [x] Siri AppIntents for task submission and status query; app + Siri build passed on macOS CI (run 40197053453).
+- [x] WidgetKit Home/Lock Screen extension added; shows state/progress and last-update time without task text.
+- [x] Shared App Group entitlements added for app/widget; Apple Developer registration is required for signed device use.
 - [x] `scripts/setup_remote_api.ps1` creates a random 256-bit token and stores it in the Windows user environment.
-- [x] Focused tests: 40 passed, 1 warning (`test_telegram_bot`, `test_remote_api_auth`, `test_remote_access`).
-- [ ] Configure token and restart backend; the currently running process does not have `MYRA_REMOTE_API_TOKEN` and the remote API is disabled.
-- [ ] Build/run in Xcode on macOS and validate on Simulator/iPhone (Xcode is unavailable on this Windows PC).
-- [ ] Validate remote status/task/cancel/reconnect through Tailscale.
-- [ ] Lock Screen/Home Screen widgets, Siri Shortcuts and APNs notifications are outside the minimum remote-control scope.
+- [x] Focused tests: 40 passed, 1 warning; full Python suite: 1,127 passed, 9 skipped, 31 xfailed.
+- [ ] Confirm CI build for the newly added WidgetKit extension.
+- [ ] Register the App Group in Apple Developer and validate signed installation on device.
+- [ ] Configure remote token and restart backend; current process does not have `MYRA_REMOTE_API_TOKEN`, so remote API returns HTTP 503.
+- [ ] Add iPhone to tailnet, configure Serve restricted to `/remote/v1`, and prove root/local routes are not exposed.
+- [ ] Test status/task/cancel/Siri/widget/reconnect on a real iPhone through Tailscale.
+- [ ] Implement/validate APNs push; requires Apple Team ID, APNs key and device registration, not yet configured.
 
 #### PHASE 29 - CarPlay Integration
 ![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square)
@@ -969,7 +982,7 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 | Vision with coordinates (PHASE 25) | 6 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
 | Autonomous loop (PHASE 26) | 5 | ![80%](https://img.shields.io/badge/-80%25-yellow?style=flat-square) |
 | TARS overlay (PHASE 27) | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
-| Mobile (PHASE 28) | 23 | ![70%](https://img.shields.io/badge/-70%25-yellow?style=flat-square) |
+| Mobile (PHASE 28) | 29 | ![69%](https://img.shields.io/badge/-69%25-yellow?style=flat-square) |
 | CarPlay (PHASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Distribution (PHASE 30) | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
 | Custom interface (PHASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |

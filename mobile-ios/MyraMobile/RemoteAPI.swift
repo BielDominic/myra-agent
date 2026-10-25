@@ -1,6 +1,7 @@
 import Foundation
 import Security
 import Combine
+import WidgetKit
 
 struct RemoteTaskStatus: Decodable {
     let state: String
@@ -103,7 +104,9 @@ final class RemoteAPI: ObservableObject {
         defer { isBusy = false }
         do {
             let data = try await request(path: "status", method: "GET")
-            status = try JSONDecoder().decode(RemoteTaskStatus.self, from: data)
+            let updated = try JSONDecoder().decode(RemoteTaskStatus.self, from: data)
+            status = updated
+            publishWidgetStatus(updated)
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -150,10 +153,21 @@ final class RemoteAPI: ObservableObject {
     private func refreshStatusAfterAction() async {
         do {
             let data = try await request(path: "status", method: "GET")
-            status = try JSONDecoder().decode(RemoteTaskStatus.self, from: data)
+            let updated = try JSONDecoder().decode(RemoteTaskStatus.self, from: data)
+            status = updated
+            publishWidgetStatus(updated)
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func publishWidgetStatus(_ current: RemoteTaskStatus) {
+        guard let shared = UserDefaults(suiteName: "group.com.myra.mobile") else { return }
+        shared.set(current.state, forKey: "myra.widget.state")
+        shared.set(current.stepNumber, forKey: "myra.widget.stepNumber")
+        shared.set(current.totalSteps, forKey: "myra.widget.totalSteps")
+        shared.set(Date().timeIntervalSince1970, forKey: "myra.widget.updatedAt")
+        WidgetCenter.shared.reloadTimelines(ofKind: "MyraWidget")
     }
 
     private func request(path: String, method: String, body: Data? = nil) async throws -> Data {

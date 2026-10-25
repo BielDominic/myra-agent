@@ -1,5 +1,6 @@
 import AppIntents
 import Foundation
+import WidgetKit
 
 private enum MyraShortcutError: LocalizedError {
     case connectionMissing
@@ -97,6 +98,13 @@ struct GetMyraStatusIntent: AppIntent {
         let (data, status) = try await MyraShortcutClient.request(path: "status", method: "GET")
         guard (200..<300).contains(status) else { throw MyraShortcutError.rejected(status) }
         let current = try JSONDecoder().decode(RemoteTaskStatus.self, from: data)
+        if let shared = UserDefaults(suiteName: "group.com.myra.mobile") {
+            shared.set(current.state, forKey: "myra.widget.state")
+            shared.set(current.stepNumber, forKey: "myra.widget.stepNumber")
+            shared.set(current.totalSteps, forKey: "myra.widget.totalSteps")
+            shared.set(Date().timeIntervalSince1970, forKey: "myra.widget.updatedAt")
+            WidgetCenter.shared.reloadTimelines(ofKind: "MyraWidget")
+        }
         var message = "Estado da MYRA: \(current.state)."
         if let objective = current.objective, !objective.isEmpty {
             message += " Tarefa: \(objective)."
