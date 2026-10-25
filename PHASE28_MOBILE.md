@@ -1,6 +1,6 @@
 # FASE 28 — Controle Mobile da MYRA
 
-**Estado (2026-10-25): Tailscale Serve HTTPS ativo para somente `/remote/v1`; status autenticado via hostname HTTPS retorna 200, sem Bearer retorna 401 e a raiz retorna 404. Tarefa remota real enviada pelo endpoint HTTPS concluiu e UI Automation confirmou a Calculadora visivel. App assinado/APNs, validacao no iPhone real e comandos Telegram reais continuam pendentes.**
+**Estado (2026-10-25): Tailscale Serve HTTPS ativo somente para `/remote/v1`; status autenticado retorna 200, sem Bearer retorna 401 e a raiz retorna 404. Duas tarefas reais via HTTPS/Tailscale concluiram; apos reiniciar o Ollama local que estava parado, a sintese do LLM voltou a funcionar. App assinado/APNs, validacao no iPhone real e comandos Telegram reais continuam pendentes.**
 
 ## Arquitetura
 
@@ -28,6 +28,7 @@
 - [x] Suite direcionada em 2026-10-25: `pytest tests/test_telegram_bot.py tests/test_remote_api_auth.py tests/test_remote_access.py -q` — **41 passed, 1 warning**.
 - [x] Suite completa apos ajuste do fallback de sintese: `pytest -q -rxX` — **1.129 passed, 9 skipped, 31 xfailed, 1 warning e 3.231 subtests** (261,91s).
 - [x] Regressao de fallback do planner: quando o LLM de sintese falha, a resposta identifica explicitamente a indisponibilidade da sintese e preserva as evidencias reais da ferramenta; suite direcionada `test_rea_routing.py`, `test_chat_routing.py` e `test_remote_api_auth.py`: **53 passed**.
+- [x] Diagnostico do teste remoto: o Ollama local nao estava em execucao, causando `URLError` na sintese final. Ollama foi iniciado novamente; `/api/tags` respondeu, geracao direta com `qwen2.5:3b-instruct-q5_K_M` passou e uma segunda tarefa remota via HTTPS concluiu com sintese do LLM e evidencia da janela Notepad visivel.
 
 ## Bloqueios e validacoes externas pendentes
 
@@ -40,7 +41,7 @@
 - [x] Confirmar o build do target WidgetKit no workflow macOS `ios-mobile-build.yml`; build completo aprovado no run 40198612123 em 2026-10-25.
 - [ ] Registrar o App Group `group.com.myra.mobile` na conta Apple Developer e testar a extensao assinada.
 - [ ] Implementar/validar notificacoes APNs push; exigem Team ID, chave APNs e registro do dispositivo, que nao estao configurados neste ambiente.
-- [ ] Testar no iPhone status, envio de tarefa, conflito de tarefa em execucao, cancelamento, Siri, widget e reconexao apos perda de rede. Em 2026-10-25, a API foi exercitada ponta a ponta via HTTPS/Tailscale: tarefa aceita, estado observado por polling e estado final `done`; UI Automation confirmou a janela `Calculator` visivel. A sintese LLM ficou indisponivel (`URLError`), mas a resposta preservou a evidencia real da ferramenta e `erro=null`; isso nao invalida a acao, mas a sintese/modelo ainda requer diagnostico.
+- [ ] Testar no iPhone status, envio de tarefa, conflito de tarefa em execucao, cancelamento, Siri, widget e reconexao apos perda de rede. Em 2026-10-25, duas tarefas foram exercitadas ponta a ponta via HTTPS/Tailscale: a primeira abriu a Calculadora e a segunda abriu o Notepad; ambas chegaram a `done` com UI Automation confirmando as janelas. O Ollama estava parado no primeiro teste, foi reiniciado, a geracao local foi validada e a segunda tarefa concluiu com sintese LLM normal.
 
 ## Como validar localmente
 
