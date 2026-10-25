@@ -490,7 +490,7 @@
 | Overlay TARS (FASE 27) | 7 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
 | Mobile (FASE 28) | 32 | ![84%](https://img.shields.io/badge/-84%25-yellow?style=flat-square) |
 | CarPlay (FASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
-| Distribuicao (FASE 30) | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
+| Distribuicao (FASE 30) | 6 | ![65%](https://img.shields.io/badge/-65%25-yellow?style=flat-square) |
 | Interface propria (FASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |
 | Voz / Audio (FASE 14) | 5 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | YouTube (FASE 20) | 12 | ![70%](https://img.shields.io/badge/-70%25-green?style=flat-square) |
@@ -528,10 +528,10 @@
 
 1. **Concluir a validacao real da FASE 26 no navegador**: navegacao/leitura, scroll, pausa/retomada e clique em `Learn more` foram validados ao vivo. Um formulario local de smoke test tambem passou de ponta a ponta: abriu a URL, preencheu `Your name` com `MYRA`, clicou `Send` e a leitura posterior confirmou `Sent: MYRA`. Corrigidos thread-affinity do Playwright, campos opcionais Pydantic, aliases de argumentos do planner e verificacao de texto esperado apos interacao. A verificacao agora impede que ferramentas irrelevantes apaguem evidencia negativa. Suite completa apos as correcoes de contratos, ferramentas e visualizacao: 1.093 passed, 9 skipped, 35 xfailed, 1 warning e 3.198 subtests (116,07s). O aviso restante e do Starlette TestClient/AnyIO; pendentes: validacao real do widget e triagem dos xfail restantes.
 2. **FASE 27.5 (REA):** integracao e smoke tests Ghidra concluidos; analise JavaScript e inspecao estatica Go/Rust do executavel da MYRA passaram. A analise Ghidra completa do binario maior excedeu o prazo do provedor e esta documentada como limitacao, nao como teste aprovado.
-3. **Fechar FASE 28 (controle mobile)**: testar comandos no Telegram real, configurar Tailscale e validar a API remota protegida.
-4. **FASE 30 (distribuicao)**: build release, NSIS installer, instalacao/desinstalacao silenciosa e smoke launch foram validados. Auto-start opt-in por usuario, menu da bandeja e indicador de conexao estao implementados; pendem smoke visual do menu, teste real apos reboot e notificacoes nativas.
+3. **FASE 28 (controle mobile)**: API remota protegida e conectividade Tailscale validadas; faltam comandos reais no Telegram e validacao nativa no iPhone (adiada).
+4. **FASE 30 (distribuicao)**: build release, NSIS installer e instalacao/desinstalacao silenciosa isoladas passaram. Auto-start opt-in, menu da bandeja e toast estao implementados; pendem smoke visual, reboot real, teste do toast e upgrade sobre instalacao existente.
 
-**Ultima validacao automatizada (2026-10-25):** `pytest -q -rxX` — 1.127 passed, 9 skipped, 31 xfailed, 1 warning e 3.231 subtests aprovados (265,77s). O aviso restante vem do Starlette TestClient/AnyIO; os `xfail` restantes continuam em triagem.
+**Ultima validacao automatizada (2026-10-25):** `pytest -q -rxX` — 1.129 passed, 9 skipped, 31 xfailed, 1 warning e 3.231 subtests aprovados (257,05s). O aviso restante vem do Starlette TestClient/AnyIO; os `xfail` restantes continuam em triagem.
 
 **Validacao real atualizada (2026-10-24):** tarefas reais validaram abrir/ler/rolar `https://example.com`, clicar em `Learn more`, pausar/retomar e preencher/enviar um formulario local. O formulario foi confirmado pela leitura do DOM com o texto exato `Sent: MYRA`. Corrigidos thread-affinity do Playwright Sync API, campos opcionais Pydantic, aliases de argumentos de clique e roteamento deterministico para fluxos web compostos com URL. O verificador exige a frase esperada apos a interacao e impede que uma ferramenta irrelevante apague evidencia negativa. Um clique em texto inexistente falha explicitamente, sem sucesso falso nem repeticoes ilimitadas. Suite completa em 2026-10-24: 1.093 passed, 9 skipped, 35 xfailed, 1 warning e 3.198 subtests. A migracao FastAPI lifespan e a API `mss.MSS()` ja estao aplicadas; pendentes: mais testes de recuperacao, triagem de xfail e validacao visual do widget Windows.
 
