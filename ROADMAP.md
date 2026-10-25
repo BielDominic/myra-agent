@@ -188,8 +188,8 @@
 - [x] Diagnostico local implementado em tasks/remote_access.py e GET /remote_access/status; nao lista peers nem expoe a API.
 - [x] Instalacao e passos de conexao documentados em PHASE28_1_TAILSCALE.md.
 - [x] Cliente Tailscale 1.104.2 instalado no Windows; estado `Running` e IPv4 Tailscale atribuido.
-- [ ] Adicionar/autenticar o iPhone no mesmo tailnet; consulta resumida encontrou zero peers iOS.
-- [ ] Validar conectividade do tailnet e Serve limitado exclusivamente a /remote/v1; nao usar Funnel nem expor outras rotas.
+- [x] Adicionar/autenticar o iPhone no mesmo tailnet. Validado em 2026-10-25: peer `iphone181` (iOS) online em `100.112.204.30`; `tailscale ping` respondeu via DERP(lhr) em ~106-129 ms.
+- [ ] Configurar e validar Serve limitado exclusivamente a `/remote/v1`; a tentativa CLI informou que HTTPS ainda nao esta habilitado no tailnet (requer ativacao no console administrativo). Nao usar Funnel nem expor outras rotas.
 
 ##### 28.2 - Telegram Bot
 - [x] Bot e allowlist configurados no ambiente do Windows sem expor segredos.
@@ -217,8 +217,8 @@
 - [x] Testes direcionados: 41 passed, 1 warning (test_telegram_bot, test_remote_api_auth, test_remote_access); suite completa desta revisao: 1.128 passed, 9 skipped, 31 xfailed, 1 warning e 3.231 subtests (264,70s).
 - [x] Build CI do target WidgetKit confirmado no runner macOS (run 40198612123, sucesso).
 - [ ] Registrar App Group na conta Apple Developer e validar assinatura/instalacao no dispositivo.
-- [ ] Gerar/guardar token remoto e reiniciar backend; o processo atualmente ativo nao tem MYRA_REMOTE_API_TOKEN e a API permanece desativada.
-- [ ] Adicionar o iPhone ao tailnet, configurar Serve limitado a /remote/v1 e provar que a raiz/rotas locais nao ficam expostas.
+- [x] Gerar token remoto aleatorio de 256 bits, salva-lo no ambiente de usuario e reiniciar o backend. Validado em 2026-10-25: `GET /remote/v1/status` retorna HTTP 200 com Bearer correto e HTTP 401 sem token; a API continua vinculada somente a `127.0.0.1:8000`.
+- [ ] Configurar Serve limitado a `/remote/v1` e provar que a raiz/rotas locais nao ficam expostas; o iPhone ja esta online no tailnet e responde ao ping, mas a ativacao de HTTPS no console administrativo ainda bloqueia o Serve.
 - [ ] Testar status, tarefa, cancelamento, Siri, widget e reconexao no iPhone real via Tailscale.
 - [ ] Implementar/validar APNs push; exige Team ID, chave APNs e registro do dispositivo, ainda nao configurados.
 
@@ -488,7 +488,7 @@
 | Visao com coordenadas (FASE 25) | 6 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
 | Ciclo autonomo (FASE 26) | 5 | ![80%](https://img.shields.io/badge/-80%25-yellow?style=flat-square) |
 | Overlay TARS (FASE 27) | 7 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
-| Mobile (FASE 28) | 32 | ![75%](https://img.shields.io/badge/-75%25-yellow?style=flat-square) |
+| Mobile (FASE 28) | 32 | ![81%](https://img.shields.io/badge/-81%25-yellow?style=flat-square) |
 | CarPlay (FASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Distribuicao (FASE 30) | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
 | Interface propria (FASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |
@@ -985,7 +985,7 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 | Vision with coordinates (PHASE 25) | 6 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
 | Autonomous loop (PHASE 26) | 5 | ![80%](https://img.shields.io/badge/-80%25-yellow?style=flat-square) |
 | TARS overlay (PHASE 27) | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
-| Mobile (PHASE 28) | 32 | ![75%](https://img.shields.io/badge/-75%25-yellow?style=flat-square) |
+| Mobile (PHASE 28) | 32 | ![81%](https://img.shields.io/badge/-81%25-yellow?style=flat-square) |
 | CarPlay (PHASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Distribution (PHASE 30) | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
 | Custom interface (PHASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |

@@ -1,6 +1,6 @@
 # FASE 28 — Controle Mobile da MYRA
 
-**Estado: implementacao local em validacao; integracao real ainda bloqueada por configuracao dos dispositivos.**
+**Estado (2026-10-25): token remoto configurado e autenticacao validada; iPhone online no tailnet e ping confirmado. Integracao HTTPS via Serve ainda bloqueada porque HTTPS nao esta habilitado no console Tailscale; app assinado/APNs e testes de comandos Telegram reais continuam pendentes.**
 
 ## Arquitetura
 
@@ -23,23 +23,23 @@
 - [x] AppIntents Siri para enviar tarefa e consultar estado, usando o mesmo endpoint HTTPS e token do Keychain.
 - [x] WidgetKit Home Screen/Lock Screen implementado em `mobile-ios/MyraWidgetExtension/`, mostrando apenas estado/progresso e horario da ultima atualizacao.
 - [x] App Group `group.com.myra.mobile` configurado nos entitlements do app e da extensao; exige registro na conta Apple Developer para uso assinado.
-- [x] Workflow macOS em `.github/workflows/ios-mobile-build.yml` para compilar app/extensao para iOS Simulator sem assinatura; o target WidgetKit ainda precisa passar no CI.
+- [x] Workflow macOS em `.github/workflows/ios-mobile-build.yml` compila app e extensao iOS Simulator sem assinatura; o target WidgetKit foi confirmado no CI (run 40198612123, sucesso).
 - [x] Script `scripts/setup_remote_api.ps1` para gerar token aleatorio de 256 bits e guarda-lo no ambiente do usuario Windows; mostra o segredo uma vez para ser guardado manualmente.
-- [x] Suite direcionada: `pytest tests/test_telegram_bot.py tests/test_remote_api_auth.py tests/test_remote_access.py -q` — **40 passed, 1 warning**.
-- [x] Suite completa apos as alteracoes: `pytest -q -rxX` — **1.127 passed, 9 skipped, 31 xfailed, 1 warning e 3.231 subtests** (265,77s).
+- [x] Suite direcionada em 2026-10-25: `pytest tests/test_telegram_bot.py tests/test_remote_api_auth.py tests/test_remote_access.py -q` — **41 passed, 1 warning**.
+- [x] Suite completa da revisao anterior: `pytest -q -rxX` — **1.128 passed, 9 skipped, 31 xfailed, 1 warning e 3.231 subtests** (264,70s).
 
 ## Bloqueios e validacoes externas pendentes
 
 - [x] Resolvido o HTTP 409 do Telegram ao reiniciar o backend em processo unico Uvicorn vinculado a loopback; `/telegram/status` foi confirmado com `running=true` e `last_error=null` apos o restart.
 - [ ] Testar com o Telegram real `/status`, `/task`, `/cancel`, `/pause`, `/resume`, `/screenshot` e `/see`, verificando os resultados recebidos e nao apenas respostas simuladas.
 - [x] Instalar o cliente Tailscale 1.104.2 no Windows; o estado agora e `Running` e o PC recebeu IPv4 Tailscale.
-- [ ] Adicionar/autenticar o iPhone no mesmo tailnet. A consulta resumida encontrou zero peers, incluindo zero peers iOS.
-- [ ] Gerar/guardar `MYRA_REMOTE_API_TOKEN` com `scripts/setup_remote_api.ps1` e reiniciar o backend para que o processo carregue o segredo. No diagnostico atual, o processo ativo nao tem esse token; a API remota permanece desativada com HTTP 503.
-- [ ] Configurar Tailscale Serve para encaminhar exclusivamente `/remote/v1`; verificar com testes negativos que a raiz e as rotas locais nao ficam acessiveis pelo tailnet. Nao habilitar Funnel nem abrir portas publicas.
-- [ ] Confirmar o build do target WidgetKit no workflow macOS `ios-mobile-build.yml`; o app e os AppIntents ja passaram no CI, mas a extensao foi adicionada depois.
+- [x] Adicionar/autenticar o iPhone no mesmo tailnet. Validado em 2026-10-25: peer `iphone181` (iOS) online em `100.112.204.30`; `tailscale ping` respondeu via DERP(lhr) em ~106-129 ms.
+- [x] Gerar token aleatorio de 256 bits e salva-lo no ambiente de usuario Windows; reiniciar o backend para carregar o segredo. Validado em 2026-10-25: `GET /remote/v1/status` retorna HTTP 200 com Bearer correto e HTTP 401 sem token. O segredo nao foi escrito no repositorio nem exibido nos logs.
+- [ ] Configurar Tailscale Serve para encaminhar exclusivamente `/remote/v1`; a tentativa CLI informou que HTTPS ainda nao esta habilitado no tailnet e exige ativacao no console administrativo. Depois, verificar com testes negativos que raiz e rotas locais nao ficam acessiveis. Nao habilitar Funnel nem abrir portas publicas.
+- [x] Confirmar o build do target WidgetKit no workflow macOS `ios-mobile-build.yml`; build completo aprovado no run 40198612123 em 2026-10-25.
 - [ ] Registrar o App Group `group.com.myra.mobile` na conta Apple Developer e testar a extensao assinada.
 - [ ] Implementar/validar notificacoes APNs push; exigem Team ID, chave APNs e registro do dispositivo, que nao estao configurados neste ambiente.
-- [ ] Testar no iPhone status, envio de tarefa, conflito de tarefa em execucao, cancelamento e reconexao apos perda de rede.
+- [ ] Testar no iPhone status, envio de tarefa, conflito de tarefa em execucao, cancelamento e reconexao apos perda de rede. Um teste autenticado local via API aceitou uma tarefa real e abriu a Calculadora; a janela foi verificada por UI Automation, mas a sintese final do planner retornou uma mensagem de falha, portanto o fluxo ainda nao e considerado totalmente aprovado.
 
 ## Como validar localmente
 
