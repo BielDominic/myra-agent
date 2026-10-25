@@ -488,7 +488,7 @@
 | Visao com coordenadas (FASE 25) | 6 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
 | Ciclo autonomo (FASE 26) | 5 | ![80%](https://img.shields.io/badge/-80%25-yellow?style=flat-square) |
 | Overlay TARS (FASE 27) | 7 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
-| Mobile (FASE 28) | 29 | ![69%](https://img.shields.io/badge/-69%25-yellow?style=flat-square) |
+| Mobile (FASE 28) | 32 | ![75%](https://img.shields.io/badge/-75%25-yellow?style=flat-square) |
 | CarPlay (FASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Distribuicao (FASE 30) | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
 | Interface propria (FASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |
@@ -985,7 +985,7 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 | Vision with coordinates (PHASE 25) | 6 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
 | Autonomous loop (PHASE 26) | 5 | ![80%](https://img.shields.io/badge/-80%25-yellow?style=flat-square) |
 | TARS overlay (PHASE 27) | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
-| Mobile (PHASE 28) | 29 | ![69%](https://img.shields.io/badge/-69%25-yellow?style=flat-square) |
+| Mobile (PHASE 28) | 32 | ![75%](https://img.shields.io/badge/-75%25-yellow?style=flat-square) |
 | CarPlay (PHASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Distribution (PHASE 30) | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
 | Custom interface (PHASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |
@@ -1032,7 +1032,7 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 
 ---
 
-**Last updated:** 2026-10-24
+**Last updated:** 2026-10-25
 
 
 ## PHASE 32 - Universal Windows Application Access
