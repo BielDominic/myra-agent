@@ -37,7 +37,7 @@
 - [x] Instalar o cliente Tailscale 1.104.2 no Windows; o estado agora e `Running` e o PC recebeu IPv4 Tailscale.
 - [x] Adicionar/autenticar o iPhone no mesmo tailnet. Validado em 2026-10-25: peer `iphone181` (iOS) online em `100.112.204.30`; `tailscale ping` respondeu via DERP(lhr) em ~106-129 ms.
 - [x] Gerar token aleatorio de 256 bits e salva-lo no ambiente de usuario Windows; reiniciar o backend para carregar o segredo. Validado em 2026-10-25: `GET /remote/v1/status` retorna HTTP 200 com Bearer correto e HTTP 401 sem token. O segredo nao foi escrito no repositorio nem exibido nos logs.
-- [x] Configurar Tailscale Serve com HTTPS para encaminhar exclusivamente `/remote/v1` a `http://127.0.0.1:8000/remote/v1`, sem Funnel nem portas publicas. Validado em 2026-10-25: `/remote/v1/status` com Bearer correto retorna HTTP 200; sem token retorna HTTP 401; raiz `/` retorna HTTP 404.
+- [x] Configurar Tailscale Serve com HTTPS para encaminhar exclusivamente `/remote/v1` a `http://127.0.0.1:8000/remote/v1`, sem Funnel nem portas publicas. Validado em 2026-10-25: `/remote/v1/status` com Bearer correto retorna HTTP 200; sem token retorna HTTP 401; `/`, `/telegram/status`, `/remote_access/status`, `/openapi.json` e `/docs` retornam HTTP 404 pelo hostname Tailscale.
 - [x] Confirmar o build do target WidgetKit no workflow macOS `ios-mobile-build.yml`; build completo aprovado no run 40198612123 em 2026-10-25.
 - [ ] Registrar o App Group `group.com.myra.mobile` na conta Apple Developer e testar a extensao assinada.
 - [ ] Implementar/validar notificacoes APNs push; exigem Team ID, chave APNs e registro do dispositivo, que nao estao configurados neste ambiente.
