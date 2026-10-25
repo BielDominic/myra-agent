@@ -7,7 +7,7 @@ O projeto Xcode esta em `MyraMobile.xcodeproj`. Ele contem o app SwiftUI, integr
 1. No PC Windows da MYRA, configure o segredo de API com `scripts/setup_remote_api.ps1` e reinicie completamente o backend.
 2. Instale e autentique o Tailscale no PC e no iPhone usando o mesmo tailnet.
 3. Configure um endpoint Tailscale Serve privado limitado somente ao caminho `/remote/v1`; nunca use Funnel nem exponha a raiz do FastAPI.
-4. No app, informe uma URL HTTPS cujo caminho seja **exatamente** `/remote/v1` (por exemplo, `https://nome-do-pc.tailnet-name.ts.net/remote/v1`) e o token remoto.
+4. No app, informe uma URL HTTPS cujo caminho seja **exatamente** `/remote/v1` e o token remoto. Endpoint atualmente validado para este PC: `https://h9746j3.tail648f78.ts.net/remote/v1`.
 5. O token e guardado no Keychain. O app e os atalhos Siri rejeitam endpoints HTTP remotos, credenciais embutidas, query strings, fragmentos e caminhos diferentes de `/remote/v1`.
 6. Teste primeiro a consulta de estado, depois envio e cancelamento de uma tarefa de baixo risco. Verifique o estado real antes de considerar uma acao concluida.
 
