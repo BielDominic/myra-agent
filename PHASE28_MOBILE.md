@@ -16,7 +16,7 @@
 - [x] Tratamento de HTTP 409 no polling: para a instancia local em vez de repetir conflitos indefinidamente.
 - [x] API remota Bearer em `tasks/remote_api_auth.py` e rotas `GET /remote/v1/status`, `POST /remote/v1/task`, `POST /remote/v1/cancel`.
 - [x] API remota desativada com HTTP 503 quando o processo nao tem `MYRA_REMOTE_API_TOKEN`; token incorreto/ausente recebe HTTP 401.
-- [x] Limites de payload: objetivo de 1 a 1.200 caracteres e `max_passos` de 1 a 50; tarefa duplicada retorna HTTP 409. Validacao real via HTTPS/Tailscale (2026-10-25): segunda tarefa concorrente rejeitada com HTTP 409; `POST /remote/v1/cancel` retornou sucesso e status subsequente confirmou `idle`.
+- [x] Limites de payload: objetivo de 1 a 1.200 caracteres e `max_passos` de 1 a 50; tarefa duplicada retorna HTTP 409. Validacao real via HTTPS/Tailscale (2026-10-25): segunda tarefa concorrente rejeitada com HTTP 409; `POST /remote/v1/cancel` retornou sucesso e status subsequente confirmou `idle`; objetivo vazio e `max_passos=51` foram rejeitados com HTTP 422.
 - [x] Corrigido o bind do servidor iniciado por `python agent.py`: agora usa `127.0.0.1`, nao `0.0.0.0`. Backend reiniciado e confirmado por `netstat` escutando somente em loopback.
 - [x] Scaffold SwiftUI em `mobile-ios/MyraMobile/`, incluindo status, envio/cancelamento de tarefa, HTTPS fora de localhost e token no Keychain.
 - [x] Projeto Xcode em `mobile-ios/MyraMobile.xcodeproj`; o app e os AppIntents Siri passaram no build macOS em 2026-10-25.
@@ -30,7 +30,7 @@
 - [x] Regressao de fallback do planner: quando o LLM de sintese falha, a resposta identifica explicitamente a indisponibilidade da sintese e preserva as evidencias reais da ferramenta; suite direcionada `test_rea_routing.py`, `test_chat_routing.py` e `test_remote_api_auth.py`: **53 passed**.
 - [x] Diagnostico do teste remoto: o Ollama local nao estava em execucao, causando `URLError` na sintese final. Ollama foi iniciado novamente; `/api/tags` respondeu, geracao direta com `qwen2.5:3b-instruct-q5_K_M` passou e uma segunda tarefa remota via HTTPS concluiu com sintese do LLM e evidencia da janela Notepad visivel.
 - [x] Recuperacao de inicializacao: criado `scripts/ensure_ollama.ps1` e integrado a `abrir_tudo.ps1` e `iniciar_myra.ps1`. Parse PowerShell passou nos scripts; teste de recuperacao confirmou reinicio do Ollama e 15 modelos disponiveis.
-- [x] Seguranca dos scripts de startup: `scripts/stop_myra_backend.ps1` encerra apenas processos Python identificados como backend MYRA e aborta se a porta 8000 pertencer a outro processo; removida a pratica perigosa de matar todos os processos Python. `scripts/import_user_environment.ps1` recarrega configuracoes do escopo User sem imprimir segredos. Teste de reinicializacao de `iniciar_myra.ps1` confirmou API HTTPS autenticada funcionando, Telegram `running=true`/`last_error=null` e Ollama com 15 modelos.
+- [x] Seguranca dos scripts de startup: `scripts/stop_myra_backend.ps1` encerra apenas processos Python identificados como backend MYRA e aborta se a porta 8000 pertencer a outro processo; removida a pratica perigosa de matar todos os processos Python. `scripts/import_user_environment.ps1` recarrega configuracoes do escopo User sem imprimir segredos. Teste de reinicializacao de `iniciar_myra.ps1` confirmou API HTTPS autenticada funcionando, Telegram `running=true`/`last_error=null` e Ollama com 15 modelos. Uma tarefa remota adicional apos o restart chegou a `done`, abriu a Calculadora e produziu sintese LLM normal.
 
 ## Bloqueios e validacoes externas pendentes
 
