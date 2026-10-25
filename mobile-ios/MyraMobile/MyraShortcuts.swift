@@ -36,9 +36,11 @@ private enum MyraShortcutClient {
               let scheme = components.scheme?.lowercased(),
               let host = components.host,
               !host.isEmpty,
+              components.user == nil,
+              components.password == nil,
               components.query == nil,
               components.fragment == nil,
-              components.path.hasSuffix("/remote/v1") else {
+              components.path == "/remote/v1" else {
             throw MyraShortcutError.insecureEndpoint
         }
         let isLoopback = ["localhost", "127.0.0.1", "::1"].contains(host.lowercased())

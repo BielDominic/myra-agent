@@ -421,3 +421,18 @@ def test_start_refuses_to_create_second_thread_while_previous_thread_exits():
     assert result["status"] == "erro"
     assert "ainda esta encerrando" in result["result"]
     assert bot._thread is old_thread
+
+
+def test_successful_poll_clears_stale_transient_error():
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"})
+    bot._last_error = "polling: ReadTimeout"
+
+    def recovered_poll(*args, **kwargs):
+        bot._stop_event.set()
+        return {"result": []}
+
+    bot._telegram = recovered_poll
+    bot._poll_loop()
+
+    assert bot.status()["last_error"] is None
+    assert bot.status()["running"] is False

@@ -197,7 +197,8 @@
 - [x] Comandos implementados: /task, /status, /cancel, /pause, /resume, /screenshot, /see, /tasks, /taskinfo, /ping, /models, /model, /newchat e /help.
 - [x] Allowlist MYRA_TELEGRAM_ALLOWED_CHAT_IDS; bot desativado sem token/allowlist.
 - [x] HTTP 409 interrompe polling local para evitar conflito repetitivo; start() evita threads concorrentes durante encerramento.
-- [x] Backend reiniciado como Uvicorn de processo unico em 127.0.0.1; `/telegram/status` confirmado `running=true`, `last_error=null` e API sem bind publico.
+- [x] Poll bem-sucedido limpa erro transitorio antigo em `/telegram/status`; teste de regressao cobre recuperacao apos timeout.
+- [x] Backend Uvicorn fica limitado a 127.0.0.1; verificacao local confirmou Tailscale conectado e `api_exposed=false`. O status atual do bot mostrou `running=true`, com um `ReadTimeout` transitorio ainda visivel no processo anterior; reinicio e revalidacao pendentes apos o patch.
 - [x] Rotas locais /telegram/status, /telegram/start e /telegram/stop.
 - [ ] Validar comandos com Telegram real e confirmar entrega dos resultados no chat autorizado.
 
@@ -209,9 +210,10 @@
 - [x] App SwiftUI em mobile-ios/MyraMobile: status, envio/cancelamento, HTTPS remoto e token no Keychain.
 - [x] AppIntents Siri para enviar tarefa e consultar estado; build CI aprovado em 2026-10-25 (run 40197053453).
 - [x] WidgetKit Home Screen/Lock Screen com estado/progresso, timestamp de atualizacao e sem texto de tarefa sensivel.
+- [x] App e Siri rejeitam URLs com credenciais, query/fragmento ou caminho diferente de `/remote/v1`, evitando enviar o Bearer token a uma rota de API diferente.
 - [x] Entitlements App Group group.com.myra.mobile incluidos no app e extensao; requerem registro Apple Developer para assinatura/dispositivo.
 - [x] Projeto Xcode e workflow macOS de build sem assinatura em .github/workflows/ios-mobile-build.yml.
-- [x] Testes direcionados: 40 passed, 1 warning (test_telegram_bot, test_remote_api_auth, test_remote_access); suite completa: 1.127 passed, 9 skipped, 31 xfailed.
+- [x] Testes direcionados: 41 passed, 1 warning (test_telegram_bot, test_remote_api_auth, test_remote_access); suite completa desta revisao: 1.128 passed, 9 skipped, 31 xfailed, 1 warning e 3.231 subtests (264,70s).
 - [ ] Confirmar build CI do target WidgetKit apos adicionar a extensao.
 - [ ] Registrar App Group na conta Apple Developer e validar assinatura/instalacao no dispositivo.
 - [ ] Gerar/guardar token remoto e reiniciar backend; o processo atualmente ativo nao tem MYRA_REMOTE_API_TOKEN e a API permanece desativada.

@@ -10,6 +10,7 @@ A fundacao iOS esta em `mobile-ios/MyraMobile.xcodeproj`: app SwiftUI, dois AppI
 - `POST /remote/v1/task` — inicia uma tarefa em background (objetivo maximo 1.200 caracteres; 1–50 passos).
 - `POST /remote/v1/cancel` — solicita cancelamento.
 - Todos exigem `Authorization: Bearer <token>`.
+- O app e os atalhos Siri aceitam somente endpoint HTTPS cujo caminho seja exatamente `/remote/v1` (sem credenciais embutidas, query string ou fragmento); isso evita enviar o token a um endpoint de API diferente por configuracao acidental.
 - Sem `MYRA_REMOTE_API_TOKEN`, os endpoints retornam HTTP 503 e nao executam comandos.
 - Token ausente/invalido retorna HTTP 401. O segredo e comparado com `hmac.compare_digest`, nao e retornado em status nem gravado em logs.
 

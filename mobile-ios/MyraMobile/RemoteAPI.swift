@@ -82,6 +82,9 @@ final class RemoteAPI: ObservableObject {
               let scheme = components.scheme?.lowercased(),
               let host = components.host,
               !host.isEmpty,
+              components.user == nil,
+              components.password == nil,
+              components.path == "/remote/v1",
               components.query == nil,
               components.fragment == nil else {
             throw MyraRemoteError.invalidURL

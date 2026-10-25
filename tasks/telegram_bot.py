@@ -902,6 +902,9 @@ class TelegramBot:
                     params={"offset": self._offset, "timeout": 25, "allowed_updates": '["message","callback_query"]'},
                     timeout=35,
                 )
+                # A successful poll proves connectivity recovered; do not leave a stale
+                # timeout/error visible in /telegram/status after subsequent success.
+                self._last_error = None
                 for update in payload.get("result", []):
                     try:
                         self.handle_update(update)
