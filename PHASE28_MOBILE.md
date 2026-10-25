@@ -1,6 +1,6 @@
 # FASE 28 — Controle Mobile da MYRA
 
-**Estado (2026-10-25): token remoto configurado e autenticacao validada; iPhone online no tailnet e ping confirmado. Integracao HTTPS via Serve ainda bloqueada porque HTTPS nao esta habilitado no console Tailscale; app assinado/APNs e testes de comandos Telegram reais continuam pendentes.**
+**Estado (2026-10-25): Tailscale Serve HTTPS ativo para somente `/remote/v1`; status autenticado via hostname HTTPS retorna 200, sem Bearer retorna 401 e a raiz retorna 404. Tarefa remota real enviada pelo endpoint HTTPS concluiu e UI Automation confirmou a Calculadora visivel. App assinado/APNs, validacao no iPhone real e comandos Telegram reais continuam pendentes.**
 
 ## Arquitetura
 
@@ -36,11 +36,11 @@
 - [x] Instalar o cliente Tailscale 1.104.2 no Windows; o estado agora e `Running` e o PC recebeu IPv4 Tailscale.
 - [x] Adicionar/autenticar o iPhone no mesmo tailnet. Validado em 2026-10-25: peer `iphone181` (iOS) online em `100.112.204.30`; `tailscale ping` respondeu via DERP(lhr) em ~106-129 ms.
 - [x] Gerar token aleatorio de 256 bits e salva-lo no ambiente de usuario Windows; reiniciar o backend para carregar o segredo. Validado em 2026-10-25: `GET /remote/v1/status` retorna HTTP 200 com Bearer correto e HTTP 401 sem token. O segredo nao foi escrito no repositorio nem exibido nos logs.
-- [ ] Configurar Tailscale Serve para encaminhar exclusivamente `/remote/v1`; a tentativa CLI informou que HTTPS ainda nao esta habilitado no tailnet e exige ativacao no console administrativo. Depois, verificar com testes negativos que raiz e rotas locais nao ficam acessiveis. Nao habilitar Funnel nem abrir portas publicas.
+- [x] Configurar Tailscale Serve com HTTPS para encaminhar exclusivamente `/remote/v1` a `http://127.0.0.1:8000/remote/v1`, sem Funnel nem portas publicas. Validado em 2026-10-25: `/remote/v1/status` com Bearer correto retorna HTTP 200; sem token retorna HTTP 401; raiz `/` retorna HTTP 404.
 - [x] Confirmar o build do target WidgetKit no workflow macOS `ios-mobile-build.yml`; build completo aprovado no run 40198612123 em 2026-10-25.
 - [ ] Registrar o App Group `group.com.myra.mobile` na conta Apple Developer e testar a extensao assinada.
 - [ ] Implementar/validar notificacoes APNs push; exigem Team ID, chave APNs e registro do dispositivo, que nao estao configurados neste ambiente.
-- [ ] Testar no iPhone status, envio de tarefa, conflito de tarefa em execucao, cancelamento e reconexao apos perda de rede. Um teste autenticado local via API aceitou uma tarefa real e abriu a Calculadora; a janela foi verificada por UI Automation, mas a sintese final do planner retornou uma mensagem de falha, portanto o fluxo ainda nao e considerado totalmente aprovado.
+- [ ] Testar no iPhone status, envio de tarefa, conflito de tarefa em execucao, cancelamento, Siri, widget e reconexao apos perda de rede. Em 2026-10-25, a API foi exercitada ponta a ponta via HTTPS/Tailscale: tarefa aceita, estado observado por polling e estado final `done`; UI Automation confirmou a janela `Calculator` visivel. A sintese LLM ficou indisponivel (`URLError`), mas a resposta preservou a evidencia real da ferramenta e `erro=null`; isso nao invalida a acao, mas a sintese/modelo ainda requer diagnostico.
 
 ## Como validar localmente
 
@@ -56,5 +56,5 @@ Para diagnosticar sem revelar segredos, consulte `GET http://127.0.0.1:8000/tele
 
 - O backend permanece vinculado a `127.0.0.1:8000` por padrao.
 - O token remoto nao e habilitado automaticamente pelo script; e preciso reiniciar o backend para aplicar a variavel de ambiente.
-- O Tailscale Serve so pode ser configurado depois de confirmar a sintaxe da versao instalada e a restricao ao prefixo `/remote/v1`.
+- O Tailscale Serve esta configurado e confirmado por `tailscale serve status --json`; o unico handler configurado e `/remote/v1` -> `http://127.0.0.1:8000/remote/v1`. Revalidar a restricao se a configuracao Serve mudar.
 - Nenhum segredo foi adicionado ao repositorio.

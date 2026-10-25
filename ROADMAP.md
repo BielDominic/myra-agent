@@ -3,7 +3,7 @@
 [![Progress](https://img.shields.io/badge/Progress-33%25-orange?style=flat-square)]()
 [![Active Phase](https://img.shields.io/badge/Active_Phase-26-blue?style=flat-square)]()
 [![Phases](https://img.shields.io/badge/Phases-31-purple?style=flat-square)]()
-[![Updated](https://img.shields.io/badge/Updated-2026-10-24-lightgrey?style=flat-square)]()
+[![Updated](https://img.shields.io/badge/Updated-2026-10-25-lightgrey?style=flat-square)]()
 [![Language](https://img.shields.io/badge/Language-PT--BR_%7C_EN-green?style=flat-square)]()
 
 **Documentacao disponivel em:** [Portugues](#portugues) | [English](#english)
@@ -189,7 +189,7 @@
 - [x] Instalacao e passos de conexao documentados em PHASE28_1_TAILSCALE.md.
 - [x] Cliente Tailscale 1.104.2 instalado no Windows; estado `Running` e IPv4 Tailscale atribuido.
 - [x] Adicionar/autenticar o iPhone no mesmo tailnet. Validado em 2026-10-25: peer `iphone181` (iOS) online em `100.112.204.30`; `tailscale ping` respondeu via DERP(lhr) em ~106-129 ms.
-- [ ] Configurar e validar Serve limitado exclusivamente a `/remote/v1`; a tentativa CLI informou que HTTPS ainda nao esta habilitado no tailnet (requer ativacao no console administrativo). Nao usar Funnel nem expor outras rotas.
+- [x] Tailscale Serve HTTPS configurado para encaminhar exclusivamente `/remote/v1` a `http://127.0.0.1:8000/remote/v1`; validado em 2026-10-25: Bearer correto retorna HTTP 200, sem token retorna HTTP 401 e a raiz `/` retorna HTTP 404. Sem Funnel nem portas publicas.
 
 ##### 28.2 - Telegram Bot
 - [x] Bot e allowlist configurados no ambiente do Windows sem expor segredos.
@@ -218,8 +218,8 @@
 - [x] Build CI do target WidgetKit confirmado no runner macOS (run 40198612123, sucesso).
 - [ ] Registrar App Group na conta Apple Developer e validar assinatura/instalacao no dispositivo.
 - [x] Gerar token remoto aleatorio de 256 bits, salva-lo no ambiente de usuario e reiniciar o backend. Validado em 2026-10-25: `GET /remote/v1/status` retorna HTTP 200 com Bearer correto e HTTP 401 sem token; a API continua vinculada somente a `127.0.0.1:8000`.
-- [ ] Configurar Serve limitado a `/remote/v1` e provar que a raiz/rotas locais nao ficam expostas; o iPhone ja esta online no tailnet e responde ao ping, mas a ativacao de HTTPS no console administrativo ainda bloqueia o Serve.
-- [ ] Testar status, tarefa, cancelamento, Siri, widget e reconexao no iPhone real via Tailscale.
+- [x] Tailscale Serve HTTPS configurado exclusivamente para `/remote/v1`; testes negativos confirmam HTTP 401 sem Bearer e HTTP 404 na raiz. Nenhum Funnel ou porta publica foi habilitado.
+- [ ] Testar status, tarefa, cancelamento, Siri, widget e reconexao no iPhone real via Tailscale. Teste de ponta a ponta via HTTPS/Tailscale no PC aceitou tarefa real, acompanhou o polling ate `done` e confirmou a janela Calculator visivel por UI Automation; a sintese LLM ficou indisponivel (`URLError`), mas as evidencias reais foram preservadas.
 - [ ] Implementar/validar APNs push; exige Team ID, chave APNs e registro do dispositivo, ainda nao configurados.
 
 #### FASE 29 - Integracao CarPlay
@@ -488,7 +488,7 @@
 | Visao com coordenadas (FASE 25) | 6 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
 | Ciclo autonomo (FASE 26) | 5 | ![80%](https://img.shields.io/badge/-80%25-yellow?style=flat-square) |
 | Overlay TARS (FASE 27) | 7 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
-| Mobile (FASE 28) | 32 | ![81%](https://img.shields.io/badge/-81%25-yellow?style=flat-square) |
+| Mobile (FASE 28) | 32 | ![84%](https://img.shields.io/badge/-84%25-yellow?style=flat-square) |
 | CarPlay (FASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Distribuicao (FASE 30) | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
 | Interface propria (FASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |
@@ -692,8 +692,8 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 
 ##### 28.1 - Remote access infrastructure (Tailscale)
 - [x] Local diagnostic and Windows Tailscale 1.104.2 installed; PC is Running with a Tailscale IPv4.
-- [ ] Add/authenticate the iPhone in the same tailnet; no iOS peer is currently visible.
-- [ ] Validate tailnet connectivity and Serve restricted exclusively to `/remote/v1`; no Funnel/public ports.
+- [x] Add/authenticate the iPhone in the same tailnet; peer `iphone181` is online at `100.112.204.30` and `tailscale ping` succeeded.
+- [x] Validate tailnet connectivity and Serve restricted exclusively to `/remote/v1`; HTTPS status returns HTTP 200 with Bearer, HTTP 401 without it, and root returns HTTP 404. No Funnel/public ports.
 
 ##### 28.2 - Telegram Bot
 - [x] Long polling, allowlist authentication and commands implemented in `tasks/telegram_bot.py`; no webhook/public API required.
@@ -711,11 +711,11 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 - [x] Shared App Group entitlements added for app/widget; Apple Developer registration is required for signed device use.
 - [x] `scripts/setup_remote_api.ps1` creates a random 256-bit token and stores it in the Windows user environment.
 - [x] Focused tests: 40 passed, 1 warning; full Python suite: 1,127 passed, 9 skipped, 31 xfailed.
-- [ ] Confirm CI build for the newly added WidgetKit extension.
+- [x] Confirm CI build for the WidgetKit extension (run 40198612123, successful).
 - [ ] Register the App Group in Apple Developer and validate signed installation on device.
-- [ ] Configure remote token and restart backend; current process does not have `MYRA_REMOTE_API_TOKEN`, so remote API returns HTTP 503.
-- [ ] Add iPhone to tailnet, configure Serve restricted to `/remote/v1`, and prove root/local routes are not exposed.
-- [ ] Test status/task/cancel/Siri/widget/reconnect on a real iPhone through Tailscale.
+- [x] Configure the remote token and restart the backend; HTTPS/Tailscale status returns HTTP 200 with the correct Bearer token and HTTP 401 without it.
+- [x] Add iPhone to tailnet and configure Serve restricted to `/remote/v1`; tested that root returns HTTP 404 and protected status returns HTTP 401 without a token.
+- [ ] Test status/task/cancel/Siri/widget/reconnect on a real iPhone through Tailscale. A real task submitted via HTTPS/Tailscale from the PC reached `done` and UI Automation confirmed Calculator visible; LLM synthesis returned `URLError`, but real tool evidence was preserved.
 - [ ] Implement/validate APNs push; requires Apple Team ID, APNs key and device registration, not yet configured.
 
 #### PHASE 29 - CarPlay Integration
@@ -985,7 +985,7 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 | Vision with coordinates (PHASE 25) | 6 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
 | Autonomous loop (PHASE 26) | 5 | ![80%](https://img.shields.io/badge/-80%25-yellow?style=flat-square) |
 | TARS overlay (PHASE 27) | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
-| Mobile (PHASE 28) | 32 | ![81%](https://img.shields.io/badge/-81%25-yellow?style=flat-square) |
+| Mobile (PHASE 28) | 32 | ![84%](https://img.shields.io/badge/-84%25-yellow?style=flat-square) |
 | CarPlay (PHASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Distribution (PHASE 30) | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
 | Custom interface (PHASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |
