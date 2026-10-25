@@ -466,6 +466,44 @@ def _decidir_proximo_passo(
     # Mantem cada acao como um passo auditavel no loop de autonomia.
     texto_intencao = _normalizar_intencao(objetivo)
 
+    # Chamada MCP REA explicita: o planner frequentemente achata os campos
+    # do argumento (por exemplo, address) em vez de aninha-los em `arguments`.
+    # Normalizamos a intencao deterministicamente; rea_mcp_call valida a allowlist
+    # e os caminhos antes de enviar qualquer chamada ao servidor.
+    if not historico and "rea_mcp_call" in FERRAMENTAS_DISPONIVEIS and re.search(r"\brea_mcp_call\b", objetivo_lower):
+        try:
+            from tasks.rea_tools import REA_MCP_READ_ONLY_TOOLS
+        except Exception:
+            REA_MCP_READ_ONLY_TOOLS = set()
+        m_tool = re.search(r"\btool_name\b\s*(?:[:=]\s*)?['\"]?([a-z][a-z0-9_]*)", objetivo, re.IGNORECASE)
+        nome_tool = m_tool.group(1) if m_tool else next(
+            (nome for nome in REA_MCP_READ_ONLY_TOOLS if re.search(rf"\b{re.escape(nome)}\b", objetivo_lower)),
+            None,
+        )
+        if nome_tool:
+            args_mcp = {"tool_name": nome_tool}
+            m_address = re.search(r"\baddress\b\s*(?:[:=]\s*)?['\"]?(0x[0-9a-f]+)", objetivo, re.IGNORECASE)
+            if m_address:
+                args_mcp["address"] = m_address.group(1)
+            m_path = re.search(r"\b(?:path|caminho|input_path)\b\s*(?:[:=]\s*)?['\"]([^'\"]+)['\"]", objetivo, re.IGNORECASE)
+            if m_path:
+                campo_path = re.search(r"\b(input_path|path|caminho)\b", m_path.group(0), re.IGNORECASE)
+                chave_path = campo_path.group(1).lower() if campo_path else "path"
+                args_mcp["input_path" if nome_tool == "analyze_javascript_application" else ("path" if chave_path == "caminho" else chave_path)] = m_path.group(1)
+            m_type = re.search(r"\btype\b\s*(?:[:=]\s*)?['\"]?([^'\"\s,;]+)", objetivo, re.IGNORECASE)
+            if m_type and nome_tool == "inspect_native_data_type":
+                args_mcp["type"] = m_type.group(1)
+            m_document = re.search(r"\bdocument\b\s*(?:[:=]\s*)?['\"]([^'\"]+)['\"]", objetivo, re.IGNORECASE)
+            if m_document:
+                args_mcp["document"] = m_document.group(1)
+            return {
+                "acao": "chamar",
+                "ferramenta": "rea_mcp_call",
+                "args": args_mcp,
+                "motivo": "chamada MCP REA explicitamente solicitada; argumentos normalizados e validados pela allowlist",
+            }
+
+
     # Fluxo web composto explicito (URL + preencher campo + clicar + confirmar).
     # Evita que um planner pequeno escolha ferramentas irrelevantes, e mantem
     # cada interacao observavel/verificavel no ciclo normal de autonomia.

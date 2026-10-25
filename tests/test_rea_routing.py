@@ -177,3 +177,71 @@ def test_mcp_static_binary_tools_validate_authorized_existing_file(tmp_path):
     assert bridge.call_args.args[1]["arguments"]["path"] == str(binary.resolve())
     assert rejected["status"] == "erro"
     assert "fora das raizes autorizadas" in rejected["result"]
+
+
+def test_mcp_call_aceita_argumentos_diretos_flattened_pelo_planner(tmp_path):
+    from tasks import rea_tools
+
+    with mock.patch.object(rea_tools, "ACTIVE_TARGET_FILE", tmp_path / "missing-active-target.json"), \
+         mock.patch.object(rea_tools, "_run_mcp_bridge", return_value={"result": {"content": [{"text": "Evidence"}]}}) as bridge:
+        result = rea_tools.rea_mcp_call("inspect_native_instruction", address="0x140001000")
+
+    assert result["status"] == "ok"
+    bridge.assert_called_once_with("call", {
+        "name": "inspect_native_instruction",
+        "arguments": {"address": "0x140001000"},
+        "timeoutMs": 240000,
+    })
+
+
+def test_mcp_call_rejeita_argumentos_duplicados_sem_chamar_servidor():
+    from tasks import rea_tools
+
+    with mock.patch.object(rea_tools, "_run_mcp_bridge") as bridge:
+        result = rea_tools.rea_mcp_call(
+            "inspect_native_instruction",
+            {"address": "0x140001000"},
+            address="0x140002000",
+        )
+
+    assert result["status"] == "erro"
+    assert "Argumentos duplicados" in result["result"]
+    bridge.assert_not_called()
+
+
+def test_pedido_mcp_rea_explicito_rota_sem_llm_e_normaliza_endereco():
+    original_tools = dict(simple_task.FERRAMENTAS_DISPONIVEIS)
+    original_descriptions = dict(simple_task.FERRAMENTAS_DESCRICOES)
+    try:
+        simple_task.FERRAMENTAS_DISPONIVEIS.clear()
+        simple_task.FERRAMENTAS_DESCRICOES.clear()
+        simple_task.registrar_ferramenta("rea_mcp_call", lambda **kwargs: kwargs, "Chamada MCP REA")
+        objetivo = "Execute rea_mcp_call com tool_name inspect_native_instruction e address 0x140001000"
+        with mock.patch.object(simple_task, "_llm", side_effect=AssertionError("roteamento nao deve depender do LLM")):
+            decisao = simple_task._decidir_proximo_passo(objetivo, [])
+        assert decisao["acao"] == "chamar"
+        assert decisao["ferramenta"] == "rea_mcp_call"
+        assert decisao["args"] == {"tool_name": "inspect_native_instruction", "address": "0x140001000"}
+    finally:
+        simple_task.FERRAMENTAS_DISPONIVEIS.clear()
+        simple_task.FERRAMENTAS_DISPONIVEIS.update(original_tools)
+        simple_task.FERRAMENTAS_DESCRICOES.clear()
+        simple_task.FERRAMENTAS_DESCRICOES.update(original_descriptions)
+
+
+def test_run_mcp_bridge_extende_timeout_apenas_quando_pedido():
+    import json
+    from types import SimpleNamespace
+    from tasks import rea_tools
+
+    payload = {"name": "inspect_native_instruction", "arguments": {"address": "0x140001000"}, "timeoutMs": 240000}
+    with mock.patch.object(rea_tools.shutil, "which", return_value="node"), \
+         mock.patch.object(
+             rea_tools.subprocess, "run",
+             return_value=SimpleNamespace(returncode=0, stdout=json.dumps({"status": "ok"}), stderr=""),
+         ) as run:
+        result = rea_tools._run_mcp_bridge("call", payload)
+
+    assert result["status"] == "ok"
+    assert run.call_args.kwargs["timeout"] == 260
+    assert run.call_args.kwargs["shell"] is False

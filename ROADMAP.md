@@ -175,6 +175,7 @@
 - [x] Ponte MCP integrada: `rea_mcp_list_tools` e `rea_mcp_call`, allowlist explicita de 15 ferramentas de leitura, validacao de caminhos autorizados, limites de payload/timeout e encaminhamento controlado de variaveis Ghidra ao processo REA.
 - [x] Validada chamada MCP real de `analyze_javascript_application` em `widget-tauri\ui`: Evidence com `status=ok`, respeitando a raiz autorizada.
 - [x] Ghidra 12.1.4 validado em PE x64 de teste: `inspect_native_instruction`, `address_name` e `resolve_native_call_targets` retornaram Evidence; `inspect_go_binary` e `inspect_rust_binary` passaram no `myra-widget.exe` real.
+- [x] Validacao ponta a ponta pela API MYRA (2026-10-25): argumentos diretos do planner normalizados, `inspect_native_instruction` retornou Evidence real (`INT3`, bytes `cc`, 1 byte) no PE x64 de teste; timeout estendido e limitado para operacoes Ghidra demoradas; 18 testes REA passam.
 - [x] `PHASE27_5_REA.md` atualizado com resultados e limites verificados. A analise Ghidra completa do `myra-widget.exe` excedeu o prazo do provedor; esse resultado continua explicitamente nao aprovado, embora a analise estatica Go/Rust do mesmo alvo tenha passado.
 - [x] Smoke test de provedor concluido: Ghidra suporta inspecao de instrucao/endereco e resolucao de chamadas; `current_document/current_address/current_procedure` sao especificos do Hopper GUI e nao suportados no Windows.
 

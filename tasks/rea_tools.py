@@ -19,6 +19,15 @@ WORKSPACE = Path(os.getenv("MYRA_WORKSPACE", r"C:\computer-agent\workspace"))
 MAX_OUTPUT_CHARS = 12_000
 MCP_HELPER = Path(__file__).resolve().parents[1] / "tools" / "rea_mcp_bridge.mjs"
 MCP_TIMEOUT_SECONDS = 90
+MCP_LONG_TIMEOUT_MS = 240_000
+MCP_MAX_TIMEOUT_SECONDS = 330
+REA_MCP_LONG_RUNNING_TOOLS = frozenset({
+    "address_name",
+    "inspect_native_instruction",
+    "inspect_native_data_type",
+    "inspect_native_load_image",
+    "resolve_native_call_targets",
+})
 ACTIVE_TARGET_FILE = WORKSPACE / ".myra_rea_active_target.json"
 # Allowlist excludes mutation/execution tools and validates every local target path.
 REA_MCP_READ_ONLY_TOOLS = frozenset({
@@ -212,7 +221,12 @@ def _run_mcp_bridge(mode: str, payload: dict | None = None) -> dict:
         raise RuntimeError("Node.js nao encontrado no PATH.")
     if not MCP_HELPER.is_file():
         raise RuntimeError(f"Helper MCP nao encontrado: {MCP_HELPER}")
-    request = json.dumps(payload or {}, ensure_ascii=False)
+    request_payload = payload or {}
+    timeout_ms = request_payload.get("timeoutMs") if isinstance(request_payload, dict) else None
+    timeout_seconds = MCP_TIMEOUT_SECONDS
+    if isinstance(timeout_ms, int) and not isinstance(timeout_ms, bool) and 1000 <= timeout_ms <= 300000:
+        timeout_seconds = min(MCP_MAX_TIMEOUT_SECONDS, max(MCP_TIMEOUT_SECONDS, (timeout_ms + 999) // 1000 + 20))
+    request = json.dumps(request_payload, ensure_ascii=False)
     completed = subprocess.run(
         [node, str(MCP_HELPER), mode],
         input=request if mode == "call" else "",
@@ -220,7 +234,7 @@ def _run_mcp_bridge(mode: str, payload: dict | None = None) -> dict:
         text=True,
         encoding="utf-8",
         errors="replace",
-        timeout=MCP_TIMEOUT_SECONDS,
+        timeout=timeout_seconds,
         check=False,
         shell=False,
         cwd=str(WORKSPACE),
@@ -270,8 +284,8 @@ def rea_mcp_list_tools() -> dict:
         return {"status": "erro", "result": f"{type(exc).__name__}: {exc}"}
 
 
-def rea_mcp_call(tool_name: str, arguments: dict | None = None) -> dict:
-    """Chama uma ferramenta MCP de leitura explicitamente autorizada."""
+def rea_mcp_call(tool_name: str, arguments: dict | None = None, **direct_arguments) -> dict:
+    """Chama uma ferramenta MCP autorizada; aceita arguments ou campos diretos do planner."""
     try:
         if not isinstance(tool_name, str) or tool_name not in REA_MCP_READ_ONLY_TOOLS:
             return {
@@ -283,6 +297,16 @@ def rea_mcp_call(tool_name: str, arguments: dict | None = None) -> dict:
         if not isinstance(arguments, dict):
             return {"status": "erro", "result": "arguments precisa ser um objeto JSON."}
         arguments = dict(arguments)
+        if direct_arguments:
+            conflicts = set(arguments).intersection(direct_arguments)
+            if conflicts:
+                return {
+                    "status": "erro",
+                    "result": "Argumentos duplicados entre arguments e campos diretos: " + ", ".join(sorted(conflicts)),
+                }
+            # The planner sometimes flattens a tool's argument fields instead of
+            # nesting them under `arguments`; normalize both forms identically.
+            arguments.update(direct_arguments)
         open_target = None
         if tool_name == "open_binary":
             target = arguments.get("path")
@@ -330,6 +354,8 @@ def rea_mcp_call(tool_name: str, arguments: dict | None = None) -> dict:
         request_payload = {"name": tool_name, "arguments": arguments}
         if open_target:
             request_payload["openTarget"] = open_target
+        if tool_name in REA_MCP_LONG_RUNNING_TOOLS:
+            request_payload["timeoutMs"] = MCP_LONG_TIMEOUT_MS
         payload = _run_mcp_bridge("call", request_payload)
         result = payload.get("result")
         if tool_name == "open_binary" and payload.get("status") == "ok":
@@ -385,7 +411,7 @@ def registrar_todas(registrar_ferramenta: Callable) -> None:
     registrar_ferramenta(
         "rea_mcp_call",
         rea_mcp_call,
-        "Executa ferramenta MCP REA somente na allowlist de leitura: analyze_javascript_application, open_binary, inspect_binary_layout, inspect_go_binary, inspect_rust_binary, current_document, current_address, current_procedure, address_name, comment, inline_comment, inspect_native_instruction, inspect_native_data_type, inspect_native_load_image ou resolve_native_call_targets. Caminhos locais devem estar em MYRA_REA_ALLOWED_ROOTS. Argumentos em arguments como objeto JSON."
+        "Executa ferramentas REA somente pela allowlist de leitura (JS, open_binary, layout, Go/Rust, cursor, endereco, comentarios e instrucoes nativas). Aceita arguments como objeto JSON ou campos diretos do planner. Caminhos devem estar em MYRA_REA_ALLOWED_ROOTS."
     )
     registrar_ferramenta(
         "rea_catalog",
