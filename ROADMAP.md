@@ -145,6 +145,7 @@
 - [x] Verificacao deterministica de objetivos web: navegar nao satisfaz pedido de leitura, ler nao satisfaz pedido de clique, e extracao exige texto do corpo da pagina.
 - [x] Validacao ao vivo do Chrome Browser Bridge (2026-10-24): `get_tabs`, nova aba `example.com`, leitura de DOM/texto e fechamento confirmado; abas preexistentes preservadas.
 - [x] Validacao de `GET /task_pendentes`: rejeita limites negativos com HTTP 422 e normaliza inteiros acima de int64 sem perder tasks.
+- [x] Revalidacao global em 2026-10-25 apos hardening do Browser Bridge: suite completa pytest passou com 1.148 passed, 9 skipped, 12 xfailed, 3.244 subtests e 1 warning; suite Browser Bridge passou com 92 testes e 171 subtests; teste de token malformado passou com 6 subtests. Commit/push d008332c.
 
 #### FASE 27 - Overlay Visual TARS
 ![Concluida](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)
