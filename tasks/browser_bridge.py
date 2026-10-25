@@ -325,10 +325,17 @@ def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> 
                     "result": str(result.get("error") or "A ação no Chrome falhou."),
                 }
             payload = result.get("result", result)
+            # Preserve extension metadata at the top level while keeping the
+            # normalized nested payload as the canonical `result` value.
+            metadata = {
+                key: value for key, value in result.items()
+                if key not in {"ok", "result"}
+            }
             return {
                 "status": "ok",
                 "result": payload,
                 **(payload if isinstance(payload, dict) else {}),
+                **metadata,
             }
         time.sleep(POLL_INTERVAL_SECONDS)
 

@@ -648,8 +648,7 @@ class RunCommandValidacaoTests(_BaseBridge):
         self.assertLess(dormiu, 100.0, "o timeout efetivo nao respeitou COMMAND_TIMEOUT_SECONDS")
         self.assertEqual(_linhas(), [])
 
-    # [xfail-2026-10-15] codigo nao achata campos extras no response (so devolve ok + result)
-    @expectedFailure
+    # Preserva metadados do resultado externo ao normalizar o payload aninhado.
     def test_resultado_concluido_com_sucesso_achata_o_payload(self):
         with sem_rede(), redirect_stdout(io.StringIO()), \
              mock.patch.object(bb, "_read_command",
