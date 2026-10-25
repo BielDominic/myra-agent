@@ -1,6 +1,14 @@
 Write-Host "Iniciando MYRA (Ollama + Backend + Widget)..." -ForegroundColor Cyan
 
-# 0. Garante que o modelo local esta disponivel antes de subir o planner.
+# 0. Atualiza as variaveis do usuario antes de iniciar os servicos.
+try {
+    & (Join-Path $PSScriptRoot "scripts\import_user_environment.ps1")
+} catch {
+    Write-Host ("ERRO ao carregar configuracao: " + $_.Exception.Message) -ForegroundColor Red
+    exit 1
+}
+
+# 1. Garante que o modelo local esta disponivel antes de subir o planner.
 try {
     & (Join-Path $PSScriptRoot "scripts\ensure_ollama.ps1")
 } catch {
@@ -8,9 +16,15 @@ try {
     exit 1
 }
 
-# 1. Mata processos antigos para evitar duplicidade
-Get-Process python, myra-widget -ErrorAction SilentlyContinue | Stop-Process -Force
-Start-Sleep -Seconds 2
+# 1. Encerra apenas o backend MYRA e valida a porta; nunca mata Python alheio.
+try {
+    & (Join-Path $PSScriptRoot "scripts\stop_myra_backend.ps1")
+} catch {
+    Write-Host ("ERRO: " + $_.Exception.Message) -ForegroundColor Red
+    exit 1
+}
+Get-Process -Name "myra-widget" -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep -Seconds 1
 
 # 2. Inicia o Backend (Python)
 Write-Host "Subindo Backend (FastAPI)..." -ForegroundColor Yellow

@@ -259,7 +259,7 @@ Abra http://localhost:8082 no navegador.
 
 ## 🚀 PASSO 9 — INICIAR TUDO COM UM COMANDO
 
-O script verifica a API do Ollama e inicia `ollama serve` se o servidor local estiver parado; depois sobe backend e widget.
+O script recarrega as variaveis de ambiente do usuario sem exibir segredos, verifica/inicia o Ollama se necessario e encerra apenas processos MYRA identificados (nunca mata todos os processos Python). Se a porta 8000 pertencer a outro aplicativo, interrompe a inicializacao sem encerrar esse processo; depois sobe backend e widget.
 
     cd C:\computer-agent
     .\abrir_tudo.ps1
