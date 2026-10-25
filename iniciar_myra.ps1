@@ -1,6 +1,14 @@
 # MYRA - Script de inicializacao do backend (agent.py)
 $ErrorActionPreference = "Continue"
 
+Write-Host "`n[0/4] Verificando Ollama..." -ForegroundColor Cyan
+try {
+    & (Join-Path $PSScriptRoot "scripts\ensure_ollama.ps1")
+} catch {
+    Write-Host ("  ERRO: " + $_.Exception.Message) -ForegroundColor Red
+    exit 1
+}
+
 Write-Host "`n[1/4] Parando agent.py antigo..." -ForegroundColor Cyan
 Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Seconds 2

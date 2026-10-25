@@ -1,4 +1,12 @@
-Write-Host "Iniciando MYRA (Backend + Widget)..." -ForegroundColor Cyan
+Write-Host "Iniciando MYRA (Ollama + Backend + Widget)..." -ForegroundColor Cyan
+
+# 0. Garante que o modelo local esta disponivel antes de subir o planner.
+try {
+    & (Join-Path $PSScriptRoot "scripts\ensure_ollama.ps1")
+} catch {
+    Write-Host ("ERRO: " + $_.Exception.Message) -ForegroundColor Red
+    exit 1
+}
 
 # 1. Mata processos antigos para evitar duplicidade
 Get-Process python, myra-widget -ErrorAction SilentlyContinue | Stop-Process -Force

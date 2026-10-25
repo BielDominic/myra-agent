@@ -244,7 +244,7 @@ For Gmail, configure the supported IMAP/SMTP credentials and authentication meth
 Use the scripts that exist in your checkout. The project documentation has included these Windows scripts:
 
 ~~~powershell
-# Main agent, if this script exists in your checkout
+# Checks/starts local Ollama, then starts the backend
 .\iniciar_myra.ps1
 
 # Optional vision service

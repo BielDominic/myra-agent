@@ -29,6 +29,7 @@
 - [x] Suite completa apos ajuste do fallback de sintese: `pytest -q -rxX` — **1.129 passed, 9 skipped, 31 xfailed, 1 warning e 3.231 subtests** (261,91s).
 - [x] Regressao de fallback do planner: quando o LLM de sintese falha, a resposta identifica explicitamente a indisponibilidade da sintese e preserva as evidencias reais da ferramenta; suite direcionada `test_rea_routing.py`, `test_chat_routing.py` e `test_remote_api_auth.py`: **53 passed**.
 - [x] Diagnostico do teste remoto: o Ollama local nao estava em execucao, causando `URLError` na sintese final. Ollama foi iniciado novamente; `/api/tags` respondeu, geracao direta com `qwen2.5:3b-instruct-q5_K_M` passou e uma segunda tarefa remota via HTTPS concluiu com sintese do LLM e evidencia da janela Notepad visivel.
+- [x] Recuperacao de inicializacao: criado `scripts/ensure_ollama.ps1` e integrado a `abrir_tudo.ps1` e `iniciar_myra.ps1`. Parse PowerShell passou nos tres scripts; teste de recuperacao parou o Ollama de forma controlada e confirmou que o helper o iniciou novamente e validou os 15 modelos.
 
 ## Bloqueios e validacoes externas pendentes
 

@@ -259,6 +259,8 @@ Abra http://localhost:8082 no navegador.
 
 ## 🚀 PASSO 9 — INICIAR TUDO COM UM COMANDO
 
+O script verifica a API do Ollama e inicia `ollama serve` se o servidor local estiver parado; depois sobe backend e widget.
+
     cd C:\computer-agent
     .\abrir_tudo.ps1
 
