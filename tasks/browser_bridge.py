@@ -91,7 +91,13 @@ def _require_local_and_token(request: Request, token: str | None = None) -> None
     if not expected:
         raise HTTPException(status_code=503, detail="Configure MYRA_BROWSER_BRIDGE_TOKEN e reinicie o backend.")
     supplied = token or ""
-    if not hmac.compare_digest(supplied, expected):
+    # compare_digest on strings rejects non-ASCII input with TypeError; treat every
+    # malformed token as an authentication failure rather than leaking a 500.
+    try:
+        token_matches = hmac.compare_digest(supplied, expected)
+    except (TypeError, ValueError):
+        token_matches = False
+    if not token_matches:
         raise HTTPException(status_code=401, detail="Token do Browser Bridge invalido.")
 
 

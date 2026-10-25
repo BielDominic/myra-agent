@@ -24,7 +24,6 @@ import socket
 import sqlite3
 import threading
 import unittest
-from unittest import expectedFailure
 from contextlib import closing, contextmanager, redirect_stdout
 from unittest import mock
 
@@ -319,6 +318,12 @@ class FilaSQLiteTests(_BaseBridge):
 class RunCommandValidacaoTests(_BaseBridge):
     """O validador tem de rejeitar ANTES de enfileirar."""
 
+    def setUp(self):
+        super().setUp()
+        self._preservar_fila = mock.patch.object(bb, "_delete_command")
+        self._preservar_fila.start()
+        self.addCleanup(self._preservar_fila.stop)
+
     def _chamar(self, action, **args):
         # Timeout reduzido + poll imediato: os testes que passam a validacao
         # falham por "Tempo esgotado" em ~1s em vez de esperarem os 90s reais
@@ -350,8 +355,6 @@ class RunCommandValidacaoTests(_BaseBridge):
                 self.assertErro(self._chamar("new_tab", url=url), "URL")
         self.assertFilaVazia()
 
-    # [xfail-2026-10-15] Codigo rejeita URL com >2000 chars (o teste esperava que 2000 passasse)
-    @expectedFailure
     def test_url_no_limite_de_2000_caracteres(self):
         base = "https://example.com/"
         no_limite = base + "a" * (2000 - len(base))
@@ -370,8 +373,6 @@ class RunCommandValidacaoTests(_BaseBridge):
         self.assertErro(self._chamar("navigate_active_tab", url=longa), "2000")
         self.assertFilaVazia()
 
-    # [xfail-2026-10-15] validacao real nao normaliza strip do URL antes do parse
-    @expectedFailure
     def test_url_valida_e_normalizada_com_strip(self):
         for action in ("read_page_url", "navigate_active_tab", "new_tab"):
             with self.subTest(action=action):
@@ -385,8 +386,6 @@ class RunCommandValidacaoTests(_BaseBridge):
                     "https://example.com/x?q=1#f",
                 )
 
-    # [xfail-2026-10-15] fila apagada apos timeout
-    @expectedFailure
     def test_url_unicode_valida_e_aceita(self):
         url = "https://example.com/busca?q=café+☕&emoji=🌍"
         self.assertErro(self._chamar("read_page_url", url=url, timeout_seconds=1), "Tempo esgotado")
@@ -397,8 +396,6 @@ class RunCommandValidacaoTests(_BaseBridge):
         self.assertErro(self._chamar("read_active_tab", url_contains="a" * 301), "300")
         self.assertFilaVazia()
 
-    # [xfail-2026-10-15] fila apagada apos timeout
-    @expectedFailure
     def test_url_contains_limite_300_e_aceito(self):
         self.assertErro(
             self._chamar("read_active_tab", url_contains="a" * 300, timeout_seconds=1),
@@ -406,8 +403,6 @@ class RunCommandValidacaoTests(_BaseBridge):
         )
         self.assertEqual(json.loads(_linhas()[0]["args_json"])["url_contains"], "a" * 300)
 
-    # [xfail-2026-10-15] fila apagada apos timeout
-    @expectedFailure
     def test_url_contains_vazio_ou_espacos_e_removido_dos_args(self):
         self.assertEqual(len("   ".strip()), 0)
         for vazio in ("", "   ", None):
@@ -419,8 +414,6 @@ class RunCommandValidacaoTests(_BaseBridge):
                 self.assertNotIn("url_contains", json.loads(_linhas()[-1]["args_json"]))
                 bb._delete_command(_ids()[-1])
 
-    # [xfail-2026-10-15] fila apagada apos timeout
-    @expectedFailure
     def test_url_contains_e_limpo_com_strip(self):
         self.assertErro(
             self._chamar("read_active_tab", url_contains="  github.com  ", timeout_seconds=1),
@@ -436,8 +429,6 @@ class RunCommandValidacaoTests(_BaseBridge):
                 self.assertErro(self._chamar("search_google_visivel", term=termo), "200")
         self.assertFilaVazia()
 
-    # [xfail-2026-10-15] fila apagada apos timeout; teste esperava ler args da fila
-    @expectedFailure
     def test_termo_com_emoji_no_limite_e_aceito(self):
         termo = "☃" * 200
         self.assertErro(
@@ -445,8 +436,6 @@ class RunCommandValidacaoTests(_BaseBridge):
         )
         self.assertEqual(json.loads(_linhas()[0]["args_json"])["term"], termo)
 
-    # [xfail-2026-10-15] fila apagada apos timeout; teste esperava ler args da fila
-    @expectedFailure
     def test_termo_e_limpo_com_strip(self):
         self.assertErro(
             self._chamar("search_google", term="  python unittest  ", timeout_seconds=1),
@@ -463,8 +452,6 @@ class RunCommandValidacaoTests(_BaseBridge):
                 )
         self.assertFilaVazia()
 
-    # [xfail-2026-10-15] fila apagada apos timeout
-    @expectedFailure
     def test_delay_typing_ms_nos_limites_e_default(self):
         with sem_rede(), redirect_stdout(io.StringIO()):
             for delay, esperado in ((0, 0), (1000, 1000), (None, 150)):
@@ -474,10 +461,8 @@ class RunCommandValidacaoTests(_BaseBridge):
                 bb._run_command("search_google_visivel", **kwargs)
                 self.assertEqual(json.loads(_linhas()[-1]["args_json"])["delay_typing_ms"], esperado)
 
-    # [xfail-2026-10-15] mensagem de erro real e 'direcao' (sem acento), teste esperava 'direcao'
-    @expectedFailure
     def test_scroll_direcao_invalida(self):
-        for direcao in ("", "   ", "left", "right", "UP ", "diagonal", None, 3, "🖱"):
+        for direcao in ("", "   ", "left", "right", "UPP", "diagonal", None, 3, "🖱"):
             with self.subTest(direcao=direcao):
                 self.assertErro(self._chamar("scroll", direction=direcao), "direcao")
         self.assertFilaVazia()
@@ -489,8 +474,6 @@ class RunCommandValidacaoTests(_BaseBridge):
                 self.assertErro(self._chamar("scroll", amount=quantidade), "quantidade")
         self.assertFilaVazia()
 
-    # [xfail-2026-10-15] fila apagada apos timeout
-    @expectedFailure
     def test_scroll_limites_validos_e_normalizacao(self):
         with sem_rede(), redirect_stdout(io.StringIO()):
             for direcao, quantidade in (("Down", 0), ("up", 100000), (" TOP ", "500")):
@@ -501,8 +484,6 @@ class RunCommandValidacaoTests(_BaseBridge):
                 self.assertIsInstance(args["amount"], float)
                 self.assertEqual(args["amount"], float(quantidade))
 
-    # [xfail-2026-10-15] fila apagada apos timeout
-    @expectedFailure
     def test_scroll_usa_defaults_quando_omitido(self):
         self.assertErro(self._chamar("scroll", timeout_seconds=1), "Tempo esgotado")
         args = json.loads(_linhas()[0]["args_json"])
@@ -521,8 +502,6 @@ class RunCommandValidacaoTests(_BaseBridge):
         )
         self.assertFilaVazia()
 
-    # [xfail-2026-10-15] fila apagada apos timeout
-    @expectedFailure
     def test_type_text_texto_vazio_e_aceito_mas_normalizado(self):
         with sem_rede(), redirect_stdout(io.StringIO()):
             bb._run_command("type_text", campo="  input[name=q]  ", texto="",
@@ -532,8 +511,6 @@ class RunCommandValidacaoTests(_BaseBridge):
         self.assertEqual(args["texto"], "")
         self.assertNotIn("texto_strip", args)
 
-    # [xfail-2026-10-15] fila apagada apos timeout
-    @expectedFailure
     def test_type_text_unicode_e_perigoso_e_preservado(self):
         texto = "'; DROP TABLE aluno; -- 🌍 <script>alert(1)</script>"
         self.assertErro(
@@ -548,8 +525,6 @@ class RunCommandValidacaoTests(_BaseBridge):
                 self.assertErro(self._chamar("click_text", text=texto), "500")
         self.assertFilaVazia()
 
-    # [xfail-2026-10-15] fila apagada apos timeout
-    @expectedFailure
     def test_click_text_no_limite_e_aceito(self):
         self.assertErro(
             self._chamar("click_text", text="t" * 500, timeout_seconds=1), "Tempo esgotado"
@@ -562,8 +537,6 @@ class RunCommandValidacaoTests(_BaseBridge):
                 self.assertErro(self._chamar("close_tab", tab_id=tab_id), "tab_id")
         self.assertFilaVazia()
 
-    # [xfail-2026-10-15] fila apagada apos timeout
-    @expectedFailure
     def test_close_tab_id_valido_e_convertido_para_int(self):
         with sem_rede(), redirect_stdout(io.StringIO()):
             for entrada, esperado in ((7, 7), (" 42 ", 42), ("3", 3)):
@@ -572,8 +545,6 @@ class RunCommandValidacaoTests(_BaseBridge):
                 self.assertEqual(args["tab_id"], esperado)
                 self.assertIsInstance(args["tab_id"], int)
 
-    # [xfail-2026-10-15] fila apagada apos timeout
-    @expectedFailure
     def test_close_tab_sem_id_remove_a_chave(self):
         self.assertErro(self._chamar("close_tab", timeout_seconds=1), "Tempo esgotado")
         self.assertEqual(json.loads(_linhas()[0]["args_json"]), {})
@@ -599,6 +570,7 @@ class RunCommandValidacaoTests(_BaseBridge):
         self.assertIn("banco bloqueado", resultado["result"])
 
     def test_timeout_no_limite_de_1s_apaga_o_comando(self):
+        self._preservar_fila.stop()
         with sem_rede(), mock.patch.object(bb, "COMMAND_TIMEOUT_SECONDS", 1), \
              mock.patch.object(bb, "POLL_INTERVAL_SECONDS", 0), \
              mock.patch.object(bb, "_read_command",
@@ -623,6 +595,7 @@ class RunCommandValidacaoTests(_BaseBridge):
                 self.assertErro(resultado, "desapareceu")
 
     def test_timeout_nunca_ultrapassa_a_constante_do_modulo(self):
+        self._preservar_fila.stop()
         # 100s pedidos, constante em 5 -> tem de desistir bem antes de 100s.
         relogio = [1000.0]
 
@@ -688,6 +661,7 @@ class RunCommandValidacaoTests(_BaseBridge):
         self.assertEqual(resultado, {"status": "ok", "result": "texto puro"})
 
     def test_erro_ao_ler_o_estado_cai_no_timeout_sem_excecao(self):
+        self._preservar_fila.stop()
         with sem_rede(), mock.patch.object(bb, "COMMAND_TIMEOUT_SECONDS", 1), \
              mock.patch.object(bb, "POLL_INTERVAL_SECONDS", 0), \
              mock.patch.object(bb, "_read_command",
@@ -1082,14 +1056,12 @@ class RotasBridgeTests(_BaseBridge):
                 pedido.client = mock.Mock(host=host)
                 self.assertIsNone(bb._require_local_and_token(pedido, TOKEN))
 
-    # [xfail-2026-10-15] token e comparado por hmac.compare_digest (binario), nao filtra chars estranhos
-    @expectedFailure
     def test_guardas_recusam_token_com_caracteres_estranhos(self):
         pedido = mock.Mock()
         pedido.client = mock.Mock(host="127.0.0.1")
         from fastapi import HTTPException
 
-        for token in ("", "   ", TOKEN + "\x00", TOKEN + "\n", "🌍", TOKEN.lower()):
+        for token in ("", "   ", TOKEN + "\x00", TOKEN + "\n", "🌍", TOKEN.upper()):
             with self.subTest(token=token):
                 with self.assertRaises(HTTPException) as capturado:
                     bb._require_local_and_token(pedido, token)
