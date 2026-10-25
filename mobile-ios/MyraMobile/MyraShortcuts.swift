@@ -112,26 +112,25 @@ struct GetMyraStatusIntent: AppIntent {
 }
 
 struct MyraAppShortcuts: AppShortcutsProvider {
+    @AppShortcutsBuilder
     static var appShortcuts: [AppShortcut] {
-        [
-            AppShortcut(
-                intent: StartMyraTaskIntent(),
-                phrases: [
-                    "Executar tarefa na \(.applicationName)",
-                    "Pedir à \(.applicationName) para executar uma tarefa"
-                ],
-                shortTitle: "Executar tarefa",
-                systemImageName: "paperplane.fill"
-            ),
-            AppShortcut(
-                intent: GetMyraStatusIntent(),
-                phrases: [
-                    "Consultar estado da \(.applicationName)",
-                    "Verificar estado da \(.applicationName)"
-                ],
-                shortTitle: "Consultar estado",
-                systemImageName: "waveform.path"
-            )
-        ]
+        AppShortcut(
+            intent: StartMyraTaskIntent(),
+            phrases: [
+                "Executar tarefa na \(.applicationName)",
+                "Pedir à \(.applicationName) para executar uma tarefa"
+            ],
+            shortTitle: "Executar tarefa",
+            systemImageName: "paperplane.fill"
+        )
+        AppShortcut(
+            intent: GetMyraStatusIntent(),
+            phrases: [
+                "Consultar estado da \(.applicationName)",
+                "Verificar estado da \(.applicationName)"
+            ],
+            shortTitle: "Consultar estado",
+            systemImageName: "waveform.path"
+        )
     }
 }
