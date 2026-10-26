@@ -673,6 +673,26 @@ class TelegramBot:
         return current_terms or research_intent or factual_question or voting_intent
 
     def _handle_web_question(self, chat_id: str, user_text: str) -> None:
+        # Preserve the subject for short follow-up questions (e.g. "Quem foi o responsável?").
+        # Without this, the search provider receives an isolated question and can return unrelated news.
+        prior_research_context = ""
+        key = str(chat_id)
+        with self._chat_history_lock:
+            prior_turns = list(self._chat_history.get(key, []))
+        if len(user_text.split()) <= 10 and not re.search(
+            r"\b(elei[cç][aã]o|elei[cç][oõ]es|vacina|covaxin|pfizer|resultado|brasil|brasileiro|brasileira)\b",
+            user_text.casefold(),
+        ) and re.search(
+            r"\b(quem|qual|quais|por que|porque|como|quando|onde|respons[aá]vel|isso|eles|ela|ele|caso)\b",
+            user_text.casefold(),
+        ):
+            for turn in reversed(prior_turns):
+                if turn.get("role") != "user":
+                    continue
+                previous_text = str(turn.get("content", "")).strip()
+                if len(previous_text.split()) >= 12 and not previous_text.startswith("/"):
+                    prior_research_context = previous_text[:1800]
+                    break
         self._remember_chat_turn(chat_id, "user", user_text)
         self._send_message(chat_id, "Vou pesquisar na web e conferir fontes recentes.")
         try:
@@ -731,6 +751,21 @@ class TelegramBot:
             research_topic = re.sub(r"\s+", " ", research_topic).strip(" \t\r\n\"'")
             if not research_topic:
                 research_topic = user_text[:500].strip()
+            if prior_research_context:
+                context_topic = re.split(
+                    r"\b(?:pesquise na web|pesquise na internet|siga estas instru.{0,12}?es|pesquise na web e siga)\b",
+                    prior_research_context,
+                    maxsplit=1,
+                    flags=re.IGNORECASE,
+                )[0].strip()
+                context_topic = re.sub(r"\s+", " ", context_topic)[:500]
+                if context_topic:
+                    research_topic = f"{context_topic}; pergunta de acompanhamento: {user_text}"
+                    query = f"{context_topic} {user_text} fontes oficiais responsáveis conclusão investigação"
+                    allegation_terms = allegation_terms or bool(re.search(
+                        r"\b(irregularidade|irregularidades|suspeita|vacina|covaxin|pfizer|contrato|respons[aá]vel|investiga)\b",
+                        prior_research_context.casefold(),
+                    ))
             if allegation_terms:
                 # Triangula alegacoes de qualquer tema por buscas distintas: documentos oficiais,
                 # checagem independente e cobertura jornalistica. Nenhuma busca isolada decide a conclusao.
@@ -766,6 +801,8 @@ class TelegramBot:
                 # Toda conclusao deve derivar das evidencias realmente retornadas pelas buscas.
                 prompt = (
                     "Responda no idioma da pergunta, diretamente e com clareza, usando as evidencias web fornecidas. "
+                    "Se a pergunta for curta e depender do contexto anterior, use o contexto explicitamente para identificar o assunto; "
+                    "nunca pesquise uma pergunta de acompanhamento isolada quando o assunto estiver no historico. "
                     "Sua tarefa e pesquisar, cruzar, interpretar e sintetizar; nao despeje uma lista de links como substituto da resposta. "
                     "Nao use recusas genericas como 'sou um agente e nao posso fornecer isso'. Procure uma resposta util baseada "
                     "nas evidencias; se parte do pedido nao puder ser atendida, responda o restante e explique a limitacao especifica. "
