@@ -1110,3 +1110,10 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 - [x] Adicionado fallback conversacional: se o modelo escolhido falhar ao carregar ou gerar resposta, MYRA tenta o modelo padrão configurado e informa claramente que usou contingência, evitando silêncio após a troca.
 - [x] Teste de regressão cobre falha do modelo selecionado e confirma que o fallback responde.
 - [x] Testes Telegram: 48 aprovados; `py_compile` e `git diff --check` concluídos sem erros.
+
+
+### Correção — pesquisa de alegações eleitorais no Telegram (2026-10-26)
+- A busca não deve converter pedidos de evidências sobre suposto golpe/fraude em consultas genéricas sobre o resultado eleitoral.
+- Preserva a pergunta original na consulta web e acrescenta termos de checagem factual, evidências verificáveis e fontes oficiais/primárias.
+- Adicionado teste de regressão para a pergunta sobre alegação de golpe no segundo turno atribuída ao PT.
+- Validação: `tests/test_telegram_bot.py` — 49 testes aprovados.

@@ -681,13 +681,32 @@ class TelegramBot:
             is_brazil_election = ("elei" in normalized_question or "election" in normalized_question) and any(
                 marker in normalized_question for marker in ("brasil", "brasileir", "brazil")
             )
-            if is_brazil_election:
+            allegation_terms = bool(re.search(
+                r"\b(golpe|fraude|fraud|irregularidade|irregularidades|prova|provas|evid[eê]ncia|"
+                r"evid[eê]ncias|den[uú]ncia|den[uú]ncias|manipula[cç][aã]o|fraudou|fraudaram|"
+                r"urnas|auditoria|contesta[cç][aã]o|falsifica[cç][aã]o)\b",
+                normalized_question,
+            ))
+            asks_election_outcome = bool(re.search(
+                r"\b(quem ganhou|resultado|vencedor|vencedora|eleito|eleita|apura[cç][aã]o|"
+                r"totaliza[cç][aã]o|percentual|quantos votos|resultado final)\b",
+                normalized_question,
+            ))
+            if is_brazil_election and allegation_terms:
+                # Não transforme uma alegação de fraude/golpe em uma consulta genérica
+                # sobre o vencedor: preserve a alegação exata e procure checagens e fontes primárias.
+                query = (
+                    f"{user_text} checagem de fatos evidências verificáveis segundo turno Brasil {year} "
+                    "TSE decisões judiciais Ministério Público auditorias fontes primárias "
+                    "agências de checagem jornalismo confiável"
+                )
+            elif is_brazil_election and asks_election_outcome:
                 query = (
                     f"resultado final segundo turno eleições presidenciais Brasil {year} "
                     "TSE candidato eleito votos percentuais totalização concluída"
                 )
             elif "elei" in normalized_question or "election" in normalized_question:
-                query = f"{user_text} resultado oficial candidatos votos percentuais {year}"
+                query = f"{user_text} evidências verificáveis fontes oficiais checagem de fatos {year}"
             elif bool(re.search(r"\b(votar|voto|votos|candidato|candidatos|eleitor|eleitoral|vote|voting|candidate|candidates)\b", normalized_question)) and bool(re.search(r"\b(aconselh|recomend|devo|deveria|qual|quem|em quem|votar|vote|escolher|escolha|should i|who should|recommend|advise)\b", normalized_question)):
                 query = f"como escolher em quem votar criterios comparar propostas programas de governo fontes oficiais informacao eleitoral {year}"
             else:

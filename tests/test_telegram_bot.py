@@ -527,6 +527,25 @@ def test_voting_research_query_is_neutral_and_source_oriented():
     assert "evidencias web fornecidas" in prompts[0]
 
 
+def test_allegation_about_election_turn_keeps_claim_in_web_search_query():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    requests = []
+    bot._agent_request = lambda method, route, payload=None, timeout=20: (
+        requests.append((method, route, payload, timeout)) or
+        {"status": "ok", "result": "TSE e agências de checagem publicaram documentos. URL: https://example.org"}
+    )
+    bot._ollama_generate = lambda prompt, **kwargs: "As fontes precisam ser verificadas. https://example.org"
+
+    question = "Procure evidências de um golpe no segundo turno das eleições por parte do PT"
+    bot._handle_web_question("123", question)
+
+    query = requests[0][2]["query"]
+    assert question in query
+    assert "checagem de fatos" in query
+    assert "fontes oficiais" in query or "fontes primárias" in query
+
+
 def test_web_search_failure_sends_progress_and_explicit_error():
     http = FakeHTTP()
     bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
