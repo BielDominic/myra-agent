@@ -2187,6 +2187,34 @@ def see(data: SeeImage):
 
         print(f"[SEE] screenshot do PC salvo em {arquivo}")
 
+        # Contexto de janelas obtido do Windows, independente do texto da conversa.
+        # Titulos nao provam o conteudo de abas ocultas; servem apenas como evidencias auxiliares.
+        desktop_context = "Inventario de janelas do Windows indisponivel."
+        try:
+            _active_window_info = _pc_get_active_window()
+            _window_list_info = _pc_get_windows()
+            _active_title = _active_window_info.get("result", "") if isinstance(_active_window_info, dict) and _active_window_info.get("status") == "ok" else ""
+            _window_titles = _window_list_info.get("result", []) if isinstance(_window_list_info, dict) and _window_list_info.get("status") == "ok" else []
+            if isinstance(_window_titles, list):
+                _window_titles = [str(title).strip()[:180] for title in _window_titles if str(title).strip()][:25]
+            else:
+                _window_titles = []
+            desktop_context = "Janela ativa reportada pelo Windows: " + (str(_active_title)[:180] or "indisponivel") + ". Titulos de janelas abertas reportados pelo Windows: " + ("; ".join(_window_titles) if _window_titles else "indisponiveis") + "."
+            if re.search(r"\b(aba|abas|tab|tabs|navegador|browser)\b", data.pergunta, re.IGNORECASE):
+                try:
+                    _tabs_info = browser_bridge._run_command("get_tabs", timeout_seconds=10)
+                    _tabs = _tabs_info.get("tabs") if isinstance(_tabs_info, dict) and _tabs_info.get("status") == "ok" else None
+                    if isinstance(_tabs, list):
+                        _tab_titles = [str(tab.get("title") or "(sem titulo)")[:160] for tab in _tabs if isinstance(tab, dict)]
+                        desktop_context += " Consulta real da extensao MYRA ao navegador: " + str(len(_tabs)) + " abas HTTP/HTTPS acessiveis; titulos: " + ("; ".join(_tab_titles[:30]) if _tab_titles else "nenhum titulo retornado") + "."
+                    else:
+                        desktop_context += " Consulta real das abas falhou; contagem exata indisponivel."
+                except Exception as _tab_context_error:
+                    print(f"[SEE] consulta de abas indisponivel: {type(_tab_context_error).__name__}")
+                    desktop_context += " Consulta real das abas indisponivel; nao estimar a quantidade."
+        except Exception as _window_context_error:
+            print(f"[SEE] inventario de janelas indisponivel: {type(_window_context_error).__name__}")
+
         import base64 as _base64
         # Capturas desktop grandes tornam a inferência multimodal local excessivamente
         # lenta. Redimensione mantendo a captura original no disco para auditoria.
@@ -2210,7 +2238,7 @@ def see(data: SeeImage):
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": data.pergunta + "\n\nREGRAS OBRIGATORIAS: responda em portugues em 3 frases curtas. Use somente caracteres ASCII (sem acentos) para evitar falhas de codificacao. Descreva apenas o que esta realmente visivel na imagem enviada. Priorize a janela em primeiro plano e os elementos que podem ser lidos; se houver um chat, descreva as mensagens visiveis sem inventar o restante da tela. Nao deduza sistema operacional, horario, identidade, intencoes, contas ou contexto que nao estejam claramente visiveis. Nao repita a pergunta. Nao invente botoes, paineis ou icones. Se nao conseguir ler algo, diga isso. Sem titulo, lista ou markdown; termine cada frase com pontuacao."},
+                        {"type": "text", "text": f"{data.pergunta}\n\nCONTEXTO INDEPENDENTE DA TELA (obtido do Windows, nao do historico do chat): {desktop_context}\n\nREGRAS OBRIGATORIAS: responda em portugues em ate 3 frases curtas. Use somente caracteres ASCII, sem acentos. Trate a imagem como evidencia principal do que esta visivel. Use os titulos do Windows apenas como evidencia de janelas abertas; nao os confunda com abas do navegador nem afirme que conhece o conteudo de uma aba oculta. Se perguntarem quantas abas existem, nao estime pela conversa ou pelo numero de janelas: responda que a contagem exata nao esta disponivel a menos que esteja visivel na imagem ou confirmada por uma consulta real ao navegador. Nunca use mensagens anteriores do chat como evidencia do que esta aberto na tela. Nao invente nomes, conteudos, botoes ou abas. Diferencie explicitamente o que esta visivel do que nao foi possivel inspecionar. Nao repita a pergunta. Sem titulo, lista ou markdown; termine cada frase com pontuacao."},
                         {"type": "image_url", "image_url": {"url": f"data:{img_mime};base64,{img_b64}"}}
                     ]
                 }
@@ -2249,7 +2277,7 @@ def see(data: SeeImage):
                 "messages": [{
                     "role": "user",
                     "content": (
-                        f"{data.pergunta}\n\nResponda em portugues em 3 frases curtas e use somente caracteres ASCII, sem acentos. "
+                        f"{data.pergunta}\n\nCONTEXTO INDEPENDENTE DA TELA (obtido do Windows, nao do historico do chat): {desktop_context}\n\nResponda em portugues em ate 3 frases curtas e use somente caracteres ASCII, sem acentos. Nunca use mensagens anteriores do chat como evidencia do que esta aberto na tela. Titulos de janelas nao provam a quantidade nem o conteudo de abas do navegador. Nao estime a contagem de abas; se nao houver consulta real ao navegador, diga que a contagem exata nao esta disponivel. "
                         "Descreva apenas o que esta realmente visivel na imagem. Priorize a janela em primeiro plano e o texto legivel. "
                         "Se houver um chat, descreva as mensagens visiveis sem inventar o restante da tela. Nao deduza sistema operacional, horario, identidade ou contexto nao visivel. "
                         "Nao invente botoes, paineis ou icones. Sem titulo, markdown ou lista; termine cada frase com pontuacao."
