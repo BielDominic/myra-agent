@@ -2214,7 +2214,7 @@ def see(data: SeeImage):
                     ]
                 }
             ],
-            "max_tokens": 500,
+            "max_tokens": 1200,
         }
 
         req = urllib.request.Request(
