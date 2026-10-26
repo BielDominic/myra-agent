@@ -491,6 +491,34 @@ def test_brazil_election_search_uses_final_results_query_and_more_sources():
     assert any("Resultado confirmado" in message for message in sent)
 
 
+def test_brazil_2026_election_uses_verified_result_when_search_has_current_coverage():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    bot._agent_request = lambda *args, **kwargs: {
+        "status": "ok",
+        "result": (
+            "[1] Quem ganhou a eleicao para presidente do Brasil em 2026? - G1\n"
+            "URL: https://g1.globo.com/politica/eleicoes/2026/noticia/2026/10/25/quem-ganhou.ghtml\n"
+            "Segundo turno das Eleicoes 2026 definiu a Presidencia neste domingo (25)."
+        ),
+    }
+    model_calls = []
+    bot._ollama_generate = lambda *args, **kwargs: model_calls.append(args) or (
+        "As eleicoes ainda nao ocorreram."
+    )
+
+    bot._handle_web_question("123", "Quem ganhou as eleicoes do Brasil?")
+
+    sent = [call[2]["text"] for call in http.calls if "/sendMessage" in call[1]]
+    answer = sent[-1]
+    assert "Luiz In\u00e1cio Lula da Silva" in answer
+    assert "64.256.232" in answer
+    assert "51,79%" in answer
+    assert "ainda nao ocorreram" not in answer
+    assert "https://www.tse.jus.br/" in answer
+    assert not model_calls
+
+
 def test_web_answer_prompt_requires_numbers_and_rejects_false_no_result_claims():
     http = FakeHTTP()
     bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)

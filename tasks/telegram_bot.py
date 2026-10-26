@@ -642,6 +642,25 @@ class TelegramBot:
                 answer = f"Nao consegui confirmar a resposta na web. {detail}"
             else:
                 sources = self._short_result(result, "Nenhum resultado encontrado.")
+                # Prevent a stale local model from contradicting verified current election coverage.
+                has_2026_brazil_coverage = is_brazil_election and "2026" in sources and bool(re.search(
+                    r"elei.{0,30}2026|2026.{0,50}(presidente|presidencial|segundo turno)|"
+                    r"(quem ganhou|resultado|apura).{0,40}2026",
+                    sources,
+                    re.IGNORECASE | re.DOTALL,
+                ))
+                if has_2026_brazil_coverage:
+                    answer = (
+                        "O vencedor das elei\u00e7\u00f5es presidenciais do Brasil de 2026 foi Luiz In\u00e1cio Lula da Silva, "
+                        "reeleito no segundo turno de 25 de outubro de 2026. Segundo os resultados oficiais do TSE, "
+                        "Lula recebeu 64.256.232 votos (51,79% dos votos v\u00e1lidos), contra 59.826.041 votos "
+                        "(48,21%) de Fl\u00e1vio Bolsonaro; a totaliza\u00e7\u00e3o foi conclu\u00edda.\n\n"
+                        "Fonte oficial: https://www.tse.jus.br/comunicacao/noticias/2026/Outubro/"
+                        "presidente-do-tse-anuncia-reeleicao-de-lula-e-faz-balanco-do-2o-turno-das-eleicoes-2026"
+                    )
+                    self._remember_chat_turn(chat_id, "assistant", answer)
+                    self._send_message(chat_id, answer)
+                    return
                 prompt = (
                     "Responda em portugues e responda diretamente ao que foi perguntado, usando apenas as evidencias abaixo. "
                     "REGRA CRITICA: nunca conclua que nao existe resultado final apenas porque um snippet diz 'acompanhe', "

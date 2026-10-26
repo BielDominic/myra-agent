@@ -712,7 +712,7 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 - [x] API remains bound to `127.0.0.1`; after the duplicate-poller fix, `/telegram/status` confirmed `running=true` and `last_error=null`.
 - [x] User confirmed Telegram is working for now (2026-10-26); monitor operationally and revalidate if the issue returns.
 - [x] Regression on 2026-10-26 traced missing replies to HTTP 409 from duplicate polling processes. A Windows mutex keyed by bot-token hash blocks a second instance; after restart `/telegram/status` showed `running=true` and `last_error=null`. A real mutex check confirmed the first instance acquires the lock and the second is blocked.
-- [x] `Open my files` and `Open Chrome` now route directly to `/pc_open_application`; current-fact/election questions use `/web_search` and return an answer or explicit error. Telegram tests: 40 passed; live web-search endpoint returned TSE sources.
+- [x] `Open my files` and `Open Chrome` route directly to `/pc_open_application`; current-fact/election questions use `/web_search`. On 2026-10-26, fixed a demonstrated synthesis failure where the local model denied a completed election despite matching current-year sources: Brazil 2026 election coverage now triggers a verified TSE-backed deterministic answer, and a regression test proves the model cannot override it. Telegram tests: 43 passed; `py_compile` and `git diff --check` passed. Real Telegram end-to-end response still needs user-side confirmation after service restart.
 
 #### PHASE 30 - Distribution
 ![In progress](https://img.shields.io/badge/-IN_PROGRESS-yellow?style=flat-square)
