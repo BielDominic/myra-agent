@@ -138,6 +138,21 @@ def test_cancel_and_pause_call_only_local_agent_routes():
     assert any(route.endswith("/task_pause") for route in routes)
 
 
+def test_visual_followups_about_other_tabs_keep_using_screen_analysis():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+
+    bot._route_text_message("123", "o que voce ve na tela")
+    bot._route_text_message("123", "me de detalhes de outras abas")
+    bot._route_text_message("123", "e me de mais detalhes")
+
+    see_calls = [call for call in http.calls if call[1].endswith("/see")]
+    assert len(see_calls) == 3
+    assert see_calls[1][2] == {"pergunta": "me de detalhes de outras abas"}
+    assert see_calls[2][2] == {"pergunta": "e me de mais detalhes"}
+    assert not any("127.0.0.1:11434/api/generate" in call[1] for call in http.calls)
+
+
 def test_plain_text_is_routed_without_command_prefix():
     import threading
 

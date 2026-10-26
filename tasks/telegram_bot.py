@@ -569,20 +569,43 @@ class TelegramBot:
         # rather than falling back to a text-only chat model that cannot see the desktop.
         visual_followup = bool(re.search(
             r"\b(mais detalhes|detalhe melhor|explique melhor|descreva melhor|"
-            r"o que mais|pode detalhar|fale mais|tell me more|more detail|elaborate)\b",
+            r"o que mais|pode detalhar|fale mais|tell me more|more detail|elaborate|"
+            r"outras abas|outra aba|abas abertas|aba aberta|outras janelas|"
+            r"mais sobre isso|detalhes disso|detalhes dessa|detalhes desta|"
+            r"nessa tela|nesta tela|nessa janela|nesta janela|o que aparece|"
+            r"o que tem aberto|what about the other tabs|other tabs|other windows)\b",
             user_text,
             re.IGNORECASE,
         ))
         with self._chat_history_lock:
             recent_history = self._chat_history.get(str(chat_id), [])
-            last_user_turn = next((
-                str(turn.get("content", "")) for turn in reversed(recent_history)
+            # Preserve visual context across a chain of follow-ups, not just one turn.
+            # Stop at an explicit new topic/action so old screen requests do not hijack chat.
+            recent_user_turns = [
+                str(turn.get("content", "")).strip()
+                for turn in reversed(recent_history[-8:])
                 if turn.get("role") == "user"
-            ), "")
-        follows_visual_request = visual_followup and (
-            last_user_turn.strip().lower().startswith("/see")
-            or bool(re.search(r"\b(tela|ecr[aã]|monitor|screen|display)\b", last_user_turn, re.IGNORECASE))
-        )
+            ]
+            visual_context = False
+            for prior_user_turn in recent_user_turns:
+                if prior_user_turn.lower().startswith("/see") or re.search(
+                    r"\b(tela|ecr[aã]|monitor|screen|display)\b",
+                    prior_user_turn,
+                    re.IGNORECASE,
+                ):
+                    visual_context = True
+                    break
+                if re.search(
+                    r"\b(mais detalhes|detalhe melhor|explique melhor|descreva melhor|"
+                    r"outras abas|outra aba|abas abertas|outras janelas|mais sobre isso|"
+                    r"detalhes disso|nessa tela|nesta tela|nessa janela|nesta janela|"
+                    r"other tabs|other windows|tell me more|more detail|elaborate)\b",
+                    prior_user_turn,
+                    re.IGNORECASE,
+                ):
+                    continue
+                break
+        follows_visual_request = visual_followup and visual_context
         screen_question = bool(re.search(
             r"\b(tela|ecr[aã]|monitor|screen|display)\b",
             user_text,
