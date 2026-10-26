@@ -1094,3 +1094,12 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 - [ ] **Motivo:** Permitir que o cérebro do MYRA e o bot do Telegram fiquem online 24/7, independentemente do PC local estar ligado ou desligado.
 - [ ] **Arquitetura:** O PC local continuará sendo o 'worker' que executa as ações no navegador (Chrome + Extensão). O VPS receberá os comandos e os enfileirará. Quando o PC ligar, ele puxa a fila e executa.
 - [ ] **Status:** Aguardando conclusão das fases locais e validação total do app iOS/API Remota.
+
+
+## Atualização: pesquisa e respostas com evidências (2026-10-26)
+
+- [x] Reforçada a instrução conversacional para evitar recusas genéricas e priorizar a resolução do pedido concreto.
+- [x] Perguntas factuais diretas em português e inglês agora acionam pesquisa web sem exigir a palavra “pesquise”.
+- [x] Síntese web orientada a cruzar evidências, priorizar fontes primárias, distinguir fatos de incertezas e responder o que for possível.
+- [x] Neutralidade mantida em questões eleitorais: comparar propostas e evidências sem escolher pelo usuário.
+- [x] 47 testes do Telegram aprovados; compilação Python e `git diff --check` sem erros. A qualidade do modelo em uma conversa real do Telegram ainda precisa de validação prática.

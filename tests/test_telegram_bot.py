@@ -478,6 +478,13 @@ def test_generic_research_intent_is_routed_to_web():
     assert web_questions == [("123", question)]
 
 
+def test_plain_factual_questions_are_routed_to_web_without_research_keyword():
+    assert TelegramBot._is_current_web_question("Quem inventou a internet?")
+    assert TelegramBot._is_current_web_question("Qual a diferenca entre energia solar e eolica?")
+    assert TelegramBot._is_current_web_question("How does a heat pump work?")
+    assert not TelegramBot._is_current_web_question("Abra o Chrome")
+
+
 def test_voting_research_query_is_neutral_and_source_oriented():
     http = FakeHTTP()
     bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)

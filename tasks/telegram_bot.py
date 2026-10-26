@@ -499,12 +499,18 @@ class TelegramBot:
             answer = self._ollama_generate(
                 prompt,
                 system=(
-                    "Você é MYRA, uma assistente pessoal local. Responda de forma direta, natural e útil, "
-                    "no idioma do usuário, respeitando o estilo do modelo selecionado. Evite moralizar, dar sermões, "
-                    "recusar por padrão, ou repetir avisos genéricos e ressalvas desnecessárias. Trate temas controversos, "
-                    "sensíveis, políticos e adultos com neutralidade e sem censura artificial; responda ao pedido concreto "
-                    "sempre que possível. Se houver incerteza, diga isso objetivamente e sem exagerar. Não invente fatos "
-                    "nem afirme que executou ações no computador sem confirmação real."
+                    "Você é MYRA, uma assistente pessoal local, proativa e orientada a resolver problemas. "
+                    "Responda de forma direta, natural, útil e no idioma do usuário. Não diga que não pode responder "
+                    "apenas por ser uma IA/agente, nem use recusas automáticas, sermões ou avisos genéricos. Primeiro "
+                    "interprete a intenção, raciocine passo a passo internamente, considere contexto e alternativas e "
+                    "entregue uma resposta concreta. Para perguntas factuais, técnicas, controversas ou que dependam "
+                    "de informação atual, pesquise e cruze fontes quando houver ferramentas disponíveis; diferencie fatos, "
+                    "inferências e incertezas, e corrija conclusões que não batam com as evidências. Se faltar informação, "
+                    "resolva o que for possível e faça uma pergunta específica apenas quando indispensável. Se uma ação "
+                    "ou detalhe realmente não puder ser realizado, explique a limitação concreta e ofereça a alternativa "
+                    "mais útil, sem resposta-padrão. Trate temas políticos e sensíveis com neutralidade e análise equilibrada. "
+                    "Não invente fatos, não revele raciocínio interno privado e não afirme que executou ações no computador "
+                    "sem confirmação real."
                 ),
                 timeout=90,
                 num_predict=MAX_CHAT_TOKENS,
@@ -621,7 +627,14 @@ class TelegramBot:
         research_intent = bool(re.search(
             r"\b(pesquis[ae]|pesquisar|pesquisa|investigue|investigar|procure|buscar|busque|"
             r"consulte|fontes|referencias|compare|comparar|comparacao|evidencias|"
-            r"what is|who is|how much|how many|look up|research|find out|compare)\b",
+            r"explique|explica|explicar|detalhe|detalhar|analise|analisar|investigacao|"
+            r"what is|who is|how much|how many|how does|why|when|where|look up|research|find out|compare)\b",
+            text,
+        ))
+        # Perguntas factuais completas também consultam fontes externas, mesmo sem a palavra "pesquise".
+        factual_question = bool(re.match(
+            r"^\s*(quem|qual|quais|quanto|quantos|quantas|quando|onde|como|por que|porque|"
+            r"o que|existe|e verdade que|who|what|when|where|why|how|is it true)\b",
             text,
         ))
         voting_intent = bool(re.search(
@@ -632,7 +645,7 @@ class TelegramBot:
             r"should i|who should|recommend|advise)\b",
             text,
         ))
-        return current_terms or research_intent or voting_intent
+        return current_terms or research_intent or factual_question or voting_intent
 
     def _handle_web_question(self, chat_id: str, user_text: str) -> None:
         self._remember_chat_turn(chat_id, "user", user_text)
@@ -685,7 +698,9 @@ class TelegramBot:
                     return
                 prompt = (
                     "Responda no idioma da pergunta, diretamente e com clareza, usando as evidencias web fornecidas. "
-                    "Sua tarefa e pesquisar, interpretar e sintetizar; nao despeje uma lista de links como substituto da resposta. "
+                    "Sua tarefa e pesquisar, cruzar, interpretar e sintetizar; nao despeje uma lista de links como substituto da resposta. "
+                    "Nao use recusas genericas como 'sou um agente e nao posso fornecer isso'. Procure uma resposta util baseada "
+                    "nas evidencias; se parte do pedido nao puder ser atendida, responda o restante e explique a limitacao especifica. "
                     "Identifique a resposta principal primeiro, depois explique os fatos relevantes e as incertezas. "
                     "Cruze os resultados entre si, priorize fontes oficiais/primarias para dados, leis, resultados e declaracoes, "
                     "e use fontes jornalisticas ou especialistas confiaveis para contexto. Verifique datas, local, versao e contexto; "
