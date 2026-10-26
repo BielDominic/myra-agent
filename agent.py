@@ -2210,7 +2210,7 @@ def see(data: SeeImage):
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": data.pergunta + "\n\nREGRAS OBRIGATORIAS: responda em portugues em apenas 3 a 5 frases curtas, sem titulos, sem markdown, sem listas e sem introducao. Descreva somente elementos claramente visiveis nesta captura. Nao infira identidade, intencoes, contas, ofertas ou contexto anterior. Se algum texto estiver ilegivel, diga que esta ilegivel em vez de adivinhar. Termine a ultima frase por completo com pontuacao. Nao acrescente secoes extras."},
+                        {"type": "text", "text": data.pergunta + "\n\nREGRAS OBRIGATORIAS: responda em portugues em 3 frases curtas. Use somente caracteres ASCII (sem acentos) para evitar falhas de codificacao. Descreva apenas o que esta realmente visivel na imagem enviada. Priorize a janela em primeiro plano e os elementos que podem ser lidos; se houver um chat, descreva as mensagens visiveis sem inventar o restante da tela. Nao deduza sistema operacional, horario, identidade, intencoes, contas ou contexto que nao estejam claramente visiveis. Nao repita a pergunta. Nao invente botoes, paineis ou icones. Se nao conseguir ler algo, diga isso. Sem titulo, lista ou markdown; termine cada frase com pontuacao."},
                         {"type": "image_url", "image_url": {"url": f"data:{img_mime};base64,{img_b64}"}}
                     ]
                 }
@@ -2249,9 +2249,10 @@ def see(data: SeeImage):
                 "messages": [{
                     "role": "user",
                     "content": (
-                        f"{data.pergunta}\n\nResponda em portugues em apenas 3 a 5 frases curtas, sem titulos, markdown ou listas. "
-                        "Descreva somente o que estiver claramente visivel nesta captura. Nao infira identidade, intencoes, ofertas ou contexto anterior. "
-                        "Nao adivinhe textos ilegiveis. Termine com uma frase completa e pontuacao."
+                        f"{data.pergunta}\n\nResponda em portugues em 3 frases curtas e use somente caracteres ASCII, sem acentos. "
+                        "Descreva apenas o que esta realmente visivel na imagem. Priorize a janela em primeiro plano e o texto legivel. "
+                        "Se houver um chat, descreva as mensagens visiveis sem inventar o restante da tela. Nao deduza sistema operacional, horario, identidade ou contexto nao visivel. "
+                        "Nao invente botoes, paineis ou icones. Sem titulo, markdown ou lista; termine cada frase com pontuacao."
                     ),
                     "images": [img_b64],
                 }],
@@ -2341,15 +2342,6 @@ def see(data: SeeImage):
                         "result": "A análise visual foi interrompida e não foi possível concluir a nova tentativa. Nenhuma descrição incompleta foi enviada; tente novamente.",
                         "screenshot": arquivo,
                     }
-
-        if conteudo:
-            substituicoes = {
-                "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©": "ÃƒÆ’Ã‚Â©", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡": "ÃƒÆ’Ã‚Â¡", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£": "ÃƒÆ’Ã‚Â£", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢": "ÃƒÆ’Ã‚Â¢", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âª": "ÃƒÆ’Ã‚Âª",
-                "ÃƒÆ’Ã†â€™": "ÃƒÆ’Ã‚Â­", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³": "ÃƒÆ’Ã‚Â³", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â´": "ÃƒÆ’Ã‚Â´", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âµ": "ÃƒÆ’Ã‚Âµ", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âº": "ÃƒÆ’Ã‚Âº",
-                "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¼": "ÃƒÆ’Ã‚Â¼", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§": "ÃƒÆ’Ã‚Â§", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â±": "ÃƒÆ’Ã‚Â±",
-            }
-            for errado, certo in substituicoes.items():
-                conteudo = conteudo.replace(errado, certo)
 
         if not isinstance(conteudo, str) or not conteudo.strip():
             print("[SEE] ERRO: modelo visual retornou resposta vazia")
