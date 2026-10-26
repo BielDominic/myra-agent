@@ -118,6 +118,16 @@ def test_see_command_returns_visual_summary():
     assert "A tela mostra uma janela." in sent[-1][2]["text"]
 
 
+def test_natural_screen_question_uses_real_vision_endpoint():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    bot._route_text_message("123", "O que você vê na minha tela")
+    assert any(call[0] == "POST" and call[1].endswith("/see") for call in http.calls)
+    assert not any("11434/api/generate" in call[1] for call in http.calls)
+    sent = [call for call in http.calls if "/sendMessage" in call[1]]
+    assert "A tela mostra uma janela." in sent[-1][2]["text"]
+
+
 def test_cancel_and_pause_call_only_local_agent_routes():
     http = FakeHTTP()
     bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)

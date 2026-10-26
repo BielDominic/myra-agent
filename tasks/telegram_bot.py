@@ -535,6 +535,40 @@ class TelegramBot:
             self._send_message(chat_id, answer)
             return
 
+        # Perguntas sobre o que aparece na tela devem usar a ferramenta visual real,
+        # nunca o modelo de conversa textual que não tem acesso à captura.
+        screen_question = re.search(
+            r"\b(tela|ecr[aã]|monitor|screen|display)\b",
+            user_text,
+            re.IGNORECASE,
+        ) and re.search(
+            r"\b(o que|que|como|descreva|mostre|veja|olhe|analise|analisar|"
+            r"v[eê]|aparece|est[aá]|mostra|what|see|view|look|describe|analy[sz]e)\b",
+            user_text,
+            re.IGNORECASE,
+        )
+        if screen_question:
+            self._remember_chat_turn(chat_id, "user", user_text)
+            try:
+                result = self._agent_request(
+                    "POST", "/see", {"pergunta": user_text}, timeout=150
+                )
+                answer = self._short_result(
+                    result,
+                    "Não consegui analisar a tela do computador agora. Tente /see para repetir.",
+                )
+                if result.get("status") == "erro":
+                    self._last_error = "see: visual analysis returned error"
+                self._remember_chat_turn(chat_id, "assistant", answer)
+                self._send_message(chat_id, answer)
+            except Exception as exc:
+                self._last_error = f"see: {type(exc).__name__}"
+                self._send_message(
+                    chat_id,
+                    "Não consegui analisar a tela do computador. Verifique se a captura de tela e o serviço de visão estão funcionando.",
+                )
+            return
+
         # Perguntas meteorológicas precisam consultar a fonte real, não o modelo de conversa.
         weather_city = self._extract_weather_city(user_text)
         if weather_city is not None:

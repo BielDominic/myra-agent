@@ -2187,8 +2187,21 @@ def see(data: SeeImage):
         print(f"[SEE] screenshot do PC salvo em {arquivo}")
 
         import base64 as _base64
-        with open(arquivo, "rb") as f:
-            img_b64 = _base64.b64encode(f.read()).decode()
+        # Capturas desktop grandes tornam a inferência multimodal local excessivamente
+        # lenta. Redimensione mantendo a captura original no disco para auditoria.
+        try:
+            from PIL import Image as _Image
+            import io as _io
+            with _Image.open(arquivo) as _screen:
+                _screen.thumbnail((1024, 768))
+                _buffer = _io.BytesIO()
+                _screen.convert("RGB").save(_buffer, format="JPEG", quality=78, optimize=True)
+                img_b64 = _base64.b64encode(_buffer.getvalue()).decode("ascii")
+                img_mime = "image/jpeg"
+        except ImportError:
+            with open(arquivo, "rb") as f:
+                img_b64 = _base64.b64encode(f.read()).decode("ascii")
+            img_mime = "image/png"
 
         payload = {
             "model": "Qwen3.5-0.8B",
@@ -2197,7 +2210,7 @@ def see(data: SeeImage):
                     "role": "user",
                     "content": [
                         {"type": "text", "text": data.pergunta},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}}
+                        {"type": "image_url", "image_url": {"url": f"data:{img_mime};base64,{img_b64}"}}
                     ]
                 }
             ],
@@ -2211,11 +2224,31 @@ def see(data: SeeImage):
             method="POST",
         )
 
-        with urllib.request.urlopen(req, timeout=120) as r:
-            resposta = json.loads(r.read().decode("utf-8"))
-
-        msg = resposta["choices"][0]["message"]
-        conteudo = msg.get("content", "") or msg.get("reasoning_content", "")
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                resposta = json.loads(r.read().decode("utf-8"))
+            msg = resposta["choices"][0]["message"]
+            conteudo = msg.get("content", "") or msg.get("reasoning_content", "")
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as vision_error:
+            # O servidor OpenAI-compatível dedicado pode estar desligado; use o Ollama
+            # local com modelo multimodal como fallback, sem abandonar a análise visual.
+            print(f"[SEE] endpoint visual indisponivel ({type(vision_error).__name__}); tentando Ollama multimodal")
+            fallback_payload = {
+                "model": "qwen3.5:4b",
+                "messages": [{"role": "user", "content": data.pergunta, "images": [img_b64]}],
+                "stream": False,
+                "think": False,
+                "options": {"num_predict": 700, "temperature": 0.1},
+            }
+            fallback_req = urllib.request.Request(
+                "http://127.0.0.1:11434/api/chat",
+                data=json.dumps(fallback_payload).encode("utf-8"),
+                headers={"Content-Type": "application/json; charset=utf-8"},
+                method="POST",
+            )
+            with urllib.request.urlopen(fallback_req, timeout=150) as r:
+                fallback_response = json.loads(r.read().decode("utf-8"))
+            conteudo = (fallback_response.get("message") or {}).get("content", "")
 
         if conteudo:
             substituicoes = {
@@ -2226,6 +2259,11 @@ def see(data: SeeImage):
             for errado, certo in substituicoes.items():
                 conteudo = conteudo.replace(errado, certo)
 
+        if not isinstance(conteudo, str) or not conteudo.strip():
+            print("[SEE] ERRO: modelo visual retornou resposta vazia")
+            return {"status": "erro", "result": "O modelo visual não retornou uma descrição da tela. A captura foi feita, mas a análise falhou; tente novamente ou verifique o modelo multimodal do Ollama.", "screenshot": arquivo}
+
+        conteudo = conteudo.strip()
         print(f"[SEE] resposta: {conteudo[:100]}...")
         return {"status": "ok", "result": conteudo, "screenshot": arquivo}
     except Exception as e:
