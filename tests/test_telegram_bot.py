@@ -110,6 +110,21 @@ def test_screenshot_is_sent_only_on_explicit_command(tmp_path):
     assert photos[0][4]["photo"][0] == "screen.png"
 
 
+def test_natural_language_screenshot_request_sends_photo(tmp_path):
+    screenshot = tmp_path / "screen.png"
+    screenshot.write_bytes(b"fake-png")
+    http = FakeHTTP()
+    http.screenshot_path = str(screenshot)
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+
+    bot._route_text_message("123", "mande um imagem da tela do meu compuatdor")
+
+    photos = [call for call in http.calls if "/sendPhoto" in call[1]]
+    assert len(photos) == 1
+    assert photos[0][4]["photo"][0] == "screen.png"
+    assert not any("11434/api/generate" in call[1] for call in http.calls)
+
+
 def test_see_command_returns_visual_summary():
     http = FakeHTTP()
     bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)

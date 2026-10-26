@@ -541,6 +541,27 @@ class TelegramBot:
         return city
 
     def _route_text_message(self, chat_id: str, user_text: str) -> None:
+        # Pedidos explícitos para enviar uma imagem da tela devem executar a captura,
+        # não cair no modelo de conversa (que não envia arquivos ao Telegram).
+        normalized_text = user_text.casefold()
+        asks_for_screenshot = (
+            bool(re.search(r"\b(tela|ecr[aã]|screen|screenshot|captura de tela|print da tela)\b", normalized_text))
+            and bool(re.search(r"\b(imagem|foto|print|captura|screenshot|imagem da tela)\b", normalized_text))
+            and bool(re.search(r"\b(mande|manda|mandar|envie|enviar|envia|mostre|mostrar|tire|tirar|capture|capturar|compartilhe|compartilhar|quero|me manda|send|take|share)\b", normalized_text))
+        )
+        if asks_for_screenshot:
+            self._remember_chat_turn(chat_id, "user", user_text)
+            try:
+                self._send_screenshot(chat_id)
+            except Exception as exc:
+                # Nunca deixar a solicitação cair no chat generativo, que pode negar
+                # incorretamente a capacidade de captura. Sempre devolver erro acionável.
+                self._send_message(chat_id, f"Não consegui enviar a captura da tela ({type(exc).__name__}). Tente /screenshot novamente.")
+                self._last_error = f"screenshot natural language: {type(exc).__name__}: {exc}"
+                return
+            self._remember_chat_turn(chat_id, "assistant", "Solicitação de captura da tela encaminhada para envio pelo Telegram.")
+            return
+
         # Pedido comum de VPN é informativo e deve receber uma opção concreta, não uma recusa.
         lower_text = user_text.casefold()
         if (
