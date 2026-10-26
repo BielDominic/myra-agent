@@ -550,6 +550,31 @@ def test_allegation_about_election_turn_keeps_claim_in_web_search_query():
     assert any("As fontes precisam ser verificadas" in message for message in sent)
 
 
+
+def test_long_investigation_prompt_is_trimmed_to_actual_question():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    requests = []
+    bot._agent_request = lambda method, route, payload=None, timeout=20: (
+        requests.append((method, route, payload, timeout)) or
+        {"status": "ok", "result": "Documento oficial e checagem independente. URL: https://example.org"}
+    )
+    bot._ollama_generate = lambda prompt, **kwargs: "As fontes precisam ser verificadas. https://example.org"
+    question = (
+        "Quero que voce faca uma investigacao imparcial sobre a seguinte questao:\n\n"
+        "Existem evidencias de fraude no segundo turno das eleicoes presidenciais brasileiras de 2022 atribuida ao PT?\n\n"
+        "Siga estas instrucoes:\n\n1. Faca pelo menos 3 pesquisas na web.\n"
+        "2. Consulte fontes oficiais e checagem independente.\nFormato da resposta: resumo e fontes."
+    )
+
+    bot._handle_web_question("123", question)
+
+    queries = [request[2]["query"] for request in requests]
+    assert len(queries) == 3
+    assert all("Existem evidencias de fraude no segundo turno" in query for query in queries)
+    assert all("Siga estas instrucoes" not in query for query in queries)
+    assert all("Formato da resposta" not in query for query in queries)
+
 def test_web_search_failure_sends_progress_and_explicit_error():
     http = FakeHTTP()
     bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)

@@ -722,12 +722,15 @@ class TelegramBot:
                 query = f"como escolher em quem votar criterios comparar propostas programas de governo fontes oficiais informacao eleitoral {year}"
             else:
                 query = user_text
-            research_topic = user_text.split("Siga estas instruções:", 1)[0].strip()
-            research_topic = research_topic.split("Siga estas instrucoes:", 1)[0].strip()
-            if "sobre a seguinte questão:" in research_topic:
-                research_topic = research_topic.split("sobre a seguinte questão:", 1)[1].strip()
-            elif "sobre a seguinte questao:" in research_topic:
-                research_topic = research_topic.split("sobre a seguinte questao:", 1)[1].strip()
+            # Remove o bloco de instrucoes usando prefixos ASCII tolerantes a acentos/encoding.
+            # O texto original pode conter caracteres acentuados e nao deve ser enviado inteiro ao buscador.
+            research_topic = re.split(r"Siga estas instru.{0,12}?es\s*:", user_text, maxsplit=1, flags=re.IGNORECASE)[0].strip()
+            question_match = re.search(r"sobre a seguinte quest.{0,3}o\s*:\s*(.*)", research_topic, flags=re.IGNORECASE | re.DOTALL)
+            if question_match:
+                research_topic = question_match.group(1).strip()
+            research_topic = re.sub(r"\s+", " ", research_topic).strip(" \t\r\n\"'")
+            if not research_topic:
+                research_topic = user_text[:500].strip()
             if allegation_terms:
                 # Triangula alegacoes de qualquer tema por buscas distintas: documentos oficiais,
                 # checagem independente e cobertura jornalistica. Nenhuma busca isolada decide a conclusao.
