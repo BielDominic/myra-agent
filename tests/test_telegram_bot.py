@@ -464,3 +464,18 @@ def test_long_responses_are_sent_in_chunks_without_truncation():
 def test_short_result_does_not_truncate_long_agent_response():
     original = "x" * 12000
     assert TelegramBot._short_result({"status": "ok", "result": original}) == original
+
+
+def test_visual_followup_requests_fresh_screen_analysis():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+
+    bot.handle_update(update(123, "/see"))
+    bot._route_text_message("123", "me de mais detalhes")
+
+    see_calls = [call for call in http.calls if call[1].endswith("/see")]
+    assert len(see_calls) == 2
+    assert see_calls[1][2]["pergunta"] == "me de mais detalhes"
+    history = bot._chat_history["123"]
+    assert history[-2]["content"] == "me de mais detalhes"
+    assert history[-1]["content"] == "A tela mostra uma janela."

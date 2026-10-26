@@ -565,7 +565,25 @@ class TelegramBot:
 
         # Perguntas sobre o que aparece na tela devem usar a ferramenta visual real,
         # nunca o modelo de conversa textual que não tem acesso à captura.
-        screen_question = re.search(
+        # Follow-ups such as "me de mais detalhes" must remain grounded in the live screen,
+        # rather than falling back to a text-only chat model that cannot see the desktop.
+        visual_followup = bool(re.search(
+            r"\b(mais detalhes|detalhe melhor|explique melhor|descreva melhor|"
+            r"o que mais|pode detalhar|fale mais|tell me more|more detail|elaborate)\b",
+            user_text,
+            re.IGNORECASE,
+        ))
+        with self._chat_history_lock:
+            recent_history = self._chat_history.get(str(chat_id), [])
+            last_user_turn = next((
+                str(turn.get("content", "")) for turn in reversed(recent_history)
+                if turn.get("role") == "user"
+            ), "")
+        follows_visual_request = visual_followup and (
+            last_user_turn.strip().lower().startswith("/see")
+            or bool(re.search(r"\b(tela|ecr[aã]|monitor|screen|display)\b", last_user_turn, re.IGNORECASE))
+        )
+        screen_question = bool(re.search(
             r"\b(tela|ecr[aã]|monitor|screen|display)\b",
             user_text,
             re.IGNORECASE,
@@ -574,7 +592,7 @@ class TelegramBot:
             r"v[eê]|aparece|est[aá]|mostra|what|see|view|look|describe|analy[sz]e)\b",
             user_text,
             re.IGNORECASE,
-        )
+        )) or follows_visual_request
         if screen_question:
             self._remember_chat_turn(chat_id, "user", user_text)
             try:
@@ -901,12 +919,17 @@ class TelegramBot:
         elif command == "screenshot":
             self._send_screenshot(chat_id)
         elif command == "see":
-            question = argument or "Descreva somente o que está claramente visível na tela. Responda em 3 a 5 frases curtas, sem títulos, listas ou inferências."
+            question = argument or "Descreva somente o que esta claramente visivel na tela. Responda em 3 frases curtas, sem titulos, listas ou inferencias."
+            self._remember_chat_turn(chat_id, "user", f"/see {question}")
             try:
                 result = self._agent_request("POST", "/see", {"pergunta": question}, timeout=150)
-                self._send_message(chat_id, self._short_result(result, "Analise visual concluida."))
+                answer = self._short_result(result, "Analise visual concluida.")
+                self._remember_chat_turn(chat_id, "assistant", answer)
+                self._send_message(chat_id, answer)
             except Exception as exc:
-                self._send_message(chat_id, f"Falha na analise visual: {type(exc).__name__}.")
+                answer = f"Falha na analise visual: {type(exc).__name__}."
+                self._remember_chat_turn(chat_id, "assistant", answer)
+                self._send_message(chat_id, answer)
         else:
             self._send_message(chat_id, "Comando desconhecido. Use /help.")
 
