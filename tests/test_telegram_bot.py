@@ -509,3 +509,27 @@ def test_visual_followup_requests_fresh_screen_analysis():
     history = bot._chat_history["123"]
     assert history[-2]["content"] == "me de mais detalhes"
     assert history[-1]["content"] == "A tela mostra uma janela."
+
+def test_natural_screenshot_request_does_not_claim_success_when_photo_upload_fails(tmp_path):
+    screenshot = tmp_path / "screen.png"
+    screenshot.write_bytes(b"fake-png")
+    http = FakeHTTP()
+    http.screenshot_path = str(screenshot)
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    original_telegram = bot._telegram
+
+    def fail_photo_upload(method, **kwargs):
+        if method == "sendPhoto":
+            raise RuntimeError("simulated Telegram upload failure")
+        return original_telegram(method, **kwargs)
+
+    bot._telegram = fail_photo_upload
+    bot._route_text_message("123", "Mande uma imagem da tela do meu computador")
+
+    assert "upload failure" in (bot.status()["last_error"] or "")
+    assert not any(
+        turn["content"] == "Captura da tela enviada pelo Telegram."
+        for turn in bot._chat_history.get("123", [])
+    )
+    sent = [call for call in http.calls if "/sendMessage" in call[1]]
+    assert any("Falha ao capturar/enviar a tela" in call[2]["text"] for call in sent)

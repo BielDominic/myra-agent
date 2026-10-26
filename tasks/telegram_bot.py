@@ -551,15 +551,10 @@ class TelegramBot:
         )
         if asks_for_screenshot:
             self._remember_chat_turn(chat_id, "user", user_text)
-            try:
-                self._send_screenshot(chat_id)
-            except Exception as exc:
-                # Nunca deixar a solicitação cair no chat generativo, que pode negar
-                # incorretamente a capacidade de captura. Sempre devolver erro acionável.
-                self._send_message(chat_id, f"Não consegui enviar a captura da tela ({type(exc).__name__}). Tente /screenshot novamente.")
-                self._last_error = f"screenshot natural language: {type(exc).__name__}: {exc}"
+            if not self._send_screenshot(chat_id):
+                self._last_error = self._last_error or "screenshot natural language: delivery failed"
                 return
-            self._remember_chat_turn(chat_id, "assistant", "Solicitação de captura da tela encaminhada para envio pelo Telegram.")
+            self._remember_chat_turn(chat_id, "assistant", "Captura da tela enviada pelo Telegram.")
             return
 
         # Pedido comum de VPN é informativo e deve receber uma opção concreta, não uma recusa.
@@ -1002,17 +997,20 @@ class TelegramBot:
             with self._task_lock:
                 self._task_running = False
 
-    def _send_screenshot(self, chat_id: str) -> None:
+    def _send_screenshot(self, chat_id: str) -> bool:
+        """Captura e envia a tela; retorna True somente após o Telegram aceitar a foto."""
         try:
             result = self._agent_request("POST", "/pc_screenshot", {"salvar": True}, timeout=30)
             path_text = result.get("path") or result.get("arquivo") or result.get("screenshot")
             if not path_text:
-                self._send_message(chat_id, self._short_result(result, "Nao foi possivel obter o caminho da captura."))
-                return
+                self._last_error = "screenshot: agent returned no file path"
+                self._send_message(chat_id, self._short_result(result, "Não foi possível obter o caminho da captura."))
+                return False
             path = Path(path_text)
             if not path.is_file():
-                self._send_message(chat_id, f"Captura criada, mas o arquivo nao foi encontrado: {path.name}")
-                return
+                self._last_error = f"screenshot: file not found ({path.name})"
+                self._send_message(chat_id, f"A captura foi solicitada, mas o arquivo não foi encontrado: {path.name}")
+                return False
             with path.open("rb") as image_file:
                 self._telegram(
                     "sendPhoto",
@@ -1020,8 +1018,12 @@ class TelegramBot:
                     files={"photo": (path.name, image_file, "image/png")},
                     timeout=60,
                 )
+            self._last_error = None
+            return True
         except Exception as exc:
-            self._send_message(chat_id, f"Falha ao enviar captura: {type(exc).__name__}.")
+            self._last_error = f"screenshot: {type(exc).__name__}: {exc}"
+            self._send_message(chat_id, f"Falha ao capturar/enviar a tela ({type(exc).__name__}). Tente /screenshot novamente.")
+            return False
 
     def _poll_loop(self) -> None:
         while not self._stop_event.is_set():
