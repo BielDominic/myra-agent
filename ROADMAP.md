@@ -1141,5 +1141,7 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 - [x] Adicionado fallback estruturado via Google News RSS após falha do DuckDuckGo e do parser HTML do Google.
 - [x] Validado no ambiente real: a rota `POST /web_search` retorna HTTP 200 e cinco resultados com título, link e descrição para consulta sobre testes de integridade das urnas no segundo turno de 2022.
 - [x] Reiniciado o backend MYRA com segurança para carregar o novo código.
-- [x] Regressão: `tests/test_tools_structured.py` e `tests/test_telegram_bot.py` — 189 testes e 62 subtestes aprovados; `py_compile` e `git diff --check` aprovados.
-- [ ] Pendente: validar a resposta investigativa completa de ponta a ponta no Telegram, incluindo conferência de datas/contexto das fontes e ausência de truncamento. A pesquisa do backend está funcionando; isso ainda não equivale a declarar a resposta final do bot validada.
+- [x] Regressão: `tests/test_tools_structured.py` e `tests/test_telegram_bot.py` — 190 testes e 62 subtestes aprovados; `py_compile` e `git diff --check` aprovados.
+- [x] Corrigido o contexto de perguntas curtas: a pesquisa extrai o tema da primeira frase do pedido longo e o prompt final agora inclui explicitamente o contexto da investigação e a pergunta mais recente.
+- [x] Adicionado teste de regressão para a sequência de investigação Covaxin seguida de `Quem é o principal apontado?`; verifica que as consultas continuam no tema e que o briefing inteiro não contamina a busca.
+- [ ] Pendente: validar a resposta investigativa completa de ponta a ponta no Telegram, incluindo relevância das fontes, verificação de páginas, datas/contexto e ausência de truncamento. O backend e os testes automatizados passaram; isso ainda não equivale a declarar a resposta final do bot validada.

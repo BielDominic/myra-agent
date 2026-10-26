@@ -575,6 +575,35 @@ def test_long_investigation_prompt_is_trimmed_to_actual_question():
     assert all("Siga estas instrucoes" not in query for query in queries)
     assert all("Formato da resposta" not in query for query in queries)
 
+def test_short_followup_reuses_only_the_investigation_topic_not_full_briefing():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    requests = []
+    prompts = []
+    bot._agent_request = lambda method, route, payload=None, timeout=20: (
+        requests.append((method, route, payload, timeout)) or
+        {"status": "ok", "result": "Relatorio e fontes sobre Covaxin. URL: https://example.org"}
+    )
+    bot._ollama_generate = lambda prompt, **kwargs: prompts.append(prompt) or "As fontes precisam ser verificadas. https://example.org"
+    initial = (
+        "MYRA, faça uma investigação jornalística sobre o caso Covaxin no Brasil, relacionado às negociações "
+        "para aquisição da vacina contra a COVID-19 em 2021.\n\nSiga estas instruções:\n"
+        "1. Pesquise fontes primárias.\n2. Identifique responsáveis e conclusões.\n"
+        "3. Apresente uma cronologia e links diretos."
+    )
+    bot._remember_chat_turn("123", "user", initial)
+
+    bot._handle_web_question("123", "Quem é o principal apontado?")
+
+    queries = [request[2]["query"] for request in requests]
+    assert len(queries) == 3
+    assert all("Covaxin no Brasil" in query for query in queries)
+    assert all("Quem é o principal apontado?" in query for query in queries)
+    assert all("Siga estas instruções" not in query for query in queries)
+    assert all("cronologia e links diretos" not in query for query in queries)
+    assert "Contexto da investigação/pergunta completa: o caso Covaxin no Brasil" in prompts[0]
+
+
 def test_web_search_failure_sends_progress_and_explicit_error():
     http = FakeHTTP()
     bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)

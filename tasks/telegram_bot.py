@@ -758,10 +758,22 @@ class TelegramBot:
                     maxsplit=1,
                     flags=re.IGNORECASE,
                 )[0].strip()
-                context_topic = re.sub(r"\s+", " ", context_topic)[:500]
+                context_topic = re.sub(r"\s+", " ", context_topic).strip()
+                # A mensagem inicial pode ser um briefing longo com várias instruções.
+                # Para uma pergunta de acompanhamento, pesquisar o briefing inteiro gera ruído;
+                # extrair a primeira frase, que normalmente identifica o caso investigado.
+                first_sentence = re.split(r"(?<=[.!?])\s+", context_topic, maxsplit=1)[0].strip()
+                first_sentence = re.sub(
+                    r"^(?:MYRA[, ]+)?(?:faça|faca|realize|conduza|prepare|quero|pesquise|investigue)\s+"
+                    r"(?:uma\s+)?(?:investiga[cç][aã]o(?:\s+jornal[ií]stica)?\s+(?:sobre|do|da|de)\s+|pesquisa\s+(?:sobre|do|da|de)\s+)?",
+                    "",
+                    first_sentence,
+                    flags=re.IGNORECASE,
+                ).strip()
+                context_topic = (first_sentence or context_topic)[:350]
                 if context_topic:
                     research_topic = f"{context_topic}; pergunta de acompanhamento: {user_text}"
-                    query = f"{context_topic} {user_text} fontes oficiais responsáveis conclusão investigação"
+                    query = f'"{context_topic}" {user_text} fontes oficiais responsáveis conclusão investigação'
                     allegation_terms = allegation_terms or bool(re.search(
                         r"\b(irregularidade|irregularidades|suspeita|vacina|covaxin|pfizer|contrato|respons[aá]vel|investiga)\b",
                         prior_research_context.casefold(),
@@ -833,7 +845,8 @@ class TelegramBot:
                     "declaracao de eleito/reeleito, totalizacao concluida ou 100% das secoes e numeros explicitos; prefira a autoridade "
                     "eleitoral oficial e corrobore com jornalismo confiavel. Nunca diga que nao ha resultado final se as evidencias "
                     "mostram o vencedor e a totalizacao. Nao misture dados de horarios diferentes.\n"
-                    f"Pergunta: {user_text}\nResultados web:\n{sources}"
+                    f"Contexto da investigação/pergunta completa: {research_topic}\n"
+                    f"Pergunta mais recente: {user_text}\nResultados web:\n{sources}"
                 )
                 try:
                     answer = self._ollama_generate(
