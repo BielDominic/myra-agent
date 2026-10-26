@@ -678,8 +678,19 @@ class TelegramBot:
         try:
             year = datetime.datetime.now().year
             normalized_question = user_text.casefold()
-            is_brazil_election = ("elei" in normalized_question or "election" in normalized_question) and any(
-                marker in normalized_question for marker in ("brasil", "brasileir", "brazil")
+            is_election_question = "elei" in normalized_question or "election" in normalized_question
+            allegation_terms = bool(re.search(
+                r"\b(golpe|fraude|fraud|irregularidade|irregularidades|prova|provas|evid[eê]ncia|"
+                r"evid[eê]ncias|den[uú]ncia|den[uú]ncias|manipula[cç][aã]o|fraudou|fraudaram|"
+                r"urnas|auditoria|contesta[cç][aã]o|falsifica[cç][aã]o)\b",
+                normalized_question,
+            ))
+            # "PT" junto de alegação de golpe/fraude e segundo turno é tratado como
+            # referência provável ao Partido dos Trabalhadores no Brasil, salvo indicação explícita de Portugal.
+            explicit_portugal = any(marker in normalized_question for marker in ("portugal", "português", "portuguesa", "portuguese"))
+            is_brazil_election = is_election_question and (
+                any(marker in normalized_question for marker in ("brasil", "brasileir", "brazil"))
+                or (not explicit_portugal and allegation_terms and re.search(r"\bpt\b", normalized_question))
             )
             allegation_terms = bool(re.search(
                 r"\b(golpe|fraude|fraud|irregularidade|irregularidades|prova|provas|evid[eê]ncia|"
@@ -711,18 +722,41 @@ class TelegramBot:
                 query = f"como escolher em quem votar criterios comparar propostas programas de governo fontes oficiais informacao eleitoral {year}"
             else:
                 query = user_text
-            result = self._agent_request(
-                "POST", "/web_search",
-                {"query": query, "max_resultados": 8},
-                timeout=25,
-            )
-            if not isinstance(result, dict) or result.get("status") != "ok":
-                detail = self._short_result(result, "A pesquisa nao retornou resultados.")
+            if allegation_terms:
+                # Triangula alegacoes de qualquer tema por buscas distintas: documentos oficiais,
+                # checagem independente e cobertura jornalistica. Nenhuma busca isolada decide a conclusao.
+                if is_brazil_election:
+                    primary_terms = "TSE decisões judiciais auditoria Ministério Público"
+                else:
+                    primary_terms = "documentos oficiais investigações decisões judiciais auditorias"
+                research_queries = [
+                    f'"{user_text}" {primary_terms}',
+                    f'{user_text} checagem de fatos verificação independente evidências',
+                    f'{user_text} investigação reportagem jornalismo fontes independentes',
+                ]
+            else:
+                research_queries = [query]
+
+            collected_sources = []
+            search_errors = []
+            for index, research_query in enumerate(research_queries, start=1):
+                search_result = self._agent_request(
+                    "POST", "/web_search",
+                    {"query": research_query, "max_resultados": 8},
+                    timeout=25,
+                )
+                if isinstance(search_result, dict) and search_result.get("status") == "ok":
+                    collected_sources.append(f"RESULTADOS DA BUSCA {index}:\n{self._short_result(search_result, 'Nenhum resultado encontrado.')}")
+                else:
+                    search_errors.append(self._short_result(search_result, "Pesquisa sem resultados."))
+            if not collected_sources:
+                detail = "; ".join(search_errors) or "A pesquisa nao retornou resultados."
                 answer = f"Nao consegui confirmar a resposta na web. {detail}"
             else:
-                sources = self._short_result(result, "Nenhum resultado encontrado.")
-                # Prevent a stale local model from contradicting verified current election coverage.
-                has_2026_brazil_coverage = is_brazil_election and "2026" in sources and bool(re.search(
+                sources = "\n\n".join(collected_sources)
+                # O atalho de resultado eleitoral só pode responder perguntas sobre o vencedor,
+                # nunca substituir uma investigação de alegações de fraude/golpe.
+                has_2026_brazil_coverage = is_brazil_election and not allegation_terms and asks_election_outcome and "2026" in sources and bool(re.search(
                     r"elei.{0,30}2026|2026.{0,50}(presidente|presidencial|segundo turno)|"
                     r"(quem ganhou|resultado|apura).{0,40}2026",
                     sources,
@@ -751,6 +785,12 @@ class TelegramBot:
                     "nao trate titulos/snippets como prova se o restante das fontes os contradiz. Nao invente fatos, numeros, "
                     "citacoes ou conclusoes ausentes das evidencias. Se as fontes forem insuficientes ou conflitantes, diga exatamente "
                     "o que pode e o que nao pode ser confirmado. Inclua links diretos para as fontes mais relevantes. "
+                    "Para alegacoes de fraude, golpe, corrupcao ou conspiracao, investigue sem presumir que sejam verdadeiras ou falsas. "
+                    "Procure evidencias que apoiem e que contradigam a alegacao; cruze fontes realmente independentes, identifique quando "
+                    "varias paginas repetem a mesma fonte original e diferencie denuncia, alegacao, investigacao, decisao e fato comprovado. "
+                    "Use multiplas buscas com angulos diferentes, fontes primarias, verificadores independentes e jornalismo profissional. "
+                    "Avalie a qualidade, data, contexto e independencia de cada fonte; ausencia de mencao numa pagina nao prova ausencia "
+                    "de irregularidade. Conclua apenas na medida permitida pelas evidencias e explique as lacunas. "
                     "Para perguntas politicas ou sobre voto, mantenha neutralidade: nao escolha um candidato nem tente persuadir; "
                     "apresente propostas, historico, evidencias e criterios comparaveis de forma equilibrada, e convide o usuario a "
                     "indicar quais temas importam para organizar uma comparacao imparcial. "

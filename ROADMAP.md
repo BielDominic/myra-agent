@@ -1117,3 +1117,11 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 - Preserva a pergunta original na consulta web e acrescenta termos de checagem factual, evidências verificáveis e fontes oficiais/primárias.
 - Adicionado teste de regressão para a pergunta sobre alegação de golpe no segundo turno atribuída ao PT.
 - Validação: `tests/test_telegram_bot.py` — 49 testes aprovados.
+
+
+### Pesquisa investigativa imparcial e cruzamento de fontes (2026-10-26)
+- Alegações de fraude, golpe, corrupção, irregularidade ou conspiração acionam três buscas com ângulos distintos: documentos oficiais/judiciais, checagem independente e cobertura jornalística.
+- A pergunta original é preservada nas consultas; alegações eleitorais brasileiras acrescentam fontes pertinentes como TSE, auditorias e Ministério Público.
+- A síntese deve procurar evidências favoráveis e contrárias, distinguir alegação de fato comprovado, verificar independência entre fontes, datas e contexto, e explicitar incertezas.
+- O atalho de resposta pronta sobre resultados eleitorais não pode substituir a investigação quando a pergunta contém uma alegação de fraude/golpe.
+- Validação: `tests/test_telegram_bot.py` — 49 testes aprovados; compilação Python e `git diff --check` aprovados.

@@ -540,10 +540,14 @@ def test_allegation_about_election_turn_keeps_claim_in_web_search_query():
     question = "Procure evidências de um golpe no segundo turno das eleições por parte do PT"
     bot._handle_web_question("123", question)
 
-    query = requests[0][2]["query"]
-    assert question in query
-    assert "checagem de fatos" in query
-    assert "fontes oficiais" in query or "fontes primárias" in query
+    assert len(requests) == 3
+    queries = [request[2]["query"] for request in requests]
+    assert all(question in query for query in queries)
+    assert any("TSE" in query and "decisões judiciais" in query for query in queries)
+    assert any("checagem de fatos" in query for query in queries)
+    assert any("jornalismo" in query and "independentes" in query for query in queries)
+    sent = [call[2]["text"] for call in http.calls if "/sendMessage" in call[1]]
+    assert any("As fontes precisam ser verificadas" in message for message in sent)
 
 
 def test_web_search_failure_sends_progress_and_explicit_error():
