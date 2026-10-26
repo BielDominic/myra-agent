@@ -2224,11 +2224,19 @@ def see(data: SeeImage):
             method="POST",
         )
 
+        finish_reason = None
         try:
             with urllib.request.urlopen(req, timeout=120) as r:
                 resposta = json.loads(r.read().decode("utf-8"))
-            msg = resposta["choices"][0]["message"]
+            escolha = (resposta.get("choices") or [{}])[0]
+            msg = escolha.get("message") or {}
+            finish_reason = escolha.get("finish_reason")
+            usage = resposta.get("usage") or {}
             conteudo = msg.get("content", "") or msg.get("reasoning_content", "")
+            print(
+                f"[SEE] finish_reason={finish_reason} "
+                f"completion_tokens={usage.get('completion_tokens')} chars={len(conteudo)}"
+            )
         except (urllib.error.URLError, TimeoutError, ConnectionError) as vision_error:
             # O servidor OpenAI-compatível dedicado pode estar desligado; use o Ollama
             # local com modelo multimodal como fallback, sem abandonar a análise visual.
@@ -2249,6 +2257,62 @@ def see(data: SeeImage):
             with urllib.request.urlopen(fallback_req, timeout=150) as r:
                 fallback_response = json.loads(r.read().decode("utf-8"))
             conteudo = (fallback_response.get("message") or {}).get("content", "")
+
+        # Alguns servidores encerram a geração no meio de uma frase mesmo com um
+        # orçamento alto. Tente uma segunda geração curta antes de devolver a resposta.
+        if isinstance(conteudo, str) and conteudo.strip() and finish_reason is not None:
+            resposta_incompleta = finish_reason == "length" or not re.search(
+                r'[.!?…]["”’)]*\s*$',
+                conteudo.strip(),
+            )
+            if resposta_incompleta:
+                print(f"[SEE] resposta possivelmente incompleta; tentando regenerar (finish_reason={finish_reason})")
+                retry_payload = dict(payload)
+                retry_payload["max_tokens"] = 1200
+                retry_payload["messages"] = [{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "Descreva os elementos visíveis nesta captura em 3 a 5 frases curtas, "
+                                "completas e objetivas. Não use tópicos nem introdução. Termine a última "
+                                "frase com pontuação. Não especule sobre elementos ilegíveis."
+                            ),
+                        },
+                        {"type": "image_url", "image_url": {"url": f"data:{img_mime};base64,{img_b64}"}},
+                    ],
+                }]
+                retry_req = urllib.request.Request(
+                    LLM_EYES_URL,
+                    data=json.dumps(retry_payload).encode("utf-8"),
+                    headers={"Content-Type": "application/json; charset=utf-8"},
+                    method="POST",
+                )
+                try:
+                    with urllib.request.urlopen(retry_req, timeout=120) as r:
+                        retry_response = json.loads(r.read().decode("utf-8"))
+                    retry_choice = (retry_response.get("choices") or [{}])[0]
+                    retry_message = retry_choice.get("message") or {}
+                    retry_content = retry_message.get("content", "") or retry_message.get("reasoning_content", "")
+                    retry_reason = retry_choice.get("finish_reason")
+                    if retry_content and re.search(r'[.!?…]["”’)]*\s*$', retry_content.strip()) and retry_reason != "length":
+                        conteudo = retry_content
+                        print(f"[SEE] regeneração concluída: chars={len(conteudo)}")
+                    else:
+                        print(f"[SEE] regeneração também incompleta (finish_reason={retry_reason})")
+                        return {
+                            "status": "erro",
+                            "result": "A análise visual foi interrompida pelo modelo mesmo após uma nova tentativa. Nenhuma descrição incompleta foi enviada; tente novamente.",
+                            "screenshot": arquivo,
+                        }
+                except Exception as retry_error:
+                    print(f"[SEE] falha na regeneração: {type(retry_error).__name__}")
+                    return {
+                        "status": "erro",
+                        "result": "A análise visual foi interrompida e não foi possível concluir a nova tentativa. Nenhuma descrição incompleta foi enviada; tente novamente.",
+                        "screenshot": arquivo,
+                    }
 
         if conteudo:
             substituicoes = {
