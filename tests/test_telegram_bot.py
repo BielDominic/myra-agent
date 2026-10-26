@@ -588,6 +588,33 @@ def test_brazil_election_search_uses_final_results_query_and_more_sources():
     assert any("Resultado confirmado" in message for message in sent)
 
 
+def test_allegation_research_never_uses_2026_winner_shortcut():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    requests = []
+    bot._agent_request = lambda method, route, payload=None, timeout=20: (
+        requests.append((method, route, payload, timeout)) or
+        {"status": "ok", "result": "TSE, checagem independente e reportagem: evidências precisam ser avaliadas. URL: https://example.org"}
+    )
+    prompts = []
+    bot._ollama_generate = lambda prompt, **kwargs: prompts.append(prompt) or (
+        "As fontes disponíveis não comprovam a alegação; seria necessário analisar os documentos citados. https://example.org"
+    )
+    question = (
+        "Quero uma investigação imparcial: existem evidências de fraude, irregularidades ou "
+        "manipulação no segundo turno das eleições presidenciais brasileiras de 2022 que possam ser atribuídas ao PT?"
+    )
+
+    bot._handle_web_question("123", question)
+
+    assert len(requests) == 3
+    assert all(question in request[2]["query"] for request in requests)
+    assert len(prompts) == 1
+    sent = [call[2]["text"] for call in http.calls if "/sendMessage" in call[1]]
+    assert any("não comprovam a alegação" in message for message in sent)
+    assert not any("64.256.232" in message or "51,79%" in message for message in sent)
+
+
 def test_brazil_2026_election_uses_verified_result_when_search_has_current_coverage():
     http = FakeHTTP()
     bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
