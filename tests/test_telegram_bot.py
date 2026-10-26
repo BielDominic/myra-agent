@@ -315,6 +315,29 @@ def test_model_command_changes_only_telegram_chat_model(monkeypatch, tmp_path):
     assert "A MYRA principal não foi alterada" in sent[-1][2]["text"]
 
 
+def test_chat_falls_back_if_selected_model_fails(monkeypatch, tmp_path):
+    import tasks.telegram_bot as telegram_module
+
+    monkeypatch.setattr(telegram_module, "CHAT_MODEL_STATE_FILE", tmp_path / ".telegram_chat_model")
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    bot.chat_model = "model-that-fails"
+    calls = []
+
+    def generate(prompt, **kwargs):
+        calls.append(kwargs.get("model"))
+        if kwargs.get("model") == "model-that-fails":
+            raise RuntimeError("model failed to load")
+        return "Resposta de contingência."
+
+    bot._ollama_generate = generate
+    answer = bot._chat("Oi", chat_id="123")
+
+    assert calls == ["model-that-fails", telegram_module.DEFAULT_CHAT_MODEL]
+    assert "Usei temporariamente o modelo" in answer
+    assert "Resposta de contingência." in answer
+
+
 def test_chat_uses_selected_model_but_classifier_keeps_default(monkeypatch, tmp_path):
     import tasks.telegram_bot as telegram_module
 

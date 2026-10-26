@@ -496,26 +496,51 @@ class TelegramBot:
                 + "\n".join(transcript)
                 + "\nMYRA:"
             )
-            answer = self._ollama_generate(
-                prompt,
-                system=(
-                    "Você é MYRA, uma assistente pessoal local, proativa e orientada a resolver problemas. "
-                    "Responda de forma direta, natural, útil e no idioma do usuário. Não diga que não pode responder "
-                    "apenas por ser uma IA/agente, nem use recusas automáticas, sermões ou avisos genéricos. Primeiro "
-                    "interprete a intenção, raciocine passo a passo internamente, considere contexto e alternativas e "
-                    "entregue uma resposta concreta. Para perguntas factuais, técnicas, controversas ou que dependam "
-                    "de informação atual, pesquise e cruze fontes quando houver ferramentas disponíveis; diferencie fatos, "
-                    "inferências e incertezas, e corrija conclusões que não batam com as evidências. Se faltar informação, "
-                    "resolva o que for possível e faça uma pergunta específica apenas quando indispensável. Se uma ação "
-                    "ou detalhe realmente não puder ser realizado, explique a limitação concreta e ofereça a alternativa "
-                    "mais útil, sem resposta-padrão. Trate temas políticos e sensíveis com neutralidade e análise equilibrada. "
-                    "Não invente fatos, não revele raciocínio interno privado e não afirme que executou ações no computador "
-                    "sem confirmação real."
-                ),
-                timeout=90,
-                num_predict=MAX_CHAT_TOKENS,
-                model=self.chat_model,
+            system_prompt = (
+                "Você é MYRA, uma assistente pessoal local, proativa e orientada a resolver problemas. "
+                "Responda de forma direta, natural, útil e no idioma do usuário. Não diga que não pode responder "
+                "apenas por ser uma IA/agente, nem use recusas automáticas, sermões ou avisos genéricos. Primeiro "
+                "interprete a intenção, considere o contexto e as alternativas e entregue uma resposta concreta. "
+                "Para perguntas factuais, técnicas, controversas ou que dependam de informação atual, pesquise e cruze "
+                "fontes quando houver ferramentas disponíveis; diferencie fatos, inferências e incertezas. Se faltar "
+                "informação, resolva o que for possível e faça uma pergunta específica apenas quando indispensável. "
+                "Se uma ação realmente falhar, explique a limitação concreta e ofereça a alternativa mais útil. "
+                "Trate temas políticos e sensíveis com neutralidade. Não invente fatos, não revele raciocínio interno "
+                "privado e não afirme que executou ações no computador sem confirmação real."
             )
+            try:
+                answer = self._ollama_generate(
+                    prompt,
+                    system=system_prompt,
+                    timeout=90,
+                    num_predict=MAX_CHAT_TOKENS,
+                    model=self.chat_model,
+                )
+            except Exception as selected_error:
+                # Um modelo alternativo pode estar instalado mas sem memória/recursos suficientes
+                # ou falhar ao carregar. Tenta o modelo padrão do bot para não deixar o chat mudo.
+                fallback_model = (
+                    os.getenv("MYRA_TELEGRAM_CHAT_MODEL", DEFAULT_CHAT_MODEL).strip()
+                    or DEFAULT_CHAT_MODEL
+                )
+                if fallback_model == self.chat_model:
+                    raise
+                self._last_error = (
+                    f"chat_model_failed: {self.chat_model} ({type(selected_error).__name__}); "
+                    f"fallback={fallback_model}"
+                )
+                answer = self._ollama_generate(
+                    prompt,
+                    system=system_prompt,
+                    timeout=90,
+                    num_predict=MAX_CHAT_TOKENS,
+                    model=fallback_model,
+                )
+                answer = (
+                    f"Usei temporariamente o modelo {fallback_model} porque o modelo selecionado "
+                    f"({self.chat_model}) falhou ao responder. Você pode escolher outro em /models.\n\n"
+                    f"{answer}"
+                )
             updated = history + [
                 {"role": "user", "content": clean_text},
                 {"role": "assistant", "content": answer},

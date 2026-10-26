@@ -1103,3 +1103,10 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 - [x] Síntese web orientada a cruzar evidências, priorizar fontes primárias, distinguir fatos de incertezas e responder o que for possível.
 - [x] Neutralidade mantida em questões eleitorais: comparar propostas e evidências sem escolher pelo usuário.
 - [x] 47 testes do Telegram aprovados; compilação Python e `git diff --check` sem erros. A qualidade do modelo em uma conversa real do Telegram ainda precisa de validação prática.
+
+
+## Correção — troca de modelo no Telegram (2026-10-26)
+
+- [x] Adicionado fallback conversacional: se o modelo escolhido falhar ao carregar ou gerar resposta, MYRA tenta o modelo padrão configurado e informa claramente que usou contingência, evitando silêncio após a troca.
+- [x] Teste de regressão cobre falha do modelo selecionado e confirma que o fallback responde.
+- [x] Testes Telegram: 48 aprovados; `py_compile` e `git diff --check` concluídos sem erros.
