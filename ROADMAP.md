@@ -206,6 +206,7 @@
 - [x] Rotas locais /telegram/status, /telegram/start e /telegram/stop.
 - [x] Validacao funcional confirmada pelo usuario (2026-10-26): Telegram funcionou; manter observacao operacional e revalidar se a falha voltar.
 - [x] Regressao 2026-10-26: a ausencia de resposta foi associada a HTTP 409 por pollers duplicados. Mutex Windows por hash do token impede uma segunda instancia; apos reiniciar, `/telegram/status` confirmou `running=true` e `last_error=null`; teste real do mutex confirmou primeira instancia aceita e segunda bloqueada.
+- [x] Ajuste de qualidade de pesquisa eleitoral (2026-10-26): perguntas sobre eleicoes brasileiras priorizam resultado final, TSE, candidato eleito, votos e percentuais; aumentada a coleta para 8 resultados e reforcado o prompt para nunca declarar ausencia de resultado sem evidencias. Testes Telegram: 42 passaram.
 - [x] Pedidos diretos `Abra os meus arquivos` e `Abra o Chrome` agora usam `/pc_open_application`; perguntas sobre eleicoes/fatos atuais usam `/web_search`, com resposta ou erro explicito. Os 40 testes de `tests/test_telegram_bot.py` passaram; o endpoint real de busca retornou fontes do TSE.
 
 #### FASE 30 - Distribuicao

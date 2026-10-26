@@ -619,12 +619,22 @@ class TelegramBot:
         self._send_message(chat_id, "Vou pesquisar na web e conferir fontes recentes.")
         try:
             year = datetime.datetime.now().year
-            query = user_text
-            if "elei" in user_text.casefold() or "election" in user_text.casefold():
-                query = f"{user_text} {year}"
+            normalized_question = user_text.casefold()
+            is_brazil_election = ("elei" in normalized_question or "election" in normalized_question) and any(
+                marker in normalized_question for marker in ("brasil", "brasileir", "brazil")
+            )
+            if is_brazil_election:
+                query = (
+                    f"resultado final segundo turno eleições presidenciais Brasil {year} "
+                    "TSE candidato eleito votos percentuais totalização concluída"
+                )
+            elif "elei" in normalized_question or "election" in normalized_question:
+                query = f"{user_text} resultado oficial candidatos votos percentuais {year}"
+            else:
+                query = user_text
             result = self._agent_request(
                 "POST", "/web_search",
-                {"query": query, "max_resultados": 5},
+                {"query": query, "max_resultados": 8},
                 timeout=25,
             )
             if not isinstance(result, dict) or result.get("status") != "ok":
@@ -633,11 +643,17 @@ class TelegramBot:
             else:
                 sources = self._short_result(result, "Nenhum resultado encontrado.")
                 prompt = (
-                    "Responda em portugues a pergunta do usuario usando SOMENTE os resultados web abaixo. "
-                    "Nao invente fatos nem trate snippets como certeza quando forem ambiguos. "
-                    "Se a pergunta sobre eleicoes nao especificar pais/eleicao e os resultados nao resolverem "
-                    "a ambiguidade, diga isso claramente e pergunte qual eleicao ele quer. "
-                    "Se responder, seja conciso e inclua links das fontes presentes nos resultados.\n"
+                    "Responda em portugues e responda diretamente ao que foi perguntado, usando apenas as evidencias abaixo. "
+                    "REGRA CRITICA: nunca conclua que nao existe resultado final apenas porque um snippet diz 'acompanhe', "
+                    "'em tempo real' ou descreve uma pagina de apuracao. Procure entre TODOS os resultados por uma noticia "
+                    "mais recente que declare eleito/reeleito, totalizacao concluida ou 100% das secoes, e por numeros "
+                    "explicitos de votos e percentuais. Prefira primeiro o TSE; use fontes jornalisticas como corroboracao. "
+                    "Se os resultados contiverem numeros e declaracao de eleito, apresente nome, votos, percentual, "
+                    "adversario e percentual, e estado da totalizacao. Nao substitua esses dados por uma lista de links. "
+                    "Se as fontes divergirem, explique o horario/percentual de apuracao de cada uma; nao misture dados "
+                    "de horarios diferentes. Se nao houver numeros nas evidencias, diga explicitamente que a pesquisa "
+                    "nao trouxe dados suficientes e nao invente um resultado. Se pais/eleicao forem ambiguos, pergunte. "
+                    "Inclua pelo menos um link direto para a fonte relevante.\n"
                     f"Pergunta: {user_text}\nResultados web:\n{sources}"
                 )
                 try:

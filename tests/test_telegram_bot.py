@@ -466,10 +466,42 @@ def test_web_search_failure_sends_progress_and_explicit_error():
     bot._handle_web_question("123", "Qual foi o resultado das eleicoes?")
 
     assert requests and requests[0][0:2] == ("POST", "/web_search")
-    assert requests[0][2]["max_resultados"] == 5
+    assert requests[0][2]["max_resultados"] == 8
     sent = [call[2]["text"] for call in http.calls if "/sendMessage" in call[1]]
     assert any("Vou pesquisar na web" in message for message in sent)
     assert any("Nao consegui confirmar" in message for message in sent)
+
+
+def test_brazil_election_search_uses_final_results_query_and_more_sources():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    requests = []
+    bot._agent_request = lambda method, route, payload=None, timeout=20: (
+        requests.append((method, route, payload, timeout)) or
+        {"status": "ok", "result": "TSE: candidato eleito com votos e percentual. URL: https://tse.jus.br/resultado"}
+    )
+    bot._ollama_generate = lambda prompt, **kwargs: "Resultado confirmado com dados. https://tse.jus.br/resultado"
+
+    bot._handle_web_question("123", "Qual foi o resultado das eleições no Brasil")
+
+    assert requests[0][2]["max_resultados"] == 8
+    assert "resultado final" in requests[0][2]["query"]
+    assert "TSE" in requests[0][2]["query"]
+    sent = [call[2]["text"] for call in http.calls if "/sendMessage" in call[1]]
+    assert any("Resultado confirmado" in message for message in sent)
+
+
+def test_web_answer_prompt_requires_numbers_and_rejects_false_no_result_claims():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    prompts = []
+    bot._agent_request = lambda *args, **kwargs: {"status": "ok", "result": "TSE informa candidato eleito, votos e percentual. URL: https://tse.jus.br/resultado"}
+    bot._ollama_generate = lambda prompt, **kwargs: (prompts.append(prompt) or "Resposta direta. https://tse.jus.br/resultado")
+
+    bot._handle_web_question("123", "Qual foi o resultado das eleições no Brasil")
+
+    assert "nunca conclua que nao existe resultado final" in prompts[0]
+    assert "apresente nome, votos, percentual" in prompts[0]
 
 
 def test_start_blocks_second_process_polling_lock():
