@@ -2193,8 +2193,23 @@ def web_search(data: WebSearch):
                     if title and link.startswith(("http://", "https://")):
                         resultados.append(f"[{len(resultados)+1}] {title}\n    URL: {link}\n    {snippet[:300]}")
             if not resultados:
-                detail = fallback.get("result", "") if isinstance(fallback, dict) else ""
-                return {"status": "erro", "result": f"Nenhum resultado encontrado no DuckDuckGo ou no provedor alternativo. {detail}".strip()}
+                # Terceiro provedor real: Google News RSS nao depende do HTML
+                # do Google/DDG, que podem responder com CAPTCHA/desafio HTTP 202.
+                try:
+                    bing = st.search_google_news_rss_structured(data.query, data.max_resultados)
+                except Exception as bing_error:
+                    bing = {"status": "erro", "result": f"{type(bing_error).__name__}: {bing_error}"}
+                if isinstance(bing, dict) and bing.get("status") == "ok":
+                    for item in (bing.get("results") or [])[:data.max_resultados]:
+                        title = str(item.get("titulo") or "").strip()
+                        link = str(item.get("url") or "").strip()
+                        snippet = str(item.get("snippet") or "").strip()
+                        if title and link.startswith(("http://", "https://")):
+                            resultados.append(f"[{len(resultados)+1}] {title}\n    URL: {link}\n    {snippet[:500]}")
+                if not resultados:
+                    detail = fallback.get("result", "") if isinstance(fallback, dict) else ""
+                    bing_detail = bing.get("result", "") if isinstance(bing, dict) else ""
+                    return {"status": "erro", "result": f"Nenhum resultado encontrado nos provedores DuckDuckGo, Google e Bing RSS. {detail} {bing_detail}".strip()}
 
         return {"status": "ok", "result": "\n\n".join(resultados)}
     except Exception as e:

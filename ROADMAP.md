@@ -1135,3 +1135,11 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 - A rota `/web_search` tenta o Google como provedor alternativo quando o DuckDuckGo devolve uma p?gina de desafio em vez de resultados.
 - Valida??o: `tests/test_telegram_bot.py` e `tests/test_tools_structured.py` ? 189 testes aprovados e 62 subtestes aprovados; `py_compile` e `git diff --check` aprovados.
 - Limita??o ainda aberta: teste real em 2026-10-26 mostrou que DuckDuckGo devolve desafio HTTP 202 e Google n?o retorna resultados parse?veis neste ambiente. A rota agora reporta a falha de ambos sem fabricar fontes; o acesso real a um provedor de pesquisa utiliz?vel precisa ser resolvido antes de declarar a investiga??o web conclu?da.
+
+
+### Pesquisa web: fallback RSS validado no backend (2026-10-26)
+- [x] Adicionado fallback estruturado via Google News RSS após falha do DuckDuckGo e do parser HTML do Google.
+- [x] Validado no ambiente real: a rota `POST /web_search` retorna HTTP 200 e cinco resultados com título, link e descrição para consulta sobre testes de integridade das urnas no segundo turno de 2022.
+- [x] Reiniciado o backend MYRA com segurança para carregar o novo código.
+- [x] Regressão: `tests/test_tools_structured.py` e `tests/test_telegram_bot.py` — 189 testes e 62 subtestes aprovados; `py_compile` e `git diff --check` aprovados.
+- [ ] Pendente: validar a resposta investigativa completa de ponta a ponta no Telegram, incluindo conferência de datas/contexto das fontes e ausência de truncamento. A pesquisa do backend está funcionando; isso ainda não equivale a declarar a resposta final do bot validada.

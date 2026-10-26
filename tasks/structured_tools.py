@@ -6,6 +6,7 @@ import json
 import urllib.parse
 import re as _re
 import requests
+import xml.etree.ElementTree as ET
 
 AGENT_URL = "http://127.0.0.1:8000"
 
@@ -158,6 +159,40 @@ def web_search_structured(query: str = "", max_resultados: int = 5) -> dict:
         }
     except Exception as e:
         return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
+
+
+def search_google_news_rss_structured(query: str = "", max_resultados: int = 5) -> dict:
+    """Busca no Google News RSS; alternativa estruturada quando HTML e bloqueado."""
+    if not query:
+        return {"status": "erro", "result": "Parametro 'query' obrigatorio."}
+    try:
+        url = "https://news.google.com/rss/search?q=" + urllib.parse.quote(query) + "&hl=pt-BR&gl=BR&ceid=BR:pt-419"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36",
+            "Accept": "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+        }
+        response = requests.get(url, headers=headers, timeout=20)
+        response.raise_for_status()
+        root = ET.fromstring(response.content)
+        resultados = []
+        for item in root.findall(".//item"):
+            titulo = (item.findtext("title") or "").strip()
+            link = (item.findtext("link") or "").strip()
+            snippet = (item.findtext("description") or "").strip()
+            # Google News embute descricoes HTML no RSS; devolva texto legivel.
+            from html import unescape
+            snippet = unescape(_re.sub(r"<[^>]+>", " ", snippet))
+            snippet = _re.sub(r"\s+", " ", snippet).strip()
+            if not titulo or not link.startswith(("https://", "http://")):
+                continue
+            resultados.append({"titulo": titulo, "url": link, "snippet": snippet[:500]})
+            if len(resultados) >= max(1, min(int(max_resultados), 10)):
+                break
+        if not resultados:
+            return {"status": "erro", "result": "Google News RSS respondeu sem resultados validos."}
+        return {"status": "ok", "result": json.dumps({"results": resultados, "count": len(resultados)}, ensure_ascii=False), "results": resultados, "count": len(resultados), "provider": "Google News RSS"}
+    except Exception as e:
+        return {"status": "erro", "result": f"Google News RSS: {type(e).__name__}: {e}"}
 
 
 def youtube_search(query: str = "", max_resultados: int = 5) -> dict:
