@@ -20,6 +20,7 @@ import hashlib
 import urllib.request
 import urllib.parse
 import urllib.error
+import re
 import re as _re
 import yt_dlp
 from tasks.simple_task import executar_task, registrar_ferramenta
