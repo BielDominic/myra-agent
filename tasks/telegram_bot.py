@@ -901,7 +901,7 @@ class TelegramBot:
         elif command == "screenshot":
             self._send_screenshot(chat_id)
         elif command == "see":
-            question = argument or "Descreva em portugues o que aparece na tela e o estado atual."
+            question = argument or "Descreva somente o que está claramente visível na tela. Responda em 3 a 5 frases curtas, sem títulos, listas ou inferências."
             try:
                 result = self._agent_request("POST", "/see", {"pergunta": question}, timeout=150)
                 self._send_message(chat_id, self._short_result(result, "Analise visual concluida."))
