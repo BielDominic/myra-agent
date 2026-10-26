@@ -2209,7 +2209,7 @@ def see(data: SeeImage):
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": data.pergunta + "\n\nResponda em portugues com uma descricao completa e objetiva, em no maximo 5 paragrafos. Termine todas as frases e conclua a resposta; nao pare no meio de uma frase ou palavra. Priorize os elementos realmente visiveis e evite especulacoes."},
+                        {"type": "text", "text": data.pergunta + "\n\nREGRAS OBRIGATORIAS: responda em portugues em apenas 3 a 5 frases curtas, sem titulos, sem markdown, sem listas e sem introducao. Descreva somente elementos claramente visiveis nesta captura. Nao infira identidade, intencoes, contas, ofertas ou contexto anterior. Se algum texto estiver ilegivel, diga que esta ilegivel em vez de adivinhar. Termine a ultima frase por completo com pontuacao. Nao acrescente secoes extras."},
                         {"type": "image_url", "image_url": {"url": f"data:{img_mime};base64,{img_b64}"}}
                     ]
                 }
@@ -2225,6 +2225,7 @@ def see(data: SeeImage):
         )
 
         finish_reason = None
+        vision_backend = "openai_compatible"
         try:
             with urllib.request.urlopen(req, timeout=120) as r:
                 resposta = json.loads(r.read().decode("utf-8"))
@@ -2241,12 +2242,21 @@ def see(data: SeeImage):
             # O servidor OpenAI-compatível dedicado pode estar desligado; use o Ollama
             # local com modelo multimodal como fallback, sem abandonar a análise visual.
             print(f"[SEE] endpoint visual indisponivel ({type(vision_error).__name__}); tentando Ollama multimodal")
+            vision_backend = "ollama"
             fallback_payload = {
                 "model": "qwen3.5:4b",
-                "messages": [{"role": "user", "content": data.pergunta, "images": [img_b64]}],
+                "messages": [{
+                    "role": "user",
+                    "content": (
+                        f"{data.pergunta}\n\nResponda em portugues em apenas 3 a 5 frases curtas, sem titulos, markdown ou listas. "
+                        "Descreva somente o que estiver claramente visivel nesta captura. Nao infira identidade, intencoes, ofertas ou contexto anterior. "
+                        "Nao adivinhe textos ilegiveis. Termine com uma frase completa e pontuacao."
+                    ),
+                    "images": [img_b64],
+                }],
                 "stream": False,
                 "think": False,
-                "options": {"num_predict": 700, "temperature": 0.1},
+                "options": {"num_predict": 1200, "temperature": 0.1},
             }
             fallback_req = urllib.request.Request(
                 "http://127.0.0.1:11434/api/chat",
@@ -2257,46 +2267,63 @@ def see(data: SeeImage):
             with urllib.request.urlopen(fallback_req, timeout=150) as r:
                 fallback_response = json.loads(r.read().decode("utf-8"))
             conteudo = (fallback_response.get("message") or {}).get("content", "")
+            finish_reason = fallback_response.get("done_reason")
+            print(f"[SEE] backend=ollama done={fallback_response.get('done')} done_reason={finish_reason} eval_count={fallback_response.get('eval_count')} chars={len(conteudo)}")
 
-        # Alguns servidores encerram a geração no meio de uma frase mesmo com um
-        # orçamento alto. Tente uma segunda geração curta antes de devolver a resposta.
-        if isinstance(conteudo, str) and conteudo.strip() and finish_reason is not None:
+        # Validar ambos os backends; o fallback Ollama tambem pode truncar a resposta.
+        if isinstance(conteudo, str) and conteudo.strip():
             resposta_incompleta = finish_reason == "length" or not re.search(
                 r'[.!?…]["”’)]*\s*$',
                 conteudo.strip(),
             )
             if resposta_incompleta:
                 print(f"[SEE] resposta possivelmente incompleta; tentando regenerar (finish_reason={finish_reason})")
-                retry_payload = dict(payload)
-                retry_payload["max_tokens"] = 1200
-                retry_payload["messages"] = [{
+                if vision_backend == "ollama":
+                    retry_payload = {
+                        "model": "qwen3.5:4b",
+                        "messages": [{"role": "user", "content": "Descreva somente a captura em 3 a 5 frases curtas em portugues. Sem titulo, introducao, markdown ou lista. Nao infira identidade, conta, intencao, oferta ou contexto anterior. Nao adivinhe texto ilegivel. Termine com pontuacao.", "images": [img_b64]}],
+                        "stream": False,
+                        "think": False,
+                        "options": {"num_predict": 1200, "temperature": 0.1},
+                    }
+                else:
+                    retry_payload = dict(payload)
+                    retry_payload["max_tokens"] = 1200
+                    retry_payload["messages"] = [{
                     "role": "user",
                     "content": [
                         {
                             "type": "text",
                             "text": (
-                                "Descreva os elementos visíveis nesta captura em 3 a 5 frases curtas, "
-                                "completas e objetivas. Não use tópicos nem introdução. Termine a última "
-                                "frase com pontuação. Não especule sobre elementos ilegíveis."
+                                "Descreva somente a captura em 3 a 5 frases curtas em português. Sem título, introdução, markdown ou lista. "
+                                "Não infira identidade, conta, intenção, oferta ou contexto anterior. Não adivinhe texto ilegível. "
+                                "Termine com pontuação."
                             ),
                         },
                         {"type": "image_url", "image_url": {"url": f"data:{img_mime};base64,{img_b64}"}},
                     ],
                 }]
+                retry_url = "http://127.0.0.1:11434/api/chat" if vision_backend == "ollama" else LLM_EYES_URL
                 retry_req = urllib.request.Request(
-                    LLM_EYES_URL,
+                    retry_url,
                     data=json.dumps(retry_payload).encode("utf-8"),
                     headers={"Content-Type": "application/json; charset=utf-8"},
                     method="POST",
                 )
                 try:
-                    with urllib.request.urlopen(retry_req, timeout=120) as r:
+                    with urllib.request.urlopen(retry_req, timeout=150 if vision_backend == "ollama" else 120) as r:
                         retry_response = json.loads(r.read().decode("utf-8"))
-                    retry_choice = (retry_response.get("choices") or [{}])[0]
-                    retry_message = retry_choice.get("message") or {}
-                    retry_content = retry_message.get("content", "") or retry_message.get("reasoning_content", "")
-                    retry_reason = retry_choice.get("finish_reason")
-                    if retry_content and re.search(r'[.!?…]["”’)]*\s*$', retry_content.strip()) and retry_reason != "length":
+                    if vision_backend == "ollama":
+                        retry_content = (retry_response.get("message") or {}).get("content", "")
+                        retry_reason = retry_response.get("done_reason")
+                        retry_stopped = retry_response.get("done") is True and retry_reason != "length"
+                    else:
+                        retry_choice = (retry_response.get("choices") or [{}])[0]
+                        retry_message = retry_choice.get("message") or {}
+                        retry_content = retry_message.get("content", "") or retry_message.get("reasoning_content", "")
+                        retry_reason = retry_choice.get("finish_reason")
+                        retry_stopped = retry_reason != "length"
+                    if retry_content and re.search(r'[.!?…]["”’)]*\s*$', retry_content.strip()) and retry_stopped:
                         conteudo = retry_content
                         print(f"[SEE] regeneração concluída: chars={len(conteudo)}")
                     else:
@@ -2327,7 +2354,25 @@ def see(data: SeeImage):
             print("[SEE] ERRO: modelo visual retornou resposta vazia")
             return {"status": "erro", "result": "O modelo visual não retornou uma descrição da tela. A captura foi feita, mas a análise falhou; tente novamente ou verifique o modelo multimodal do Ollama.", "screenshot": arquivo}
 
-        conteudo = conteudo.strip()
+        # Defesa determinística: alguns modelos ignoram instruções de formato e devolvem
+        # títulos/listas ou contexto especulativo. Normalizar a saída antes de enviá-la.
+        linhas = []
+        for linha in conteudo.splitlines():
+            linha = _re.sub(r"^\s{0,3}(?:#{1,6}\s+|[-*+]\s+|\d+[.)]\s+|>\s*)", "", linha).strip()
+            if linha and linha not in ("---", "***", "___"):
+                linhas.append(linha)
+        conteudo = " ".join(linhas).strip()
+        # Limita a descrição a no máximo cinco frases completas; evita relatórios longos.
+        frases = _re.split(r"(?<=[.!?…])\s+(?=[A-ZÀ-Þ0-9“\"'])", conteudo)
+        frases = [f.strip() for f in frases if f.strip()]
+        if len(frases) > 5:
+            conteudo = " ".join(frases[:5])
+        if len(conteudo) > 1100:
+            corte = conteudo[:1100]
+            ultimo_fim = max(corte.rfind("."), corte.rfind("!"), corte.rfind("?"), corte.rfind("…"))
+            if ultimo_fim > 250:
+                conteudo = corte[:ultimo_fim + 1].strip()
+        print(f"[SEE] resposta normalizada: {len(conteudo)} chars")
         print(f"[SEE] resposta: {conteudo[:100]}...")
         return {"status": "ok", "result": conteudo, "screenshot": arquivo}
     except Exception as e:
