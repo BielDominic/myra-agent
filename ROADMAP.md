@@ -182,8 +182,8 @@
 
 **Aviso legal:** usar somente software proprio ou explicitamente autorizado. Detalhes em PHASE27_5_REA.md.
 
-### FASE 28 - Controle Mobile
-![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
+### FASE 28 - Controle Remoto (Tailscale + Telegram)
+![Concluida](https://img.shields.io/badge/-CONCLUIDA-brightgreen?style=flat-square)
 
 ##### 28.1 - Infra de acesso remoto (Tailscale)
 - [x] Diagnostico local implementado em tasks/remote_access.py e GET /remote_access/status; nao lista peers nem expoe a API.
@@ -204,9 +204,36 @@
 - [x] Upload real de screenshot para o chat autorizado validado em 2026-10-26; o Telegram aceitou a foto e o helper retornou `photo_uploaded=true`.
 - [x] Falha de upload agora e reportada corretamente; a rotina retorna sucesso somente apos o Telegram aceitar `sendPhoto`, com teste de regressao.
 - [x] Rotas locais /telegram/status, /telegram/start e /telegram/stop.
-- [ ] Validar comandos recebidos via long polling no Telegram real e confirmar o roteamento da frase natural de screenshot no processo ativo.
+- [x] Validacao funcional confirmada pelo usuario (2026-10-26): Telegram funcionou; manter observacao operacional e revalidar se a falha voltar.
 
-##### 28.3 - App iOS Nativo e API remota
+#### FASE 30 - Distribuicao
+![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
+
+- [x] `npm install` reproduzivel com `package-lock.json`; `cargo tauri build` gerou `myra-widget.exe` (release)
+- [x] Instalador NSIS gerado e smoke-testado: instalacao silenciosa em diretorio temporario, executavel `MYRA` abriu/respondia, desinstalacao concluiu; artefatos temporarios removidos
+- [x] Auto-start no boot opt-in por usuario via HKCU Run; menu da bandeja consulta o registro como fonte da verdade e sincroniza a marcacao mesmo em caso de falha; teste real de reboot pendente
+- [x] Bandeja do sistema (menu Mostrar MYRA/Sair implementado; smoke visual no Windows pendente)
+- [x] Notificacao nativa Windows para conclusao/erro; respeita Nao Perturbe e usa texto generico para nao expor dados da tarefa; smoke test real do toast pendente
+- [x] Indicador de conexao no widget (accent conectado; vermelho e tooltip quando API local offline)
+
+#### BACKLOG FUTURO (APOS FASE 30) - App iOS Nativo
+![Adiado](https://img.shields.io/badge/-ADIADO%20ATE%20POS%20DISTRIBUICAO-blue?style=flat-square)
+
+**Decisao do usuario (2026-10-26):** nao concluir o iOS nas fases atuais. Preservar integralmente o codigo, projeto Xcode, API remota, Siri e WidgetKit; retomar somente depois da distribuicao da MYRA. Este backlog nao bloqueia a conclusao das fases atuais.
+
+##### Integracao CarPlay (adiada para apos distribuicao)
+![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
+
+**Caminho:** Audio App (aparece como player no CarPlay)
+
+- [ ] Base iOS shell + Tailscale
+- [ ] TTS (Piper) + STT (Whisper)
+- [ ] CarPlay Audio App framework
+- [ ] MPNowPlayingInfoCenter
+- [ ] Botoes do volante mapeados
+- [ ] Publicacao (opcional: TestFlight)
+
+##### App iOS Nativo e API remota (preservado)
 - [x] API Bearer separada: GET /remote/v1/status, POST /remote/v1/task e POST /remote/v1/cancel.
 - [x] Token ausente desativa API com HTTP 503; token ausente/invalido retorna HTTP 401; limites de tarefa e conflito cobertos por testes.
 - [x] Servidor legado corrigido para escutar em 127.0.0.1, nunca 0.0.0.0 por padrao; verificado apos restart.
@@ -219,33 +246,11 @@
 - [x] Projeto Xcode e workflow macOS de build sem assinatura em .github/workflows/ios-mobile-build.yml.
 - [x] Testes direcionados: 41 passed, 1 warning (test_telegram_bot, test_remote_api_auth, test_remote_access); suite completa apos ajuste do fallback de sintese: 1.129 passed, 9 skipped, 31 xfailed, 1 warning e 3.231 subtests (261,91s).
 - [x] Build CI do target WidgetKit confirmado no runner macOS (run 40198612123, sucesso).
-- [ ] Registrar App Group na conta Apple Developer e validar assinatura/instalacao no dispositivo.
+- [ ] (Pos-distribuicao) Registrar App Group na conta Apple Developer e validar assinatura/instalacao no dispositivo.
 - [x] Gerar token remoto aleatorio de 256 bits, salva-lo no ambiente de usuario e reiniciar o backend. Validado em 2026-10-25: `GET /remote/v1/status` retorna HTTP 200 com Bearer correto e HTTP 401 sem token; a API continua vinculada somente a `127.0.0.1:8000`.
 - [x] Tailscale Serve HTTPS configurado exclusivamente para `/remote/v1`; testes negativos confirmam HTTP 401 sem Bearer e HTTP 404 para raiz, Telegram, diagnostico local, OpenAPI e docs. Nenhum Funnel ou porta publica foi habilitado.
-- [ ] Testar status, tarefa, cancelamento, Siri, widget e reconexao no iPhone real via Tailscale. Validacao PC-side via HTTPS/Tailscale: duas tarefas abriram Calculadora e Notepad e chegaram a `done` com UI Automation; tarefa concorrente recebeu HTTP 409 e `POST /remote/v1/cancel` retornou estado `idle`. Ollama foi reiniciado, geracao local validada e sintese LLM normal confirmada na segunda tarefa.
-- [ ] Implementar/validar APNs push; exige Team ID, chave APNs e registro do dispositivo, ainda nao configurados.
-
-#### FASE 29 - Integracao CarPlay
-![Pendente](https://img.shields.io/badge/-PENDENTE-lightgrey?style=flat-square)
-
-**Caminho:** Audio App (aparece como player no CarPlay)
-
-- [ ] Base iOS shell + Tailscale
-- [ ] TTS (Piper) + STT (Whisper)
-- [ ] CarPlay Audio App framework
-- [ ] MPNowPlayingInfoCenter
-- [ ] Botoes do volante mapeados
-- [ ] Publicacao (opcional: TestFlight)
-
-#### FASE 30 - Distribuicao
-![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
-
-- [x] `npm install` reproduzivel com `package-lock.json`; `cargo tauri build` gerou `myra-widget.exe` (release)
-- [x] Instalador NSIS gerado e smoke-testado: instalacao silenciosa em diretorio temporario, executavel `MYRA` abriu/respondia, desinstalacao concluiu; artefatos temporarios removidos
-- [x] Auto-start no boot opt-in por usuario via HKCU Run; menu da bandeja consulta o registro como fonte da verdade e sincroniza a marcacao mesmo em caso de falha; teste real de reboot pendente
-- [x] Bandeja do sistema (menu Mostrar MYRA/Sair implementado; smoke visual no Windows pendente)
-- [x] Notificacao nativa Windows para conclusao/erro; respeita Nao Perturbe e usa texto generico para nao expor dados da tarefa; smoke test real do toast pendente
-- [x] Indicador de conexao no widget (accent conectado; vermelho e tooltip quando API local offline)
+- [ ] (Pos-distribuicao) Testar status, tarefa, cancelamento, Siri, widget e reconexao no iPhone real via Tailscale. Validacao PC-side via HTTPS/Tailscale: duas tarefas abriram Calculadora e Notepad e chegaram a `done` com UI Automation; tarefa concorrente recebeu HTTP 409 e `POST /remote/v1/cancel` retornou estado `idle`. Ollama foi reiniciado, geracao local validada e sintese LLM normal confirmada na segunda tarefa.
+- [ ] (Pos-distribuicao) Implementar/validar APNs push; exige Team ID, chave APNs e registro do dispositivo, ainda nao configurados.
 
 #### FASE 31 - Interface Propria
 ![Bloqueada](https://img.shields.io/badge/-BLOQUEADA-red?style=flat-square)
@@ -491,8 +496,8 @@
 | Visao com coordenadas (FASE 25) | 6 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
 | Ciclo autonomo (FASE 26) | 5 | ![80%](https://img.shields.io/badge/-80%25-yellow?style=flat-square) |
 | Overlay TARS (FASE 27) | 7 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
-| Mobile (FASE 28) | 32 | ![84%](https://img.shields.io/badge/-84%25-yellow?style=flat-square) |
-| CarPlay (FASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Controle remoto (FASE 28: Tailscale + Telegram) | 100% do escopo ativo | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
+| CarPlay (backlog futuro apos distribuicao) | ? | Adiado; nao bloqueia as fases atuais |
 | Distribuicao (FASE 30) | 6 | ![65%](https://img.shields.io/badge/-65%25-yellow?style=flat-square) |
 | Interface propria (FASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |
 | Voz / Audio (FASE 14) | 5 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
@@ -531,7 +536,7 @@
 
 1. **Concluir a validacao real da FASE 26 no navegador**: navegacao/leitura, scroll, pausa/retomada e clique em `Learn more` foram validados ao vivo. Um formulario local de smoke test tambem passou de ponta a ponta: abriu a URL, preencheu `Your name` com `MYRA`, clicou `Send` e a leitura posterior confirmou `Sent: MYRA`. Corrigidos thread-affinity do Playwright, campos opcionais Pydantic, aliases de argumentos do planner e verificacao de texto esperado apos interacao. A verificacao agora impede que ferramentas irrelevantes apaguem evidencia negativa. Suite completa apos as correcoes de contratos, ferramentas e visualizacao: 1.093 passed, 9 skipped, 35 xfailed, 1 warning e 3.198 subtests (116,07s). O aviso restante e do Starlette TestClient/AnyIO; pendentes: validacao real do widget e triagem dos xfail restantes.
 2. **FASE 27.5 (REA):** integracao e smoke tests Ghidra concluidos; analise JavaScript e inspecao estatica Go/Rust do executavel da MYRA passaram. A analise Ghidra completa do binario maior excedeu o prazo do provedor e esta documentada como limitacao, nao como teste aprovado.
-3. **FASE 28 (controle mobile)**: API remota protegida e conectividade Tailscale validadas; faltam comandos reais no Telegram e validacao nativa no iPhone (adiada).
+3. **FASE 28 (controle remoto: Tailscale + Telegram)**: escopo ativo concluido; usuario confirmou que o Telegram funciona. App iOS, Siri, WidgetKit, assinatura no dispositivo e APNs foram movidos para backlog futuro apos a FASE 30, sem remover codigo nem projeto.
 4. **FASE 30 (distribuicao)**: build release, NSIS installer, upgrade da mesma versao em diretorio isolado, uninstall/limpeza do registro e smoke de lancamento do executavel com backend HTTP 200 passaram. Menu/toast visual e reboot real seguem pendentes.
 
 **Ultima validacao automatizada (2026-10-25):** `pytest -q -rxX` — 1.129 passed, 9 skipped, 31 xfailed, 1 warning e 3.231 subtests aprovados (257,05s). O aviso restante vem do Starlette TestClient/AnyIO; os `xfail` restantes continuam em triagem.
@@ -688,8 +693,8 @@
 - [x] Visible trajectory between successive published targets
 - [x] Cancellation reflected visually when task state changes
 
-#### PHASE 28 - Mobile Control
-![In progress](https://img.shields.io/badge/-IN_PROGRESS-yellow?style=flat-square)
+#### PHASE 28 - Remote Control (Tailscale + Telegram)
+![Complete](https://img.shields.io/badge/-COMPLETE-brightgreen?style=flat-square)
 
 Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 
@@ -702,36 +707,7 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 - [x] Long polling, allowlist authentication and commands implemented in `tasks/telegram_bot.py`; no webhook/public API required.
 - [x] HTTP 409 polling conflict stops the local poller rather than retrying indefinitely.
 - [x] Restarted as a single Uvicorn process bound to `127.0.0.1`; `/telegram/status` confirmed `running=true`, `last_error=null`.
-- [ ] Validate real Telegram commands and confirm results arrive in the authorized chat.
-
-##### 28.3 - Native iOS App and protected API
-- [x] Bearer-authenticated API: `GET /remote/v1/status`, `POST /remote/v1/task`, `POST /remote/v1/cancel`.
-- [x] API disabled without `MYRA_REMOTE_API_TOKEN`; invalid/missing bearer is rejected; task limits and duplicate-task conflict tested.
-- [x] Legacy API binds to `127.0.0.1`, not `0.0.0.0` by default.
-- [x] SwiftUI app with HTTPS enforcement and token stored in iOS Keychain.
-- [x] Siri AppIntents for task submission and status query; app + Siri build passed on macOS CI (run 40197053453).
-- [x] WidgetKit Home/Lock Screen extension added; shows state/progress and last-update time without task text.
-- [x] Shared App Group entitlements added for app/widget; Apple Developer registration is required for signed device use.
-- [x] `scripts/setup_remote_api.ps1` creates a random 256-bit token and stores it in the Windows user environment.
-- [x] Focused tests: 40 passed, 1 warning; full Python suite: 1,127 passed, 9 skipped, 31 xfailed.
-- [x] Confirm CI build for the WidgetKit extension (run 40198612123, successful).
-- [ ] Register the App Group in Apple Developer and validate signed installation on device.
-- [x] Configure the remote token and restart the backend; HTTPS/Tailscale status returns HTTP 200 with the correct Bearer token and HTTP 401 without it.
-- [x] Add iPhone to tailnet and configure Serve restricted to `/remote/v1`; tested that root returns HTTP 404 and protected status returns HTTP 401 without a token.
-- [ ] Test status/task/cancel/Siri/widget/reconnect on a real iPhone through Tailscale. PC-side HTTPS/Tailscale validation: two tasks opened Calculator and Notepad and reached `done` with UI Automation; a concurrent task was rejected with HTTP 409 and `POST /remote/v1/cancel` returned the state to `idle`. Ollama was restarted, local generation passed, and the second task completed with normal LLM synthesis.
-- [ ] Implement/validate APNs push; requires Apple Team ID, APNs key and device registration, not yet configured.
-
-#### PHASE 29 - CarPlay Integration
-![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square)
-
-**Path:** Audio App (appears as player in CarPlay)
-
-- [ ] iOS shell base + Tailscale
-- [ ] TTS (Piper) + STT (Whisper)
-- [ ] CarPlay Audio App framework
-- [ ] MPNowPlayingInfoCenter
-- [ ] Steering wheel buttons mapped
-- [ ] Publishing (optional: TestFlight)
+- [x] User confirmed Telegram is working for now (2026-10-26); monitor operationally and revalidate if the issue returns.
 
 #### PHASE 30 - Distribution
 ![In progress](https://img.shields.io/badge/-IN_PROGRESS-yellow?style=flat-square)
@@ -743,6 +719,41 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 - [x] Native Windows notifications on task completion/failure; respects Do Not Disturb and uses generic privacy-preserving text; real toast smoke test pending
 - [x] Runtime smoke (2026-10-24): latest release executable launched and remained alive after 5 seconds; UI Automation observed the MYRA window. A real `task_simple` request (`que horas sao`) reached `done` while the widget remained open. Toast appearance is still not visually confirmed; tray-menu visual test and reboot test remain pending.
 - [x] Connection indicator in widget (green/accent when connected; red when local API is offline)
+
+
+#### FUTURE BACKLOG (AFTER PHASE 30) - Native iOS App
+![Deferred](https://img.shields.io/badge/-DEFERRED%20UNTIL%20AFTER%20DISTRIBUTION-blue?style=flat-square)
+
+**User decision (2026-10-26):** do not complete iOS in the current phases. Preserve all existing code, Xcode project, remote API, Siri and WidgetKit; resume only after MYRA distribution. This backlog does not block completion of current phases.
+
+##### CarPlay Integration (deferred until after distribution)
+![Pending](https://img.shields.io/badge/-PENDING-lightgrey?style=flat-square)
+
+**Path:** Audio App (appears as player in CarPlay)
+
+- [ ] iOS shell base + Tailscale
+- [ ] TTS (Piper) + STT (Whisper)
+- [ ] CarPlay Audio App framework
+- [ ] MPNowPlayingInfoCenter
+- [ ] Steering wheel buttons mapped
+- [ ] Publishing (optional: TestFlight)
+
+##### Native iOS App and protected API (preserved)
+- [x] Bearer-authenticated API: `GET /remote/v1/status`, `POST /remote/v1/task`, `POST /remote/v1/cancel`.
+- [x] API disabled without `MYRA_REMOTE_API_TOKEN`; invalid/missing bearer is rejected; task limits and duplicate-task conflict tested.
+- [x] Legacy API binds to `127.0.0.1`, not `0.0.0.0` by default.
+- [x] SwiftUI app with HTTPS enforcement and token stored in iOS Keychain.
+- [x] Siri AppIntents for task submission and status query; app + Siri build passed on macOS CI (run 40197053453).
+- [x] WidgetKit Home/Lock Screen extension added; shows state/progress and last-update time without task text.
+- [x] Shared App Group entitlements added for app/widget; Apple Developer registration is required for signed device use.
+- [x] `scripts/setup_remote_api.ps1` creates a random 256-bit token and stores it in the Windows user environment.
+- [x] Focused tests: 40 passed, 1 warning; full Python suite: 1,127 passed, 9 skipped, 31 xfailed.
+- [x] Confirm CI build for the WidgetKit extension (run 40198612123, successful).
+- [ ] (Post-distribution) Register the App Group in Apple Developer and validate signed installation on device.
+- [x] Configure the remote token and restart the backend; HTTPS/Tailscale status returns HTTP 200 with the correct Bearer token and HTTP 401 without it.
+- [x] Add iPhone to tailnet and configure Serve restricted to `/remote/v1`; tested that root returns HTTP 404 and protected status returns HTTP 401 without a token.
+- [ ] (Post-distribution) Test status/task/cancel/Siri/widget/reconnect on a real iPhone through Tailscale. PC-side HTTPS/Tailscale validation: two tasks opened Calculator and Notepad and reached `done` with UI Automation; a concurrent task was rejected with HTTP 409 and `POST /remote/v1/cancel` returned the state to `idle`. Ollama was restarted, local generation passed, and the second task completed with normal LLM synthesis.
+- [ ] (Post-distribution) Implement/validate APNs push; requires Apple Team ID, APNs key and device registration, not yet configured.
 
 #### PHASE 31 - Custom Interface
 ![Blocked](https://img.shields.io/badge/-BLOCKED-red?style=flat-square)
@@ -988,8 +999,8 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 | Vision with coordinates (PHASE 25) | 6 | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
 | Autonomous loop (PHASE 26) | 5 | ![80%](https://img.shields.io/badge/-80%25-yellow?style=flat-square) |
 | TARS overlay (PHASE 27) | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
-| Mobile (PHASE 28) | 32 | ![84%](https://img.shields.io/badge/-84%25-yellow?style=flat-square) |
-| CarPlay (PHASE 29) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Remote control (PHASE 28: Tailscale + Telegram) | Active scope complete | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
+| CarPlay (future backlog after distribution) | ? | Deferred; does not block current phases |
 | Distribution (PHASE 30) | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
 | Custom interface (PHASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |
 | Voice / Audio (PHASE 14) | 5 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
@@ -1026,10 +1037,10 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 
 **Order revised on 2026-10-25 (user decision: defer native iOS installation/polish):**
 
-1. **PHASE 30 Distribution (active next):** finish real Windows validation of tray menu, native toast, per-user auto-start after reboot, and clean installer upgrade/uninstall. Existing implementation stays; only real-device iOS signing, TestFlight, Siri/WidgetKit validation, APNs, CarPlay and visual/interface polish are deferred to the final phase. Handoff: `HANDOFF_NEXT_CONVERSATION.md`.
+1. **PHASE 30 Distribution (active):** finish real Windows validation of tray menu, native toast, per-user auto-start after reboot, and clean installer upgrade/uninstall. Native iOS, Siri/WidgetKit device validation, APNs and CarPlay remain preserved in the post-distribution backlog and do not block current phases. Handoff: `HANDOFF_NEXT_CONVERSATION.md`.
 2. **Continue PHASE 26 hardening and xfail triage**: live navigation/read/scroll, pause/resume, Learn more click, and a local form flow all passed. The form was filled and submitted, and a subsequent DOM read confirmed the exact Sent: MYRA text. Fixed Playwright thread affinity, optional Pydantic fields, planner argument aliases, deterministic URL/form routing, and verification of expected page text after interaction. A missing-text click fails explicitly; unrelated tools cannot erase negative evidence. Migrated FastAPI startup/shutdown to lifespan and updated the MSS capture API. Latest local unittest suite (2026-10-24): 1,049 tests, exit 0 (9 skipped, 31 expected failures); URL, search-term, click-text, type_text payload, and scroll inputs reject malformed types/values before enqueue; live Chrome Bridge smoke test also passed (`get_tabs` -> open `example.com` -> read DOM/text -> close tab). Remaining: more recovery tests and triage of the remaining xfails.
 2. **PHASE 27.5 (REA):** integration and Ghidra smoke tests completed; JavaScript analysis and Go/Rust static inspection of MYRA executable passed. Full Ghidra analysis of the larger binary exceeded the provider deadline and is documented as a limitation, not a passing test.
-3. **PHASE 28 mobile control**: validate real Telegram commands, Tailscale, and the protected remote API.
+3. **PHASE 28 remote control (Tailscale + Telegram)**: active scope complete; user confirmed Telegram works for now. Native iOS, Siri, WidgetKit, device signing, APNs and CarPlay are preserved in the post-distribution backlog and do not block current phases.
 4. **PHASE 30 distribution**: release x64 build and NSIS bundle generated successfully; isolated silent install/uninstall smoke test passed (exit code 0; executable/uninstaller present and test directory removed). Added cleanup of the per-user MYRA auto-start registry value to the NSIS pre-uninstall hook and rebuilt the installer. Rust auto-start path comparison tests: 3 passed. Validated since the earlier handoff: same-version upgrade in an isolated directory, uninstall registry cleanup, release launch and backend `/task_status` HTTP 200. Still pending: visual tray/toast and actual reboot. Details: `PHASE30_DISTRIBUTION.md`.
 
 **Note:** PHASE 25 (`vision_locate`) is complete and PHASE 24.5 was completed by PHASE 26.
