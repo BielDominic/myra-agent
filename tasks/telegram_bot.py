@@ -763,26 +763,7 @@ class TelegramBot:
                 answer = f"Nao consegui confirmar a resposta na web. {detail}"
             else:
                 sources = "\n\n".join(collected_sources)
-                # O atalho de resultado eleitoral só pode responder perguntas sobre o vencedor,
-                # nunca substituir uma investigação de alegações de fraude/golpe.
-                has_2026_brazil_coverage = is_brazil_election and not allegation_terms and asks_election_outcome and "2026" in sources and bool(re.search(
-                    r"elei.{0,30}2026|2026.{0,50}(presidente|presidencial|segundo turno)|"
-                    r"(quem ganhou|resultado|apura).{0,40}2026",
-                    sources,
-                    re.IGNORECASE | re.DOTALL,
-                ))
-                if has_2026_brazil_coverage:
-                    answer = (
-                        "O vencedor das elei\u00e7\u00f5es presidenciais do Brasil de 2026 foi Luiz In\u00e1cio Lula da Silva, "
-                        "reeleito no segundo turno de 25 de outubro de 2026. Segundo os resultados oficiais do TSE, "
-                        "Lula recebeu 64.256.232 votos (51,79% dos votos v\u00e1lidos), contra 59.826.041 votos "
-                        "(48,21%) de Fl\u00e1vio Bolsonaro; a totaliza\u00e7\u00e3o foi conclu\u00edda.\n\n"
-                        "Fonte oficial: https://www.tse.jus.br/comunicacao/noticias/2026/Outubro/"
-                        "presidente-do-tse-anuncia-reeleicao-de-lula-e-faz-balanco-do-2o-turno-das-eleicoes-2026"
-                    )
-                    self._remember_chat_turn(chat_id, "assistant", answer)
-                    self._send_message(chat_id, answer)
-                    return
+                # Toda conclusao deve derivar das evidencias realmente retornadas pelas buscas.
                 prompt = (
                     "Responda no idioma da pergunta, diretamente e com clareza, usando as evidencias web fornecidas. "
                     "Sua tarefa e pesquisar, cruzar, interpretar e sintetizar; nao despeje uma lista de links como substituto da resposta. "
@@ -800,6 +781,12 @@ class TelegramBot:
                     "Use multiplas buscas com angulos diferentes, fontes primarias, verificadores independentes e jornalismo profissional. "
                     "Avalie a qualidade, data, contexto e independencia de cada fonte; ausencia de mencao numa pagina nao prova ausencia "
                     "de irregularidade. Conclua apenas na medida permitida pelas evidencias e explique as lacunas. "
+                    "Use somente fatos e URLs que aparecam nos resultados fornecidos; nunca invente links, titulos, estatisticas, "
+                    "relatorios, investigacoes ou citacoes. Antes de usar uma fonte, confira se o ano, pais, turno e assunto "
+                    "correspondem exatamente a pergunta; noticias de outra eleicao/ano nao constituem evidencia sobre o pleito perguntado. "
+                    "Se os resultados forem irrelevantes, insuficientes ou nao contiverem evidencias verificaveis, diga isso explicitamente "
+                    "e nao transforme a falta de resultados em uma conclusao factual. Para pedidos com formato solicitado, responda a cada "
+                    "secao, inclusive evidencias favoraveis, contrarias, comparacao critica, limites e links; nao encerre no meio da resposta. "
                     "Para perguntas politicas ou sobre voto, mantenha neutralidade: nao escolha um candidato nem tente persuadir; "
                     "apresente propostas, historico, evidencias e criterios comparaveis de forma equilibrada, e convide o usuario a "
                     "indicar quais temas importam para organizar uma comparacao imparcial. "
@@ -816,7 +803,7 @@ class TelegramBot:
                         prompt,
                         system="Voce resume resultados de pesquisa com rigor factual e neutralidade.",
                         timeout=45,
-                        num_predict=450,
+                        num_predict=1100,
                     )
                 except Exception:
                     answer = ""

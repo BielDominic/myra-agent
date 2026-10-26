@@ -513,25 +513,25 @@ class TestSearchGoogleStructured(CasoFerramentas):
                     saida = st.search_google_structured("q", 5)
                 self.assertErro(saida, "parseaveis")
 
-    def test_href_sem_aspas_nao_e_parseado(self):
+    def test_href_sem_aspas_e_parseado_pelo_html_parser(self):
         with self.patch_get(return_value=RespostaFalsa(text='<a href=/url?q=https://a.com&x><h3>T</h3></a>')):
-            self.assertErro(st.search_google_structured("q", 5))
+            saida = st.search_google_structured("q", 5)
+        self.assertOkLista(saida, 1)
+        self.assertEqual(saida["results"][0]["url"], "https://a.com")
 
     def test_href_com_aspas_simples_nao_e_parseado(self):
         with self.patch_get(return_value=RespostaFalsa(text="<a href='/url?q=x'><h3>T</h3></a>")):
             self.assertErro(st.search_google_structured("q", 5))
 
-    def test_markup_dentro_de_script_e_extraido_sem_filtragem(self):
-        # Documenta: o parser nao remove <script>; markup dentro de JavaScript
-        # tambem vira "resultado", logo o conteudo da pagina nunca pode ser
-        # tratado como confiavel.
+    def test_markup_dentro_de_script_nao_e_tratado_como_resultado(self):
+        # Markup dentro de JavaScript nao e um resultado HTML real e deve ser ignorado.
         html = ('<script>var s = \'<a href="/url?q=https%3A%2F%2Fmalicioso.com%2F">'
                 '<h3>Injetado</h3></a>\';</script>' + html_google([(LINK_GOOGLE, "Legitimo")]))
         with self.patch_get(return_value=RespostaFalsa(text=html)):
             saida = st.search_google_structured("q", 5)
-        self.assertOkLista(saida, 2)
-        self.assertEqual(saida["results"][0]["url"], "https://malicioso.com/")
-        self.assertEqual(saida["results"][0]["titulo"], "Injetado")
+        self.assertOkLista(saida, 1)
+        self.assertEqual(saida["results"][0]["url"], "https://exemplo.com/pagina")
+        self.assertEqual(saida["results"][0]["titulo"], "Legitimo")
 
     def test_resposta_com_text_none_devolve_erro(self):
         with self.patch_get(return_value=RespostaFalsa(text=None)):

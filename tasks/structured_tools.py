@@ -48,19 +48,52 @@ def search_google_structured(query: str = "", max_resultados: int = 5) -> dict:
         html = r.text
 
         resultados = []
-        padrao = _re.compile(r'<a[^>]+href="(/url\?[^\"]+)"[^>]*>.*?<h3[^>]*>(.*?)</h3>', _re.DOTALL)
-        for match in padrao.finditer(html):
+        # Google passou a usar URLs diretas em vez de apenas /url?q=.
+        # Ler anchors com h3 torna a extracao tolerante a ambos os formatos.
+        from html.parser import HTMLParser
+        from html import unescape
+
+        class _GoogleResults(HTMLParser):
+            def __init__(self):
+                super().__init__(convert_charrefs=True)
+                self.items = []
+                self.anchor = None
+                self.h3_depth = 0
+
+            def handle_starttag(self, tag, attrs):
+                attributes = dict(attrs)
+                if tag == "a":
+                    self.anchor = {"url": attributes.get("href", ""), "title": "", "has_h3": False}
+                elif tag == "h3" and self.anchor is not None:
+                    self.h3_depth += 1
+                    self.anchor["has_h3"] = True
+
+            def handle_endtag(self, tag):
+                if tag == "h3" and self.h3_depth:
+                    self.h3_depth -= 1
+                elif tag == "a" and self.anchor is not None:
+                    if self.anchor.get("has_h3"):
+                        self.items.append(self.anchor)
+                    self.anchor = None
+                    self.h3_depth = 0
+
+            def handle_data(self, data):
+                if self.anchor is not None and self.h3_depth:
+                    self.anchor["title"] += data
+
+        parser = _GoogleResults()
+        parser.feed(html)
+        for item in parser.items:
             if len(resultados) >= max_resultados:
                 break
-            # Deixa parse_qs decodificar o parametro q inteiro; unquote antes
-            # faria os & internos da URL de destino virarem separadores da query.
-            url_bruta = match.group(1)
-            url_real = _limpar_url_google("https://www.google.com" + url_bruta)
-            titulo = _re.sub(r"<[^>]+>", "", match.group(2)).strip()
-            titulo = titulo.replace("&amp;", "&").replace("&#39;", "'").replace("&quot;", '"')
+            url_bruta = item.get("url", "").strip()
+            if url_bruta.startswith("/"):
+                url_bruta = "https://www.google.com" + url_bruta
+            url_real = _limpar_url_google(url_bruta)
+            titulo = unescape(item.get("title", "")).strip()
             if not url_real.startswith(("http://", "https://")):
                 continue
-            if url_real.startswith("https://www.google.com/url?"):
+            if "google.com/search" in url_real or "google.com/url?" in url_real:
                 continue
             resultados.append({"titulo": titulo, "url": url_real, "snippet": ""})
 

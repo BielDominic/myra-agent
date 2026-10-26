@@ -1125,3 +1125,13 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 - A síntese deve procurar evidências favoráveis e contrárias, distinguir alegação de fato comprovado, verificar independência entre fontes, datas e contexto, e explicitar incertezas.
 - O atalho de resposta pronta sobre resultados eleitorais não pode substituir a investigação quando a pergunta contém uma alegação de fraude/golpe.
 - Validação: `tests/test_telegram_bot.py` — 49 testes aprovados; compilação Python e `git diff --check` aprovados.
+
+
+### Corre??o de evid?ncias, parser de busca e respostas incompletas (2026-10-26)
+- Removida a resposta eleitoral pr?-fabricada que inseria nome, votos, percentuais e URL sem deriv?-los da pesquisa real.
+- A s?ntese agora instrui explicitamente a usar somente fatos/URLs presentes nos resultados e a rejeitar fontes de outro ano, pa?s, turno ou pleito.
+- Aumentado o limite de gera??o da pesquisa para reduzir truncamentos em relat?rios com v?rias se??es; o envio ao Telegram j? divide mensagens longas.
+- Substitu?do o parser r?gido de resultados do Google por extra??o HTML que aceita URLs diretas e links intermedi?rios, ignorando markup dentro de scripts.
+- A rota `/web_search` tenta o Google como provedor alternativo quando o DuckDuckGo devolve uma p?gina de desafio em vez de resultados.
+- Valida??o: `tests/test_telegram_bot.py` e `tests/test_tools_structured.py` ? 189 testes aprovados e 62 subtestes aprovados; `py_compile` e `git diff --check` aprovados.
+- Limita??o ainda aberta: teste real em 2026-10-26 mostrou que DuckDuckGo devolve desafio HTTP 202 e Google n?o retorna resultados parse?veis neste ambiente. A rota agora reporta a falha de ambos sem fabricar fontes; o acesso real a um provedor de pesquisa utiliz?vel precisa ser resolvido antes de declarar a investiga??o web conclu?da.

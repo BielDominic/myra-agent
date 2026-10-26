@@ -640,32 +640,31 @@ def test_allegation_research_never_uses_2026_winner_shortcut():
     assert not any("64.256.232" in message or "51,79%" in message for message in sent)
 
 
-def test_brazil_2026_election_uses_verified_result_when_search_has_current_coverage():
+def test_brazil_2026_election_answer_must_come_from_model_and_search_sources():
     http = FakeHTTP()
     bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
     bot._agent_request = lambda *args, **kwargs: {
         "status": "ok",
         "result": (
-            "[1] Quem ganhou a eleicao para presidente do Brasil em 2026? - G1\n"
-            "URL: https://g1.globo.com/politica/eleicoes/2026/noticia/2026/10/25/quem-ganhou.ghtml\n"
-            "Segundo turno das Eleicoes 2026 definiu a Presidencia neste domingo (25)."
+            "[1] Resultado eleitoral - fonte jornalistica\n"
+            "URL: https://example.org/eleicoes\n"
+            "A fonte afirma que a apuracao foi concluida, mas precisa ser verificada."
         ),
     }
     model_calls = []
     bot._ollama_generate = lambda *args, **kwargs: model_calls.append(args) or (
-        "As eleicoes ainda nao ocorreram."
+        "Nao consigo confirmar o vencedor com os dados fornecidos."
     )
 
     bot._handle_web_question("123", "Quem ganhou as eleicoes do Brasil?")
 
     sent = [call[2]["text"] for call in http.calls if "/sendMessage" in call[1]]
     answer = sent[-1]
-    assert "Luiz In\u00e1cio Lula da Silva" in answer
-    assert "64.256.232" in answer
-    assert "51,79%" in answer
-    assert "ainda nao ocorreram" not in answer
-    assert "https://www.tse.jus.br/" in answer
-    assert not model_calls
+    assert "Nao consigo confirmar o vencedor" in answer
+    assert "https://example.org/eleicoes" in answer
+    assert model_calls, "A resposta deve ser gerada a partir das fontes, nao de um resultado pre-fabricado"
+    assert "64.256.232" not in answer
+    assert "Luiz In\u00e1cio Lula da Silva" not in answer
 
 
 def test_web_answer_prompt_requires_numbers_and_rejects_false_no_result_claims():
@@ -679,6 +678,9 @@ def test_web_answer_prompt_requires_numbers_and_rejects_false_no_result_claims()
 
     assert "nunca conclua que nao existe resultado final" in prompts[0]
     assert "apresente nome, votos, percentual" in prompts[0]
+    assert "Use somente fatos e URLs que aparecam nos resultados fornecidos" in prompts[0]
+    assert "noticias de outra eleicao/ano nao constituem evidencia" in prompts[0]
+    assert "responda a cada secao" in prompts[0]
 
 
 def test_start_blocks_second_process_polling_lock():

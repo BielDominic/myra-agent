@@ -2113,32 +2113,88 @@ def web_search(data: WebSearch):
         with urllib.request.urlopen(req, timeout=15) as r:
             html = r.read().decode("utf-8", errors="ignore")
 
+        # O HTML do DuckDuckGo varia: o snippet pode ser um div ou um anchor,
+        # e os atributos HTML/classes nem sempre aparecem na mesma ordem.
+        # A regex antiga exigia um <a class="result__snippet"> logo após o título,
+        # fazendo todas as buscas parecerem vazias mesmo quando havia resultados.
+        from html.parser import HTMLParser
+        from html import unescape
+
         resultados = []
-        padrao = _re.compile(
-            r'<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>.*?'
-            r'<a[^>]*class="result__snippet"[^>]*>(.*?)</a>',
-            _re.DOTALL,
-        )
 
-        for i, match in enumerate(padrao.finditer(html)):
-            if i >= data.max_resultados:
+        class _DuckDuckGoResults(HTMLParser):
+            def __init__(self):
+                super().__init__(convert_charrefs=True)
+                self.titles = []
+                self.snippets = []
+                self.current_title = None
+                self.current_snippet = None
+                self.snippet_depth = 0
+
+            def handle_starttag(self, tag, attrs):
+                attributes = dict(attrs)
+                classes = attributes.get("class", "").split()
+                if tag == "a" and "result__a" in classes:
+                    self.current_title = {"url": attributes.get("href", ""), "title": ""}
+                    self.titles.append(self.current_title)
+                if "result__snippet" in classes:
+                    self.current_snippet = ""
+                    self.snippet_depth = 1
+                    self.snippets.append("")
+                elif self.current_snippet is not None and tag not in ("br", "img", "meta", "link", "input"):
+                    self.snippet_depth += 1
+
+            def handle_endtag(self, tag):
+                if self.current_title is not None and tag == "a":
+                    self.current_title = None
+                if self.current_snippet is not None:
+                    if self.snippet_depth <= 1:
+                        self.current_snippet = None
+                        self.snippet_depth = 0
+                    else:
+                        self.snippet_depth -= 1
+
+            def handle_data(self, data):
+                if self.current_title is not None:
+                    self.current_title["title"] += data
+                if self.current_snippet is not None and self.snippets:
+                    self.snippets[-1] += data
+
+        parser = _DuckDuckGoResults()
+        parser.feed(html)
+        for index, item in enumerate(parser.titles):
+            if len(resultados) >= data.max_resultados:
                 break
-            link = match.group(1)
-            titulo = _re.sub(r"<[^>]+>", "", match.group(2)).strip()
-            snippet = _re.sub(r"<[^>]+>", "", match.group(3)).strip()
-
-            titulo = titulo.replace("&amp;", "&").replace("&#x27;", "'").replace("&quot;", '"')
-            snippet = snippet.replace("&amp;", "&").replace("&#x27;", "'").replace("&quot;", '"')
-
+            link = unescape(item.get("url", "")).strip()
+            titulo = unescape(item.get("title", "")).strip()
+            snippet = unescape(parser.snippets[index] if index < len(parser.snippets) else "").strip()
+            if not link or not titulo:
+                continue
             if "uddg=" in link:
                 parsed = _urlparse.parse_qs(_urlparse.urlparse(link).query)
                 if "uddg" in parsed:
                     link = parsed["uddg"][0]
-
-            resultados.append(f"[{i+1}] {titulo}\n    URL: {link}\n    {snippet[:200]}")
+            resultados.append(f"[{len(resultados)+1}] {titulo}\n    URL: {link}\n    {snippet[:300]}")
 
         if not resultados:
-            return {"status": "erro", "result": "Nenhum resultado encontrado"}
+            # DuckDuckGo pode devolver uma pagina de desafio HTTP 202 em vez dos resultados.
+            # Nesse caso, tente o segundo provedor ja existente no projeto; nunca apresente
+            # a pagina de bloqueio como se fosse uma busca concluida.
+            try:
+                fallback = st.search_google_structured(data.query, data.max_resultados)
+            except Exception as fallback_error:
+                fallback = {"status": "erro", "result": f"{type(fallback_error).__name__}: {fallback_error}"}
+            if isinstance(fallback, dict) and fallback.get("status") == "ok":
+                fallback_results = fallback.get("results") or []
+                for item in fallback_results[:data.max_resultados]:
+                    title = str(item.get("titulo") or "").strip()
+                    link = str(item.get("url") or "").strip()
+                    snippet = str(item.get("snippet") or "").strip()
+                    if title and link.startswith(("http://", "https://")):
+                        resultados.append(f"[{len(resultados)+1}] {title}\n    URL: {link}\n    {snippet[:300]}")
+            if not resultados:
+                detail = fallback.get("result", "") if isinstance(fallback, dict) else ""
+                return {"status": "erro", "result": f"Nenhum resultado encontrado no DuckDuckGo ou no provedor alternativo. {detail}".strip()}
 
         return {"status": "ok", "result": "\n\n".join(resultados)}
     except Exception as e:
