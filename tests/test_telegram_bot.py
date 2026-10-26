@@ -416,6 +416,85 @@ def test_open_google_uses_direct_open_url_not_search_or_generic_task():
     assert not any(call[1].endswith("/search_google") or call[1].endswith("/task_simple") for call in http.calls)
 
 
+def test_direct_open_application_target_resolves_windows_aliases():
+    assert TelegramBot._direct_open_application_target("Abra os meus arquivos") == "explorador de arquivos"
+    assert TelegramBot._direct_open_application_target("Abra o Chrome") == "chrome"
+    assert TelegramBot._direct_open_application_target("Abra o Google") is None
+
+
+def test_open_local_application_uses_safe_application_endpoint():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    routed = []
+    bot._start_routed_task = lambda chat_id, objective: routed.append((chat_id, objective))
+
+    bot._route_text_message("123", "Abra os meus arquivos")
+    bot._route_text_message("123", "Abra o Chrome")
+
+    opened = [call for call in http.calls if call[1].endswith("/pc_open_application")]
+    assert [call[2] for call in opened] == [
+        {"nome": "explorador de arquivos"},
+        {"nome": "chrome"},
+    ]
+    assert routed == []
+    assert not any(call[1].endswith("/task_simple") for call in http.calls)
+
+
+def test_election_question_is_routed_to_web_search_not_local_chat():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    web_questions = []
+    bot._handle_web_question = lambda chat_id, text: web_questions.append((chat_id, text))
+
+    question = "Qual foi o resultado das elei\\u00e7\\u00f5es?"
+    bot._route_text_message("123", question)
+
+    assert web_questions == [("123", question)]
+    assert not any("127.0.0.1:11434/api/generate" in call[1] for call in http.calls)
+
+
+def test_web_search_failure_sends_progress_and_explicit_error():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    requests = []
+
+    def failed_search(method, route, payload=None, timeout=20):
+        requests.append((method, route, payload, timeout))
+        return {"status": "erro", "result": "network down"}
+
+    bot._agent_request = failed_search
+    bot._handle_web_question("123", "Qual foi o resultado das eleicoes?")
+
+    assert requests and requests[0][0:2] == ("POST", "/web_search")
+    assert requests[0][2]["max_resultados"] == 5
+    sent = [call[2]["text"] for call in http.calls if "/sendMessage" in call[1]]
+    assert any("Vou pesquisar na web" in message for message in sent)
+    assert any("Nao consegui confirmar" in message for message in sent)
+
+
+def test_start_blocks_second_process_polling_lock():
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"})
+    bot._acquire_polling_lock = lambda: False
+
+    result = bot.start()
+
+    assert result["status"] == "erro"
+    assert "outro processo" in result["result"]
+    assert bot.status()["running"] is False
+
+
+def test_guarded_message_router_reports_unexpected_errors():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    bot._route_text_message = lambda chat_id, text: (_ for _ in ()).throw(RuntimeError("boom"))
+
+    bot._route_text_message_guarded("123", "mensagem")
+
+    sent = [call[2]["text"] for call in http.calls if "/sendMessage" in call[1]]
+    assert any("falha interna" in message for message in sent)
+    assert bot.status()["last_error"] == "route_message: RuntimeError"
+
+
 def test_direct_open_target_resolves_common_sites():
     assert TelegramBot._direct_open_target("Abra o Google") == "https://www.google.com"
     assert TelegramBot._direct_open_target("Abra o YouTube") == "https://www.youtube.com"

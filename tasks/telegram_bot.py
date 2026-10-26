@@ -6,6 +6,10 @@ needed. All computer-control commands are restricted to configured chat IDs.
 from __future__ import annotations
 
 import json
+import ctypes
+import datetime
+import hashlib
+import tempfile
 import os
 import re
 import threading
@@ -45,6 +49,7 @@ class TelegramBot:
         self.api_base = api_base.rstrip("/")
         self.http = http or requests.Session()
         self._stop_event = threading.Event()
+        self._polling_lock_handle = None
         self._thread: threading.Thread | None = None
         self._offset = 0
         self._task_lock = threading.Lock()
@@ -182,16 +187,69 @@ class TelegramBot:
                     "result": "O bot Telegram ainda esta encerrando uma sessao de polling; aguarde antes de iniciar novamente.",
                 }
             return {"status": "ok", "result": "Bot Telegram ja esta em execucao."}
+        if not self._acquire_polling_lock():
+            self._last_error = "polling: outro processo MYRA ja esta usando este token do Telegram."
+            return {
+                "status": "erro",
+                "result": "Ja existe outro processo MYRA usando este bot do Telegram. O segundo polling foi bloqueado.",
+            }
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._poll_loop, name="myra-telegram", daemon=True)
         self._thread.start()
         return {"status": "ok", "result": "Bot Telegram iniciado com lista de chats autorizados."}
+
+    def _acquire_polling_lock(self) -> bool:
+        """Permite apenas um processo de polling por token, evitando conflitos HTTP 409."""
+        if self._polling_lock_handle is not None:
+            return True
+        key = hashlib.sha256(self.token.encode("utf-8")).hexdigest()[:24]
+        if os.name == "nt":
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p]
+            kernel32.CreateMutexW.restype = ctypes.c_void_p
+            kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+            ctypes.set_last_error(0)
+            handle = kernel32.CreateMutexW(None, False, f"Local\\MYRA_TelegramPolling_{key}")
+            if not handle:
+                raise OSError(ctypes.get_last_error(), "CreateMutexW failed")
+            if ctypes.get_last_error() == 183:
+                kernel32.CloseHandle(handle)
+                return False
+            self._polling_lock_handle = ("windows", handle, kernel32)
+            return True
+
+        import fcntl
+        lock_path = Path(tempfile.gettempdir()) / f"myra-telegram-polling-{key}.lock"
+        handle = lock_path.open("a+b")
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            handle.close()
+            return False
+        self._polling_lock_handle = ("file", handle)
+        return True
+
+    def _release_polling_lock(self) -> None:
+        held = self._polling_lock_handle
+        self._polling_lock_handle = None
+        if not held:
+            return
+        if held[0] == "windows":
+            held[2].CloseHandle(held[1])
+        else:
+            import fcntl
+            try:
+                fcntl.flock(held[1].fileno(), fcntl.LOCK_UN)
+            finally:
+                held[1].close()
 
     def stop(self) -> dict:
         self._stop_event.set()
         thread = self._thread
         if thread and thread.is_alive() and thread is not threading.current_thread():
             thread.join(timeout=2.0)
+        if not thread or not thread.is_alive():
+            self._release_polling_lock()
         return {"status": "ok", "result": "Parada solicitada."}
 
     def _telegram(self, method: str, *, params=None, data=None, files=None, timeout=15) -> dict:
@@ -515,6 +573,96 @@ class TelegramBot:
         return None
 
     @staticmethod
+    def _direct_open_application_target(user_text: str) -> str | None:
+        """Resolve comandos diretos para aplicativos locais comuns do Windows."""
+        text = user_text.strip().casefold().strip(" .!?")
+        pattern = r"^(?:por favor,?\s*)?(?:abra|abrir|abre|inicie|iniciar|execute|executar|open|launch)\s+(?:(?:o|a|os|as)\s+)?(.+)$"
+        match = re.match(pattern, text)
+        if not match:
+            return None
+        target = re.sub(r"\s+", " ", match.group(1)).strip(" .!?")
+        aliases = {
+            "meus arquivos": "explorador de arquivos",
+            "minhas pastas": "explorador de arquivos",
+            "meus ficheiros": "explorador de arquivos",
+            "arquivos": "explorador de arquivos",
+            "ficheiros": "explorador de arquivos",
+            "explorador de arquivos": "explorador de arquivos",
+            "file explorer": "explorador de arquivos",
+            "explorer": "explorador de arquivos",
+            "chrome": "chrome",
+            "google chrome": "chrome",
+            "navegador chrome": "chrome",
+            "microsoft edge": "microsoft edge",
+            "edge": "microsoft edge",
+            "calculadora": "calculadora",
+            "calculator": "calculadora",
+            "bloco de notas": "bloco de notas",
+            "notepad": "bloco de notas",
+        }
+        return aliases.get(target)
+
+    @staticmethod
+    def _is_current_web_question(user_text: str) -> bool:
+        """Detecta perguntas que dependem de fatos atuais e devem consultar a web."""
+        text = user_text.casefold()
+        election = "elei" in text or "election" in text
+        current_terms = bool(re.search(
+            r"\b(hoje|ontem|agora|atual|atualmente|recente|recentes|ultim[oa]s?|"
+            r"resultado|resultados|quem ganhou|noticias|news|latest|current|today|yesterday)\b",
+            text,
+        ))
+        return election or current_terms
+
+    def _handle_web_question(self, chat_id: str, user_text: str) -> None:
+        self._remember_chat_turn(chat_id, "user", user_text)
+        self._send_message(chat_id, "Vou pesquisar na web e conferir fontes recentes.")
+        try:
+            year = datetime.datetime.now().year
+            query = user_text
+            if "elei" in user_text.casefold() or "election" in user_text.casefold():
+                query = f"{user_text} {year}"
+            result = self._agent_request(
+                "POST", "/web_search",
+                {"query": query, "max_resultados": 5},
+                timeout=25,
+            )
+            if not isinstance(result, dict) or result.get("status") != "ok":
+                detail = self._short_result(result, "A pesquisa nao retornou resultados.")
+                answer = f"Nao consegui confirmar a resposta na web. {detail}"
+            else:
+                sources = self._short_result(result, "Nenhum resultado encontrado.")
+                prompt = (
+                    "Responda em portugues a pergunta do usuario usando SOMENTE os resultados web abaixo. "
+                    "Nao invente fatos nem trate snippets como certeza quando forem ambiguos. "
+                    "Se a pergunta sobre eleicoes nao especificar pais/eleicao e os resultados nao resolverem "
+                    "a ambiguidade, diga isso claramente e pergunte qual eleicao ele quer. "
+                    "Se responder, seja conciso e inclua links das fontes presentes nos resultados.\n"
+                    f"Pergunta: {user_text}\nResultados web:\n{sources}"
+                )
+                try:
+                    answer = self._ollama_generate(
+                        prompt,
+                        system="Voce resume resultados de pesquisa com rigor factual e neutralidade.",
+                        timeout=45,
+                        num_predict=450,
+                    )
+                except Exception:
+                    answer = ""
+                if not answer or not answer.strip():
+                    answer = f"Encontrei estes resultados na web:\n{sources}"
+                elif "http://" not in answer and "https://" not in answer:
+                    answer = f"{answer.strip()}\n\nFontes consultadas:\n{sources}"
+            self._remember_chat_turn(chat_id, "assistant", answer)
+            self._send_message(chat_id, answer)
+        except Exception as exc:
+            self._last_error = f"web_search: {type(exc).__name__}"
+            self._send_message(
+                chat_id,
+                "Nao consegui consultar a web agora. Tente novamente em instantes ou especifique o pais/eleicao.",
+            )
+
+    @staticmethod
     def _extract_weather_city(user_text: str) -> str | None:
         """Reconhece pedidos de clima/previsao para roteá-los à ferramenta real da MYRA."""
         text = user_text.strip()
@@ -539,6 +687,21 @@ class TelegramBot:
             flags=re.IGNORECASE,
         )[0].strip(" .?!,;:")
         return city
+
+    def _route_text_message_guarded(self, chat_id: str, user_text: str) -> None:
+        """Garante uma resposta explicita quando um roteamento inesperado falha."""
+        try:
+            self._route_text_message(chat_id, user_text)
+        except Exception as exc:
+            self._last_error = f"route_message: {type(exc).__name__}"
+            try:
+                self._send_message(
+                    chat_id,
+                    "Nao consegui processar essa mensagem por uma falha interna. "
+                    "O erro foi registrado; tente novamente ou use /status.",
+                )
+            except Exception:
+                pass
 
     def _route_text_message(self, chat_id: str, user_text: str) -> None:
         # Pedidos explícitos para enviar uma imagem da tela devem executar a captura,
@@ -690,6 +853,28 @@ class TelegramBot:
             return
         # Não deixe um modelo classificador transformar perguntas em ações no computador.
         # O executor só é acionado por pedidos de ação explícitos; o restante é conversa local.
+        if self._is_current_web_question(user_text):
+            self._handle_web_question(chat_id, user_text)
+            return
+        application_target = self._direct_open_application_target(user_text)
+        if application_target:
+            self._remember_chat_turn(chat_id, "user", user_text)
+            try:
+                result = self._agent_request(
+                    "POST", "/pc_open_application", {"nome": application_target}, timeout=30
+                )
+                answer = self._short_result(
+                    result, f"Pedido de abertura enviado para {application_target}."
+                )
+                self._remember_chat_turn(chat_id, "assistant", answer)
+                self._send_message(chat_id, answer)
+            except Exception as exc:
+                self._last_error = f"open_application: {type(exc).__name__}"
+                self._send_message(
+                    chat_id,
+                    f"Nao consegui abrir {application_target}: {type(exc).__name__}.",
+                )
+            return
         if self._is_explicit_computer_action(user_text):
             self._remember_chat_turn(chat_id, "user", user_text)
             self._start_routed_task(chat_id, user_text)
@@ -765,7 +950,7 @@ class TelegramBot:
         if not text.startswith("/"):
             # Texto comum passa pelo roteador em thread para nao bloquear o polling.
             threading.Thread(
-                target=self._route_text_message,
+                target=self._route_text_message_guarded,
                 args=(chat_id, text),
                 name="myra-telegram-chat",
                 daemon=True,
@@ -1065,6 +1250,7 @@ class TelegramBot:
             except Exception as exc:
                 self._last_error = f"polling: {type(exc).__name__}"
                 self._stop_event.wait(3)
+        self._release_polling_lock()
 
 
 def criar_bot_do_ambiente() -> TelegramBot:

@@ -1,9 +1,9 @@
 # MYRA - Roadmap
 
 [![Progress](https://img.shields.io/badge/Progress-33%25-orange?style=flat-square)]()
-[![Active Phase](https://img.shields.io/badge/Active_Phase-26-blue?style=flat-square)]()
+[![Active Phase](https://img.shields.io/badge/Active_Phase-30-blue?style=flat-square)]()
 [![Phases](https://img.shields.io/badge/Phases-31-purple?style=flat-square)]()
-[![Updated](https://img.shields.io/badge/Updated-2026-10-25-lightgrey?style=flat-square)]()
+[![Updated](https://img.shields.io/badge/Updated-2026-10-26-lightgrey?style=flat-square)]()
 [![Language](https://img.shields.io/badge/Language-PT--BR_%7C_EN-green?style=flat-square)]()
 
 **Documentacao disponivel em:** [Portugues](#portugues) | [English](#english)
@@ -205,6 +205,8 @@
 - [x] Falha de upload agora e reportada corretamente; a rotina retorna sucesso somente apos o Telegram aceitar `sendPhoto`, com teste de regressao.
 - [x] Rotas locais /telegram/status, /telegram/start e /telegram/stop.
 - [x] Validacao funcional confirmada pelo usuario (2026-10-26): Telegram funcionou; manter observacao operacional e revalidar se a falha voltar.
+- [x] Regressao 2026-10-26: a ausencia de resposta foi associada a HTTP 409 por pollers duplicados. Mutex Windows por hash do token impede uma segunda instancia; apos reiniciar, `/telegram/status` confirmou `running=true` e `last_error=null`; teste real do mutex confirmou primeira instancia aceita e segunda bloqueada.
+- [x] Pedidos diretos `Abra os meus arquivos` e `Abra o Chrome` agora usam `/pc_open_application`; perguntas sobre eleicoes/fatos atuais usam `/web_search`, com resposta ou erro explicito. Os 40 testes de `tests/test_telegram_bot.py` passaram; o endpoint real de busca retornou fontes do TSE.
 
 #### FASE 30 - Distribuicao
 ![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
@@ -706,8 +708,10 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 ##### 28.2 - Telegram Bot
 - [x] Long polling, allowlist authentication and commands implemented in `tasks/telegram_bot.py`; no webhook/public API required.
 - [x] HTTP 409 polling conflict stops the local poller rather than retrying indefinitely.
-- [x] Restarted as a single Uvicorn process bound to `127.0.0.1`; `/telegram/status` confirmed `running=true`, `last_error=null`.
+- [x] API remains bound to `127.0.0.1`; after the duplicate-poller fix, `/telegram/status` confirmed `running=true` and `last_error=null`.
 - [x] User confirmed Telegram is working for now (2026-10-26); monitor operationally and revalidate if the issue returns.
+- [x] Regression on 2026-10-26 traced missing replies to HTTP 409 from duplicate polling processes. A Windows mutex keyed by bot-token hash blocks a second instance; after restart `/telegram/status` showed `running=true` and `last_error=null`. A real mutex check confirmed the first instance acquires the lock and the second is blocked.
+- [x] `Open my files` and `Open Chrome` now route directly to `/pc_open_application`; current-fact/election questions use `/web_search` and return an answer or explicit error. Telegram tests: 40 passed; live web-search endpoint returned TSE sources.
 
 #### PHASE 30 - Distribution
 ![In progress](https://img.shields.io/badge/-IN_PROGRESS-yellow?style=flat-square)
@@ -1001,7 +1005,7 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 | TARS overlay (PHASE 27) | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Remote control (PHASE 28: Tailscale + Telegram) | Active scope complete | ![100%](https://img.shields.io/badge/-100%25-brightgreen?style=flat-square) |
 | CarPlay (future backlog after distribution) | ? | Deferred; does not block current phases |
-| Distribution (PHASE 30) | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
+| Distribution (PHASE 30) | 6 | ![65%](https://img.shields.io/badge/-65%25-yellow?style=flat-square) |
 | Custom interface (PHASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |
 | Voice / Audio (PHASE 14) | 5 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | YouTube (PHASE 20) | 12 | ![70%](https://img.shields.io/badge/-70%25-green?style=flat-square) |
