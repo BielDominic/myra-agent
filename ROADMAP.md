@@ -201,8 +201,10 @@
 - [x] Poll bem-sucedido limpa erro transitorio antigo em `/telegram/status`; teste de regressao cobre recuperacao apos timeout.
 - [x] Backend reiniciado apos a correcao; `/telegram/status` confirmou `running=true` e `last_error=null`; `/remote_access/status` confirmou Tailscale `connected` e `api_exposed=false`; a API segue limitada a 127.0.0.1.
 - [x] API real do Telegram validada via `getMe`; `getWebhookInfo` confirmou ausencia de webhook (o transporte e long polling).
+- [x] Upload real de screenshot para o chat autorizado validado em 2026-10-26; o Telegram aceitou a foto e o helper retornou `photo_uploaded=true`.
+- [x] Falha de upload agora e reportada corretamente; a rotina retorna sucesso somente apos o Telegram aceitar `sendPhoto`, com teste de regressao.
 - [x] Rotas locais /telegram/status, /telegram/start e /telegram/stop.
-- [ ] Validar comandos com Telegram real e confirmar entrega dos resultados no chat autorizado.
+- [ ] Validar comandos recebidos via long polling no Telegram real e confirmar o roteamento da frase natural de screenshot no processo ativo.
 
 ##### 28.3 - App iOS Nativo e API remota
 - [x] API Bearer separada: GET /remote/v1/status, POST /remote/v1/task e POST /remote/v1/cancel.
