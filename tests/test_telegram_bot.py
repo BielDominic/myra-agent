@@ -446,3 +446,21 @@ def test_successful_poll_clears_stale_transient_error():
 
     assert bot.status()["last_error"] is None
     assert bot.status()["running"] is False
+
+
+def test_long_responses_are_sent_in_chunks_without_truncation():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    original = ("Parágrafo completo com conteúdo importante. " * 220).strip()
+
+    assert bot._send_message("123", original)
+    sent = [call[2]["text"] for call in http.calls if "/sendMessage" in call[1]]
+
+    assert len(sent) > 1
+    assert all(0 < len(chunk) <= 3900 for chunk in sent)
+    assert "".join(sent) == original
+
+
+def test_short_result_does_not_truncate_long_agent_response():
+    original = "x" * 12000
+    assert TelegramBot._short_result({"status": "ok", "result": original}) == original

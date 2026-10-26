@@ -76,7 +76,7 @@ class TelegramBot:
                     continue
                 content = turn.get("content")
                 if isinstance(content, str) and content.strip():
-                    valid.append({"role": turn["role"], "content": content[:MAX_MESSAGE_LENGTH]})
+                    valid.append({"role": turn["role"], "content": content})
             if valid:
                 restored[str(chat_id)] = valid
         return restored
@@ -90,7 +90,7 @@ class TelegramBot:
         if not isinstance(payload, dict):
             return {}
         return {
-            str(chat_id): str(message)[:MAX_MESSAGE_LENGTH]
+            str(chat_id): str(message)
             for chat_id, message in payload.items()
             if isinstance(message, str) and message.strip()
         }
@@ -122,7 +122,7 @@ class TelegramBot:
 
     def _remember_chat_turn(self, chat_id: str | int, role: str, content: str) -> None:
         """Guarda mensagens e resultados de tarefas para perguntas de acompanhamento."""
-        clean_content = str(content or "").strip()[:MAX_MESSAGE_LENGTH]
+        clean_content = str(content or "").strip()
         if role not in {"user", "assistant"} or not clean_content:
             return
         key = str(chat_id)
@@ -206,17 +206,45 @@ class TelegramBot:
             raise RuntimeError("Telegram API recusou a operacao.")
         return payload
 
+    @staticmethod
+    def _split_message(text: str, limit: int = MAX_MESSAGE_LENGTH) -> list[str]:
+        """Divide respostas longas em mensagens Telegram sem descartar nenhum trecho."""
+        remaining = str(text or "Sem resposta.")
+        if not remaining:
+            return ["Sem resposta."]
+        chunks: list[str] = []
+        while len(remaining) > limit:
+            # Prefere uma quebra de parágrafo ou linha; depois uma quebra entre palavras.
+            boundary = max(
+                remaining.rfind("\n\n", 0, limit + 1),
+                remaining.rfind("\n", 0, limit + 1),
+                remaining.rfind(" ", 0, limit + 1),
+            )
+            if boundary < limit // 2:
+                boundary = limit
+            if boundary <= 0:
+                boundary = limit
+            chunks.append(remaining[:boundary])
+            remaining = remaining[boundary:]
+        if remaining:
+            chunks.append(remaining)
+        return chunks
+
     def _send_message(self, chat_id: str | int, text: str, *, reply_markup: dict | None = None) -> bool:
-        content = str(text or "Sem resposta.")[:MAX_MESSAGE_LENGTH]
-        payload = {"chat_id": str(chat_id), "text": content}
-        if reply_markup:
-            payload["reply_markup"] = reply_markup
-        try:
-            self._telegram("sendMessage", data=payload)
-            return True
-        except Exception as exc:
-            self._last_error = f"sendMessage: {type(exc).__name__}"
-            return False
+        chunks = self._split_message(str(text or "Sem resposta."))
+        all_sent = True
+        for index, chunk in enumerate(chunks):
+            payload = {"chat_id": str(chat_id), "text": chunk}
+            # Botões/teclados pertencem somente à mensagem final.
+            if reply_markup and index == len(chunks) - 1:
+                payload["reply_markup"] = reply_markup
+            try:
+                self._telegram("sendMessage", data=payload)
+            except Exception as exc:
+                self._last_error = f"sendMessage: {type(exc).__name__}"
+                all_sent = False
+                break
+        return all_sent
 
     def _agent_request(self, method: str, route: str, payload: dict | None = None, timeout: int = 20) -> dict:
         response = self.http.request(
@@ -232,7 +260,7 @@ class TelegramBot:
     @staticmethod
     def _short_result(data: dict, fallback: str = "Operacao concluida.") -> str:
         value = data.get("result") or data.get("resultado_final") or data.get("erro") or fallback
-        return str(value)[:MAX_MESSAGE_LENGTH]
+        return str(value)
 
     def _load_chat_model(self) -> str:
         """Carrega a preferência do bot sem modificar configurações globais do Ollama."""
@@ -370,7 +398,7 @@ class TelegramBot:
                 )
                 if first_user_message:
                     if key not in self._first_user_message:
-                        self._first_user_message[key] = first_user_message[:MAX_MESSAGE_LENGTH]
+                        self._first_user_message[key] = first_user_message
                         self._persist_first_user_messages_locked()
                     answer = (
                         "A primeira mensagem de usuário que consta no histórico salvo desta conversa é: "
@@ -385,14 +413,14 @@ class TelegramBot:
                     )
                 updated = history + [
                     {"role": "user", "content": clean_text},
-                    {"role": "assistant", "content": answer[:MAX_MESSAGE_LENGTH]},
+                    {"role": "assistant", "content": answer},
                 ]
                 self._chat_history[key] = updated[-MAX_CHAT_HISTORY_TURNS:]
                 self._persist_chat_history_locked()
                 return answer
 
             if clean_text.strip() and not clean_text.strip().startswith("/") and key not in self._first_user_message:
-                self._first_user_message[key] = clean_text.strip()[:MAX_MESSAGE_LENGTH]
+                self._first_user_message[key] = clean_text.strip()
                 self._persist_first_user_messages_locked()
 
             transcript = []
@@ -426,7 +454,7 @@ class TelegramBot:
             )
             updated = history + [
                 {"role": "user", "content": clean_text},
-                {"role": "assistant", "content": answer[:MAX_MESSAGE_LENGTH]},
+                {"role": "assistant", "content": answer},
             ]
             self._chat_history[key] = updated[-MAX_CHAT_HISTORY_TURNS:]
             self._persist_chat_history_locked()
