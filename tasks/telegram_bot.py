@@ -722,6 +722,12 @@ class TelegramBot:
                 query = f"como escolher em quem votar criterios comparar propostas programas de governo fontes oficiais informacao eleitoral {year}"
             else:
                 query = user_text
+            research_topic = user_text.split("Siga estas instruções:", 1)[0].strip()
+            research_topic = research_topic.split("Siga estas instrucoes:", 1)[0].strip()
+            if "sobre a seguinte questão:" in research_topic:
+                research_topic = research_topic.split("sobre a seguinte questão:", 1)[1].strip()
+            elif "sobre a seguinte questao:" in research_topic:
+                research_topic = research_topic.split("sobre a seguinte questao:", 1)[1].strip()
             if allegation_terms:
                 # Triangula alegacoes de qualquer tema por buscas distintas: documentos oficiais,
                 # checagem independente e cobertura jornalistica. Nenhuma busca isolada decide a conclusao.
@@ -730,9 +736,9 @@ class TelegramBot:
                 else:
                     primary_terms = "documentos oficiais investigações decisões judiciais auditorias"
                 research_queries = [
-                    f'"{user_text}" {primary_terms}',
-                    f'{user_text} checagem de fatos verificação independente evidências',
-                    f'{user_text} investigação reportagem jornalismo fontes independentes',
+                    f'"{research_topic}" {primary_terms}',
+                    f'{research_topic} checagem de fatos verificação independente evidências',
+                    f'{research_topic} investigação reportagem jornalismo fontes independentes',
                 ]
             else:
                 research_queries = [query]
