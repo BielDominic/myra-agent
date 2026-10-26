@@ -2209,7 +2209,7 @@ def see(data: SeeImage):
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": data.pergunta},
+                        {"type": "text", "text": data.pergunta + "\n\nResponda em portugues com uma descricao completa e objetiva, em no maximo 5 paragrafos. Termine todas as frases e conclua a resposta; nao pare no meio de uma frase ou palavra. Priorize os elementos realmente visiveis e evite especulacoes."},
                         {"type": "image_url", "image_url": {"url": f"data:{img_mime};base64,{img_b64}"}}
                     ]
                 }
