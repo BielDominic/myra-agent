@@ -604,15 +604,35 @@ class TelegramBot:
 
     @staticmethod
     def _is_current_web_question(user_text: str) -> bool:
-        """Detecta perguntas que dependem de fatos atuais e devem consultar a web."""
+        """Detecta pesquisa explicita, fatos atuais e perguntas que exigem fontes externas."""
         text = user_text.casefold()
-        election = "elei" in text or "election" in text
+        # Explicit commands to operate the browser/computer keep their existing action route.
+        if re.search(r"^(por favor,?\s*)?(pesquise na web|pesquise no google|pesquisa na web|pesquisa no google|"
+                     r"pesquisar na web|pesquisar no google|procure no google|procure na internet|"
+                     r"busque na web|busca na web|search the web for|search google for|look this up online)\b", text):
+            return False
+        if "elei" in text or "election" in text:
+            return True
         current_terms = bool(re.search(
             r"\b(hoje|ontem|agora|atual|atualmente|recente|recentes|ultim[oa]s?|"
             r"resultado|resultados|quem ganhou|noticias|news|latest|current|today|yesterday)\b",
             text,
         ))
-        return election or current_terms
+        research_intent = bool(re.search(
+            r"\b(pesquis[ae]|pesquisar|pesquisa|investigue|investigar|procure|buscar|busque|"
+            r"consulte|fontes|referencias|compare|comparar|comparacao|evidencias|"
+            r"what is|who is|how much|how many|look up|research|find out|compare)\b",
+            text,
+        ))
+        voting_intent = bool(re.search(
+            r"\b(votar|voto|votos|candidato|candidatos|eleitor|eleitoral|vote|voting|candidate|candidates)\b",
+            text,
+        )) and bool(re.search(
+            r"\b(aconselh|recomend|devo|deveria|qual|quem|em quem|votar|vote|escolher|escolha|"
+            r"should i|who should|recommend|advise)\b",
+            text,
+        ))
+        return current_terms or research_intent or voting_intent
 
     def _handle_web_question(self, chat_id: str, user_text: str) -> None:
         self._remember_chat_turn(chat_id, "user", user_text)
@@ -630,6 +650,8 @@ class TelegramBot:
                 )
             elif "elei" in normalized_question or "election" in normalized_question:
                 query = f"{user_text} resultado oficial candidatos votos percentuais {year}"
+            elif bool(re.search(r"\b(votar|voto|votos|candidato|candidatos|eleitor|eleitoral|vote|voting|candidate|candidates)\b", normalized_question)) and bool(re.search(r"\b(aconselh|recomend|devo|deveria|qual|quem|em quem|votar|vote|escolher|escolha|should i|who should|recommend|advise)\b", normalized_question)):
+                query = f"como escolher em quem votar criterios comparar propostas programas de governo fontes oficiais informacao eleitoral {year}"
             else:
                 query = user_text
             result = self._agent_request(
@@ -662,17 +684,23 @@ class TelegramBot:
                     self._send_message(chat_id, answer)
                     return
                 prompt = (
-                    "Responda em portugues e responda diretamente ao que foi perguntado, usando apenas as evidencias abaixo. "
-                    "REGRA CRITICA: nunca conclua que nao existe resultado final apenas porque um snippet diz 'acompanhe', "
-                    "'em tempo real' ou descreve uma pagina de apuracao. Procure entre TODOS os resultados por uma noticia "
-                    "mais recente que declare eleito/reeleito, totalizacao concluida ou 100% das secoes, e por numeros "
-                    "explicitos de votos e percentuais. Prefira primeiro o TSE; use fontes jornalisticas como corroboracao. "
-                    "Se os resultados contiverem numeros e declaracao de eleito, apresente nome, votos, percentual, "
-                    "adversario e percentual, e estado da totalizacao. Nao substitua esses dados por uma lista de links. "
-                    "Se as fontes divergirem, explique o horario/percentual de apuracao de cada uma; nao misture dados "
-                    "de horarios diferentes. Se nao houver numeros nas evidencias, diga explicitamente que a pesquisa "
-                    "nao trouxe dados suficientes e nao invente um resultado. Se pais/eleicao forem ambiguos, pergunte. "
-                    "Inclua pelo menos um link direto para a fonte relevante.\n"
+                    "Responda no idioma da pergunta, diretamente e com clareza, usando as evidencias web fornecidas. "
+                    "Sua tarefa e pesquisar, interpretar e sintetizar; nao despeje uma lista de links como substituto da resposta. "
+                    "Identifique a resposta principal primeiro, depois explique os fatos relevantes e as incertezas. "
+                    "Cruze os resultados entre si, priorize fontes oficiais/primarias para dados, leis, resultados e declaracoes, "
+                    "e use fontes jornalisticas ou especialistas confiaveis para contexto. Verifique datas, local, versao e contexto; "
+                    "nao trate titulos/snippets como prova se o restante das fontes os contradiz. Nao invente fatos, numeros, "
+                    "citacoes ou conclusoes ausentes das evidencias. Se as fontes forem insuficientes ou conflitantes, diga exatamente "
+                    "o que pode e o que nao pode ser confirmado. Inclua links diretos para as fontes mais relevantes. "
+                    "Para perguntas politicas ou sobre voto, mantenha neutralidade: nao escolha um candidato nem tente persuadir; "
+                    "apresente propostas, historico, evidencias e criterios comparaveis de forma equilibrada, e convide o usuario a "
+                    "indicar quais temas importam para organizar uma comparacao imparcial. "
+                    "REGRA: nunca conclua que nao existe resultado final sem verificar todas as evidencias; nunca conclua que nao existe resultado final apenas porque um snippet e vago. "
+                    "Para resultados eleitorais, apresente nome, votos, percentual e totalizacao quando confirmados. "
+                    "Para perguntas sobre resultados eleitorais, procure entre TODOS os resultados a apuracao mais recente, "
+                    "declaracao de eleito/reeleito, totalizacao concluida ou 100% das secoes e numeros explicitos; prefira a autoridade "
+                    "eleitoral oficial e corrobore com jornalismo confiavel. Nunca diga que nao ha resultado final se as evidencias "
+                    "mostram o vencedor e a totalizacao. Nao misture dados de horarios diferentes.\n"
                     f"Pergunta: {user_text}\nResultados web:\n{sources}"
                 )
                 try:

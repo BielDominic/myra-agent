@@ -453,6 +453,50 @@ def test_election_question_is_routed_to_web_search_not_local_chat():
     assert not any("127.0.0.1:11434/api/generate" in call[1] for call in http.calls)
 
 
+def test_voting_advice_is_routed_to_neutral_web_research():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    web_questions = []
+    bot._handle_web_question = lambda chat_id, text: web_questions.append((chat_id, text))
+
+    question = "Em que voce aconselha votar?"
+    bot._route_text_message("123", question)
+
+    assert web_questions == [("123", question)]
+    assert not any("127.0.0.1:11434/api/generate" in call[1] for call in http.calls)
+
+
+def test_generic_research_intent_is_routed_to_web():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    web_questions = []
+    bot._handle_web_question = lambda chat_id, text: web_questions.append((chat_id, text))
+
+    question = "Pesquise fontes confiaveis sobre energia solar"
+    bot._route_text_message("123", question)
+
+    assert web_questions == [("123", question)]
+
+
+def test_voting_research_query_is_neutral_and_source_oriented():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    requests = []
+    prompts = []
+    bot._agent_request = lambda method, route, payload=None, timeout=20: (
+        requests.append((method, route, payload, timeout)) or
+        {"status": "ok", "result": "Fontes eleitorais com propostas e programas oficiais. URL: https://example.org"}
+    )
+    bot._ollama_generate = lambda prompt, **kwargs: prompts.append(prompt) or "Compare as propostas de forma equilibrada. https://example.org"
+
+    bot._handle_web_question("123", "Em que voce aconselha votar?")
+
+    assert len(requests) == 1
+    assert "comparar propostas" in requests[0][2]["query"]
+    assert "nao escolha um candidato nem tente persuadir" in prompts[0]
+    assert "evidencias web fornecidas" in prompts[0]
+
+
 def test_web_search_failure_sends_progress_and_explicit_error():
     http = FakeHTTP()
     bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
