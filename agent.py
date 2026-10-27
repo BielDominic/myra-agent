@@ -2207,9 +2207,30 @@ def web_search(data: WebSearch):
                         if title and link.startswith(("http://", "https://")):
                             resultados.append(f"[{len(resultados)+1}] {title}\n    URL: {link}\n    {snippet[:500]}")
                 if not resultados:
-                    detail = fallback.get("result", "") if isinstance(fallback, dict) else ""
-                    bing_detail = bing.get("result", "") if isinstance(bing, dict) else ""
-                    return {"status": "erro", "result": f"Nenhum resultado encontrado nos provedores DuckDuckGo, Google e Bing RSS. {detail} {bing_detail}".strip()}
+                    # Quarto fallback independente: Bing News RSS. Os provedores anteriores
+                    # podem bloquear HTML ou falhar no parser; RSS permite recuperar URLs reais.
+                    try:
+                        import xml.etree.ElementTree as _ET
+                        rss_url = "https://www.bing.com/news/search?" + _urlparse.urlencode({"q": data.query, "format": "rss", "setlang": "pt-br"})
+                        rss_req = urllib.request.Request(rss_url, headers={
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36",
+                            "Accept": "application/rss+xml, application/xml, text/xml, */*",
+                        })
+                        with urllib.request.urlopen(rss_req, timeout=12) as rss_response:
+                            rss_bytes = rss_response.read(2_000_000)
+                        root = _ET.fromstring(rss_bytes)
+                        for item in root.findall(".//item")[:data.max_resultados]:
+                            title = (item.findtext("title") or "").strip()
+                            link = (item.findtext("link") or "").strip()
+                            snippet = (item.findtext("description") or "").strip()
+                            if title and link.startswith(("http://", "https://")):
+                                resultados.append(f"[{len(resultados)+1}] {title}\n    URL: {link}\n    {snippet[:500]}")
+                    except Exception as rss_error:
+                        print(f"[WEB_SEARCH] Bing News RSS fallback error: {type(rss_error).__name__}: {rss_error}")
+                    if not resultados:
+                        detail = fallback.get("result", "") if isinstance(fallback, dict) else ""
+                        bing_detail = bing.get("result", "") if isinstance(bing, dict) else ""
+                        return {"status": "erro", "result": f"Nenhum resultado encontrado. DuckDuckGo, Google, Google News RSS e Bing News RSS falharam ou nao retornaram resultados validos. Google: {detail}; Google News: {bing_detail}".strip()}
 
         return {"status": "ok", "result": "\n\n".join(resultados)}
     except Exception as e:

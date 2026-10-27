@@ -749,6 +749,19 @@ class TelegramBot:
             if question_match:
                 research_topic = question_match.group(1).strip()
             research_topic = re.sub(r"\s+", " ", research_topic).strip(" \t\r\n\"'")
+            # Mensagens de pesquisa em linguagem natural podem conter muitas instrucoes
+            # que nao sao termos de busca. Extraia o tema antes de enviar ao provedor.
+            if len(user_text) > 240 and re.match(r"^\s*pesquise\s+na\s+(?:web|internet)\b", user_text, re.IGNORECASE):
+                topic_match = re.search(
+                    r"\bsobre\s+(.+?)(?=[.!?]\s+(?:encontre|para cada|n[aã]o invente|se algum|no final)\b|$)",
+                    user_text,
+                    re.IGNORECASE,
+                )
+                if topic_match:
+                    compact_topic = re.sub(r"\s+", " ", topic_match.group(1)).strip(" \t\r\n\"'")
+                    if compact_topic:
+                        research_topic = compact_topic
+                        query = compact_topic
             if not research_topic:
                 research_topic = user_text[:500].strip()
             if prior_research_context:
@@ -805,10 +818,50 @@ class TelegramBot:
                     collected_sources.append(f"RESULTADOS DA BUSCA {index}:\n{self._short_result(search_result, 'Nenhum resultado encontrado.')}")
                 else:
                     search_errors.append(self._short_result(search_result, "Pesquisa sem resultados."))
+            # Recuperacao: se os provedores falharem para a consulta original, tente
+            # formulacoes mais curtas e buscas por fontes primarias antes de desistir.
             if not collected_sources:
-                detail = "; ".join(search_errors) or "A pesquisa nao retornou resultados."
-                answer = f"Nao consegui confirmar a resposta na web. {detail}"
-            else:
+                topic = re.sub(r"\s+", " ", research_topic).strip()[:240]
+                fallback_queries = []
+                if topic:
+                    fallback_queries.extend([
+                        f"{topic} investigacao documentos oficiais",
+                        f"{topic} site:gov.br OR site:senado.leg.br OR site:camara.leg.br",
+                        f"{topic} Reuters AP BBC investigacao reportagem",
+                    ])
+                seen_queries = {q.casefold() for q in research_queries}
+                for fallback_query in fallback_queries:
+                    if fallback_query.casefold() in seen_queries:
+                        continue
+                    seen_queries.add(fallback_query.casefold())
+                    try:
+                        fallback_result = self._agent_request(
+                            "POST", "/web_search",
+                            {"query": fallback_query, "max_resultados": 8},
+                            timeout=25,
+                        )
+                    except Exception as fallback_exc:
+                        search_errors.append(f"Fallback: {type(fallback_exc).__name__}")
+                        continue
+                    if isinstance(fallback_result, dict) and fallback_result.get("status") == "ok":
+                        fallback_text = self._short_result(fallback_result, "")
+                        if fallback_text.strip():
+                            collected_sources.append(
+                                f"RESULTADOS DA BUSCA ALTERNATIVA {len(collected_sources)+1}:\n{fallback_text}"
+                            )
+                        else:
+                            search_errors.append(f"Alternativa sem conteúdo: {fallback_query}")
+                    else:
+                        fallback_detail = self._short_result(fallback_result, "sem detalhe")
+                        search_errors.append(f"Alternativa '{fallback_query}': {fallback_detail[:350]}")
+                if not collected_sources:
+                    detail = "; ".join(search_errors) or "A pesquisa nao retornou resultados."
+                    answer = (
+                        "Nao consegui confirmar a resposta na web. Tentei provedores e consultas alternativas, "
+                        f"mas nao consegui confirmar fatos com fontes acessiveis. Detalhes: {detail}. "
+                        "Isso nao significa que nao existam informacoes; posso tentar novamente com nomes, orgaos ou datas mais especificos."
+                    )
+            if collected_sources:
                 sources = "\n\n".join(collected_sources)
                 # Toda conclusao deve derivar das evidencias realmente retornadas pelas buscas.
                 prompt = (
@@ -1061,6 +1114,46 @@ class TelegramBot:
             return
         # Não deixe um modelo classificador transformar perguntas em ações no computador.
         # O executor só é acionado por pedidos de ação explícitos; o restante é conversa local.
+        status_terms = ("status", "estado", "situa??o", "situacao", "backend", "bot", "tarefa", "tarefas", "myra", "?ltima", "ultima", "resultado")
+        status_context = ("myra", "backend", "bot", "sistema", "tarefa", "tarefas", "execu??o", "execucao", "processando", "online", "funcionando", "conclu?da", "concluida", "?ltima", "ultima", "agora", "atual", "estado", "status")
+        status_intent = any(term in normalized_text for term in status_terms) and any(
+            term in normalized_text for term in status_context
+        )
+        # A inten??o expl?cita de pesquisa deve ter prioridade sobre palavras como
+        # "resultados", "fontes" ou "MYRA" presentes no briefing; elas n?o pedem status.
+        explicit_web_research = bool(re.match(
+            r"^\s*(?:por favor,?\s*)?(?:pesquise|pesquisa|pesquisar|investigue|investigar|procure|busque|buscar)\s+na\s+(?:web|internet)\b",
+            normalized_text,
+        ))
+        if status_intent and not explicit_web_research:
+            self._remember_chat_turn(chat_id, "user", user_text)
+            try:
+                bot_status = self._agent_request("GET", "/telegram/status", timeout=8)
+                task_status = self._agent_request("GET", "/task_status", timeout=8)
+                pending = self._agent_request("GET", "/task_pendentes", timeout=8)
+                lines = [
+                    "Status operacional da MYRA (consulta ao backend local):",
+                    f"? Backend: {'online' if task_status else 'sem resposta'}",
+                    f"? Bot Telegram: {'em execu??o' if bot_status.get('running') else 'n?o confirmado como ativo'}",
+                    f"? Estado da tarefa: {task_status.get('state', 'desconhecido')}",
+                    f"? Tarefa ativa: {task_status.get('objetivo') or task_status.get('task_id') or 'nenhuma informada'}",
+                    f"? Tarefas pendentes: {len(pending.get('tasks', pending.get('tarefas', [])) or [])}",
+                ]
+                history = task_status.get("historico") or []
+                if history:
+                    latest = history[-1]
+                    if isinstance(latest, dict):
+                        lines.append(f"? Registro mais recente: {latest.get('objetivo') or latest.get('task_id') or latest.get('id') or 'registro no hist?rico'}")
+                        lines.append(f"? Resultado registrado: {latest.get('resultado') or latest.get('state') or latest.get('status') or 'n?o informado'}")
+                else:
+                    lines.append("? ?ltima tarefa conclu?da: n?o consta no hist?rico retornado pelo endpoint de status.")
+                answer = "\n".join(lines)
+            except Exception as exc:
+                answer = f"N?o consegui consultar o status local da MYRA: {type(exc).__name__}. O pedido n?o foi enviado ? pesquisa web."
+            self._remember_chat_turn(chat_id, "assistant", answer)
+            self._send_message(chat_id, answer)
+            return
+
         if self._is_current_web_question(user_text):
             self._handle_web_question(chat_id, user_text)
             return

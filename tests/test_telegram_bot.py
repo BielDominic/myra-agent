@@ -501,6 +501,27 @@ def test_generic_research_intent_is_routed_to_web():
     assert web_questions == [("123", question)]
 
 
+
+def test_long_internet_research_request_is_not_misrouted_to_operational_status():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    web_questions = []
+    bot._handle_web_question = lambda chat_id, text: web_questions.append((chat_id, text))
+
+    question = (
+        "Pesquise na internet informa??es atualizadas sobre os avan?os da intelig?ncia artificial "
+        "e da rob?tica em 2026. Encontre pelo menos 5 not?cias recentes de fontes confi?veis, "
+        "como Reuters, BBC, TechCrunch ou ve?culos especializados. Para cada resultado, apresente "
+        "o t?tulo, um resumo dos principais fatos, a data da publica??o, o nome da fonte e o link "
+        "direto para a not?cia. N?o invente informa??es nem links. Se algum provedor de pesquisa "
+        "falhar, tente os outros dispon?veis antes de responder. No final, informe quantos "
+        "resultados foram encontrados e quais fontes foram consultadas."
+    )
+    bot._route_text_message("123", question)
+
+    assert web_questions == [("123", question)]
+    assert not any(call[1].endswith("/telegram/status") for call in http.calls)
+
 def test_plain_factual_questions_are_routed_to_web_without_research_keyword():
     assert TelegramBot._is_current_web_question("Quem inventou a internet?")
     assert TelegramBot._is_current_web_question("Qual a diferenca entre energia solar e eolica?")
@@ -852,3 +873,33 @@ def test_natural_screenshot_request_does_not_claim_success_when_photo_upload_fai
     )
     sent = [call for call in http.calls if "/sendMessage" in call[1]]
     assert any("Falha ao capturar/enviar a tela" in call[2]["text"] for call in sent)
+
+
+def test_long_research_prompt_is_reduced_to_its_core_topic():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    requests = []
+    bot._agent_request = lambda method, route, payload=None, timeout=20: (
+        requests.append((method, route, payload, timeout)) or
+        {"status": "ok", "result": "Avanços recentes em IA e robótica. URL: https://example.org"}
+    )
+    bot._ollama_generate = lambda prompt, **kwargs: "Resumo baseado nos resultados. https://example.org"
+    bot._send_message = lambda chat_id, text: None
+    bot._remember_chat_turn = lambda chat_id, role, content: None
+
+    question = (
+        "Pesquise na internet informações atualizadas sobre os avanços da inteligência artificial "
+        "e da robótica em 2026. Encontre pelo menos 5 notícias recentes de fontes confiáveis, "
+        "como Reuters, BBC, TechCrunch ou veículos especializados. Para cada resultado, apresente "
+        "o título, um resumo dos principais fatos, a data da publicação, o nome da fonte e o link "
+        "direto para a notícia. Não invente informações nem links. Se algum provedor de pesquisa "
+        "falhar, tente os outros disponíveis antes de responder. No final, informe quantos resultados "
+        "foram encontrados e quais fontes foram consultadas."
+    )
+
+    bot._handle_web_question("123", question)
+
+    assert requests
+    assert len(requests[0][2]["query"]) < 100
+    assert "inteligência artificial" in requests[0][2]["query"]
+    assert "Reuters" not in requests[0][2]["query"]
