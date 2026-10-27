@@ -898,6 +898,12 @@ class TelegramBot:
                     "declaracao de eleito/reeleito, totalizacao concluida ou 100% das secoes e numeros explicitos; prefira a autoridade "
                     "eleitoral oficial e corrobore com jornalismo confiavel. Nunca diga que nao ha resultado final se as evidencias "
                     "mostram o vencedor e a totalizacao. Nao misture dados de horarios diferentes.\n"
+                    "REGRA DE FORMATO: siga literalmente o tipo de tarefa e a estrutura pedida pelo usuario. Se pedir noticias/artigos recentes "
+                    "e N resultados, entregue uma lista numerada com ate N itens verificaveis; para cada um, informe titulo, resumo factual, "
+                    "data de publicacao somente se estiver nos resultados, nome da fonte e URL direta existente nos resultados. Priorize "
+                    "as fontes solicitadas apenas quando elas realmente aparecerem nos resultados. Nao responda com dicas de estudo, ENEM, "
+                    "recomendacoes gerais ou temas relacionados se isso nao foi pedido. Nao invente datas, fontes, titulos nem links. "
+                    "Se os resultados nao sustentarem N itens, informe quantos foram validados e diga claramente o que faltou.\n"
                     f"Contexto da investigação/pergunta completa: {research_topic}\n"
                     f"Pergunta mais recente: {user_text}\nResultados web:\n{sources}"
                 )
