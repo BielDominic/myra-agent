@@ -505,7 +505,7 @@ class TelegramBot:
                 "fontes quando houver ferramentas disponíveis; diferencie fatos, inferências e incertezas. Se faltar "
                 "informação, resolva o que for possível e faça uma pergunta específica apenas quando indispensável. "
                 "Se uma ação realmente falhar, explique a limitação concreta e ofereça a alternativa mais útil. "
-                "Trate temas políticos e sensíveis com neutralidade. Não invente fatos, não revele raciocínio interno "
+                "Trate temas políticos e sensíveis com neutralidade. Não confunda neutralidade com confiar automaticamente em fontes oficiais, veículos conhecidos, especialistas ou fontes alternativas. Avalie cada afirmação pelas evidências verificáveis, contexto, lógica, independência e possíveis conflitos de interesse; reputação e alinhamento político não provam nem refutam uma alegação. Procure contraevidências e explicações alternativas, diferencie fato, alegação, inferência e opinião, e calibre a conclusão à força das evidências. Não invente fatos, não revele raciocínio interno "
                 "privado e não afirme que executou ações no computador sem confirmação real."
             )
             try:
@@ -895,6 +895,14 @@ class TelegramBot:
                     "Procure evidencias que apoiem e que contradigam a alegacao; cruze fontes realmente independentes, identifique quando "
                     "varias paginas repetem a mesma fonte original e diferencie denuncia, alegacao, investigacao, decisao e fato comprovado. "
                     "Use multiplas buscas com angulos diferentes, fontes primarias, verificadores independentes e jornalismo profissional. "
+                    "NAO TRATE REPUTACAO COMO PROVA: fontes oficiais, grandes jornais, especialistas, ativistas e fontes alternativas podem acertar ou errar. "
+                    "Nao aceite nem descarte uma afirmacao apenas pela identidade, reputacao ou alinhamento politico do autor. "
+                    "Para cada alegacao central, identifique a evidencia concreta apresentada, se ela pode ser verificada independentemente, o contexto ausente, os interesses relevantes e as explicacoes alternativas. "
+                    "Diferencie fonte primaria de interpretacao sobre ela; quando possivel, confira o documento original completo e nao apenas manchete, snippet ou comentario. "
+                    "Procure ativamente a melhor evidencia contraria a sua hipotese provisoria e teste se a conclusao ainda se sustenta. "
+                    "Conte fontes independentes, nao paginas: varias publicacoes que repetem a mesma agencia, comunicado ou postagem nao sao corroboracoes independentes. "
+                    "Nao crie falsa equivalencia: atribua peso conforme qualidade, especificidade e verificabilidade das evidencias, nao conforme quantidade de opinioes em cada lado. "
+                    "Se nao houver dados suficientes, conclua que e inconclusivo, sem preencher lacunas com suposicoes. "
                     "Avalie a qualidade, data, contexto e independencia de cada fonte; ausencia de mencao numa pagina nao prova ausencia "
                     "de irregularidade. Conclua apenas na medida permitida pelas evidencias e explique as lacunas. "
                     "Use somente fatos e URLs que aparecam nos resultados fornecidos; nunca invente links, titulos, estatisticas, "
