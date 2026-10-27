@@ -806,17 +806,30 @@ class TelegramBot:
                         prior_research_context.casefold(),
                     ))
             if allegation_terms:
-                # Triangula alegacoes de qualquer tema por buscas distintas: documentos oficiais,
-                # checagem independente e cobertura jornalistica. Nenhuma busca isolada decide a conclusao.
-                if is_brazil_election:
-                    primary_terms = "TSE decisões judiciais auditoria Ministério Público"
+                # Triangula alegacoes por fontes distintas. Para o caso de 8 de janeiro,
+                # separa decisao oficial, critica processual, defesa e proporcionalidade penal.
+                jan8_stf = (
+                    re.search(r"8\s+de\s+janeiro", research_topic, re.IGNORECASE)
+                    and re.search(r"\bSTF\b", research_topic, re.IGNORECASE)
+                )
+                if jan8_stf:
+                    research_queries = [
+                        '"8 de janeiro" STF decisões acórdãos competência relator julgamento site:stf.jus.br',
+                        '"8 de janeiro" STF defesa contraditório ampla defesa competência crítica jurídica',
+                        '"8 de janeiro" condenações dosimetria penas individualização conduta acórdãos STF',
+                        '"8 de janeiro" denúncia PGR alegações finais defesa réus documentos processo',
+                        '"8 de janeiro" juristas críticas STF devido processo legal imparcialidade análise jurídica',
+                    ]
                 else:
-                    primary_terms = "documentos oficiais investigações decisões judiciais auditorias"
-                research_queries = [
-                    f'"{research_topic}" {primary_terms}',
-                    f'{research_topic} checagem de fatos verificação independente evidências',
-                    f'{research_topic} investigação reportagem jornalismo fontes independentes',
-                ]
+                    if is_brazil_election:
+                        primary_terms = "TSE decisões judiciais auditoria Ministério Público"
+                    else:
+                        primary_terms = "documentos oficiais investigações decisões judiciais auditorias"
+                    research_queries = [
+                        f'"{research_topic}" {primary_terms}',
+                        f'{research_topic} checagem de fatos verificação independente evidências',
+                        f'{research_topic} investigação reportagem jornalismo fontes independentes',
+                    ]
             else:
                 research_queries = [query]
 
@@ -825,7 +838,7 @@ class TelegramBot:
             for index, research_query in enumerate(research_queries, start=1):
                 search_result = self._agent_request(
                     "POST", "/web_search",
-                    {"query": research_query, "max_resultados": 8},
+                    {"query": research_query, "max_resultados": 5},
                     timeout=25,
                 )
                 if isinstance(search_result, dict) and search_result.get("status") == "ok":
@@ -876,7 +889,20 @@ class TelegramBot:
                         "Isso nao significa que nao existam informacoes; posso tentar novamente com nomes, orgaos ou datas mais especificos."
                     )
             if collected_sources:
-                sources = "\n\n".join(collected_sources)
+                # Os resultados de cada consulta reiniciam a numeracao em [1]. Renumeramos
+                # globalmente para que citacoes [n] do modelo identifiquem uma fonte unica.
+                source_index = 0
+                normalized_source_batches = []
+                for batch in collected_sources:
+                    normalized_lines = []
+                    for line in batch.splitlines():
+                        source_match = re.match(r"^\[(\d+)\](\s+)", line)
+                        if source_match:
+                            source_index += 1
+                            line = f"[{source_index}]" + source_match.group(2) + line[source_match.end():]
+                        normalized_lines.append(line)
+                    normalized_source_batches.append("\n".join(normalized_lines))
+                sources = "\n\n".join(normalized_source_batches)
                 # Toda conclusao deve derivar das evidencias realmente retornadas pelas buscas.
                 prompt = (
                     "Responda no idioma da pergunta, diretamente e com clareza, usando as evidencias web fornecidas. "
@@ -920,6 +946,19 @@ class TelegramBot:
                     "declaracao de eleito/reeleito, totalizacao concluida ou 100% das secoes e numeros explicitos; prefira a autoridade "
                     "eleitoral oficial e corrobore com jornalismo confiavel. Nunca diga que nao ha resultado final se as evidencias "
                     "mostram o vencedor e a totalizacao. Nao misture dados de horarios diferentes.\n"
+                    "PROTOCOLO PARA INVESTIGACAO JURIDICO-CONSTITUCIONAL: se o tema envolver STF, processos criminais, atos de 8 de janeiro "
+                    "ou legalidade de decisoes judiciais, nao responda com a formula circular de que uma decisao e legitima apenas porque "
+                    "foi proferida por um tribunal constitucional. Identifique o processo, a decisao, o orgao julgador, a data, os dispositivos "
+                    "legais aplicados e o fundamento concreto, mas somente quando esses dados estiverem nos resultados. Examine separadamente "
+                    "competencia e prevencao; imparcialidade e aparencia de imparcialidade; poderes monocraticos e revisao colegiada; acesso aos autos, "
+                    "contraditorio e ampla defesa; individualizacao da conduta e prova atribuida a cada acusado; tipificacao penal e elementos dos crimes; "
+                    "dosimetria, agravantes/atenuantes e proporcionalidade; recursos e divergencias judiciais. Para cada controversia, apresente "
+                    "A) o que os documentos primarios demonstram, B) a critica mais forte e sua fonte, C) a resposta juridica mais forte e sua fonte, "
+                    "D) avaliacao fundamentada e grau de certeza. Nao afirme que uma critica foi provada so porque foi publicada, nem que foi refutada "
+                    "so porque um tribunal rejeitou o argumento. Distinga legalidade formal, qualidade da fundamentacao, controversia interpretativa "
+                    "e conclusao definitiva em recurso. Se nao encontrar documentos primarios, declare a lacuna em vez de simular uma analise completa. "
+                    "Inclua URLs diretas verificaveis e cite a fonte ao lado de cada afirmacao juridica importante. Nao atribua um argumento a um acordao "
+                    "sem localizar o acordao.\n"
                     "REGRA DE FORMATO: siga literalmente o tipo de tarefa e a estrutura pedida pelo usuario. Se pedir noticias/artigos recentes "
                     "e N resultados, entregue uma lista numerada com ate N itens verificaveis; para cada um, informe titulo, resumo factual, "
                     "data de publicacao somente se estiver nos resultados, nome da fonte e URL direta existente nos resultados. Priorize "
@@ -932,16 +971,35 @@ class TelegramBot:
                 try:
                     answer = self._ollama_generate(
                         prompt,
-                        system="Voce resume resultados de pesquisa com rigor factual e neutralidade.",
-                        timeout=45,
-                        num_predict=1100,
+                        system=(
+                            "Voce e um pesquisador rigoroso. Cada afirmacao factual importante deve "
+                            "ser vinculada a uma fonte numerada realmente presente nos resultados. "
+                            "Nao invente URLs nem cite uma fonte sem suporte no texto fornecido. "
+                            "Se os resultados nao permitirem cobrir todos os pontos, declare as lacunas."
+                        ),
+                        timeout=75,
+                        num_predict=1800,
                     )
-                except Exception:
+                except Exception as exc:
                     answer = ""
+                    synthesis_error = type(exc).__name__
+                else:
+                    synthesis_error = ""
                 if not answer or not answer.strip():
-                    answer = f"Encontrei estes resultados na web:\n{sources}"
-                elif "http://" not in answer and "https://" not in answer:
-                    answer = f"{answer.strip()}\n\nFontes consultadas:\n{sources}"
+                    answer = (
+                        "A pesquisa encontrou resultados, mas a sintese do modelo falhou"
+                        + (f" ({synthesis_error})" if synthesis_error else "")
+                        + ". Abaixo estao os resultados brutos para verificacao; nao os trate como "
+                        "uma conclusao juridica validada."
+                    )
+                # Sempre exponha os resultados usados. Antes, bastava o modelo incluir qualquer
+                # URL (inclusive uma URL nao relacionada) para ocultar o conjunto real de fontes.
+                # A lista permite conferir titulos, links e snippets e detectar citacoes inventadas.
+                answer = (
+                    f"{answer.strip()}\n\n"
+                    "FONTES RETORNADAS PELA BUSCA (verifique o documento original antes de concluir):\n"
+                    f"{sources}"
+                )
             self._remember_chat_turn(chat_id, "assistant", answer)
             self._send_message(chat_id, answer)
         except Exception as exc:

@@ -700,7 +700,7 @@ def test_web_search_failure_sends_progress_and_explicit_error():
     bot._handle_web_question("123", "Qual foi o resultado das eleicoes?")
 
     assert requests and requests[0][0:2] == ("POST", "/web_search")
-    assert requests[0][2]["max_resultados"] == 8
+    assert requests[0][2]["max_resultados"] == 5
     sent = [call[2]["text"] for call in http.calls if "/sendMessage" in call[1]]
     assert any("Vou pesquisar na web" in message for message in sent)
     assert any("Nao consegui confirmar" in message for message in sent)
@@ -718,7 +718,7 @@ def test_brazil_election_search_uses_final_results_query_and_more_sources():
 
     bot._handle_web_question("123", "Qual foi o resultado das eleições no Brasil")
 
-    assert requests[0][2]["max_resultados"] == 8
+    assert requests[0][2]["max_resultados"] == 5
     assert "resultado final" in requests[0][2]["query"]
     assert "TSE" in requests[0][2]["query"]
     sent = [call[2]["text"] for call in http.calls if "/sendMessage" in call[1]]
