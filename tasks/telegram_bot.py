@@ -702,7 +702,8 @@ class TelegramBot:
             allegation_terms = bool(re.search(
                 r"\b(golpe|fraude|fraud|irregularidade|irregularidades|prova|provas|evid[eê]ncia|"
                 r"evid[eê]ncias|den[uú]ncia|den[uú]ncias|manipula[cç][aã]o|fraudou|fraudaram|"
-                r"urnas|auditoria|contesta[cç][aã]o|falsifica[cç][aã]o)\b",
+                r"urnas|auditoria|contesta[cç][aã]o|falsifica[cç][aã]o|abusiv[oa]s?|proporcionalidade|"
+                r"devido processo|constitui[cç][aã]o|constitucional|legalidade|investiga[cç][aã]o)\b",
                 normalized_question,
             ))
             # "PT" junto de alegação de golpe/fraude e segundo turno é tratado como
@@ -715,7 +716,8 @@ class TelegramBot:
             allegation_terms = bool(re.search(
                 r"\b(golpe|fraude|fraud|irregularidade|irregularidades|prova|provas|evid[eê]ncia|"
                 r"evid[eê]ncias|den[uú]ncia|den[uú]ncias|manipula[cç][aã]o|fraudou|fraudaram|"
-                r"urnas|auditoria|contesta[cç][aã]o|falsifica[cç][aã]o)\b",
+                r"urnas|auditoria|contesta[cç][aã]o|falsifica[cç][aã]o|abusiv[oa]s?|proporcionalidade|"
+                r"devido processo|constitui[cç][aã]o|constitucional|legalidade|investiga[cç][aã]o)\b",
                 normalized_question,
             ))
             asks_election_outcome = bool(re.search(
@@ -749,6 +751,18 @@ class TelegramBot:
             if question_match:
                 research_topic = question_match.group(1).strip()
             research_topic = re.sub(r"\s+", " ", research_topic).strip(" \t\r\n\"'")
+            # Em pedidos longos de investigação, pesquise a pergunta central, não o briefing inteiro.
+            if len(user_text) > 240:
+                # Evite consultas gigantes: mantenha os conceitos que identificam o caso e os critérios jurídicos.
+                if re.search(r"8\s+de\s+janeiro", research_topic, re.IGNORECASE) and re.search(r"\bSTF\b", research_topic, re.IGNORECASE):
+                    research_topic = "STF atos de 8 de janeiro 2023 legalidade decisões proporcionalidade devido processo legal"
+                    query = research_topic
+                central_question = re.search(r"(.{30,500}?\?)", research_topic, re.IGNORECASE)
+                if central_question:
+                    compact_question = re.sub(r"\s+", " ", central_question.group(1)).strip(" *\t\r\n")
+                    if len(compact_question) >= 35:
+                        research_topic = compact_question
+                        query = compact_question
             # Mensagens de pesquisa em linguagem natural podem conter muitas instrucoes
             # que nao sao termos de busca. Extraia o tema antes de enviar ao provedor.
             if len(user_text) > 240 and re.match(r"^\s*pesquise\s+na\s+(?:web|internet)\b", user_text, re.IGNORECASE):

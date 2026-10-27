@@ -2177,6 +2177,32 @@ def web_search(data: WebSearch):
             resultados.append(f"[{len(resultados)+1}] {titulo}\n    URL: {link}\n    {snippet[:300]}")
 
         if not resultados:
+            # Priorize Bing News RSS antes do Google News: o Bing normalmente entrega URLs do editor,
+            # enquanto o Google News pode devolver wrappers opacos que nao sao links diretos para a noticia.
+            try:
+                import xml.etree.ElementTree as _ET
+                rss_url = "https://www.bing.com/news/search?" + _urlparse.urlencode({"q": data.query, "format": "rss", "setlang": "pt-br"})
+                rss_req = urllib.request.Request(rss_url, headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36",
+                    "Accept": "application/rss+xml, application/xml, text/xml, */*",
+                })
+                with urllib.request.urlopen(rss_req, timeout=12) as rss_response:
+                    rss_bytes = rss_response.read(2_000_000)
+                root = _ET.fromstring(rss_bytes)
+                for item in root.findall(".//item")[:data.max_resultados]:
+                    title = (item.findtext("title") or "").strip()
+                    link = (item.findtext("link") or "").strip()
+                    snippet = (item.findtext("description") or "").strip()
+                    if "bing.com/news/apiclick.aspx" in link:
+                        wrapped = _urlparse.parse_qs(_urlparse.urlparse(link).query).get("url", [])
+                        if wrapped:
+                            link = wrapped[0]
+                    if title and link.startswith(("http://", "https://")) and "bing.com/" not in _urlparse.urlparse(link).netloc:
+                        resultados.append(f"[{len(resultados)+1}] {title}\n    URL: {link}\n    {snippet[:500]}")
+            except Exception as rss_error:
+                print(f"[WEB_SEARCH] Bing News RSS primary fallback error: {type(rss_error).__name__}: {rss_error}")
+
+        if not resultados:
             # DuckDuckGo pode devolver uma pagina de desafio HTTP 202 em vez dos resultados.
             # Nesse caso, tente o segundo provedor ja existente no projeto; nunca apresente
             # a pagina de bloqueio como se fosse uma busca concluida.
