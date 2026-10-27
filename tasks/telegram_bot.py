@@ -1150,9 +1150,20 @@ class TelegramBot:
         # A inten??o expl?cita de pesquisa deve ter prioridade sobre palavras como
         # "resultados", "fontes" ou "MYRA" presentes no briefing; elas n?o pedem status.
         explicit_web_research = bool(re.match(
-            r"^\s*(?:por favor,?\s*)?(?:pesquise|pesquisa|pesquisar|investigue|investigar|procure|busque|buscar)\s+na\s+(?:web|internet)\b",
+            r"^\s*(?:por favor,?\s*)?(?:pesquise|pesquisa|pesquisar|investigue|investigar|"
+            r"fa[cç]a\s+(?:uma\s+)?investiga[cç][aã]o|realize\s+(?:uma\s+)?pesquisa|"
+            r"conduza\s+(?:uma\s+)?investiga[cç][aã]o|analise\s+(?:criticamente\s+)?|"
+            r"compare\s+(?:as\s+)?fontes|research|investigate|conduct\s+(?:a\s+)?research)\b",
             normalized_text,
-        ))
+        )) or (
+            len(user_text) >= 700
+            and bool(re.search(
+                r"\b(investiga[cç][aã]o|pesquisa|pesquise|investigue|fontes consultadas|"
+                r"evid[eê]ncias|argumentos contr[aá]rios|conclus[aã]o final|"
+                r"primary sources|counterevidence)\b",
+                normalized_text,
+            ))
+        )
         if status_intent and not explicit_web_research:
             self._remember_chat_turn(chat_id, "user", user_text)
             try:
