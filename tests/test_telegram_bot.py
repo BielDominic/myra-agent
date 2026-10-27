@@ -3,6 +3,40 @@ from pathlib import Path
 from tasks.telegram_bot import TelegramBot
 
 
+def test_research_prompt_requires_evidence_over_source_reputation():
+    """Research instructions should assess claims, not blindly trust institutional reputation."""
+    import inspect
+    import tasks.telegram_bot as telegram_bot_module
+
+    source = inspect.getsource(telegram_bot_module.TelegramBot._handle_web_question)
+    required_principles = (
+        "NAO TRATE REPUTACAO COMO PROVA",
+        "evidencia concreta apresentada",
+        "evidencia contraria",
+        "corroboracoes independentes",
+        "Nao crie falsa equivalencia",
+        "conclua que e inconclusivo",
+    )
+    for principle in required_principles:
+        assert principle in source, f"Missing critical research principle: {principle}"
+
+
+def test_general_chat_prompt_rejects_automatic_trust_in_sources():
+    """General conversation must not treat neutrality as automatic trust in any source class."""
+    import inspect
+    import tasks.telegram_bot as telegram_bot_module
+
+    import unicodedata
+
+    source = inspect.getsource(telegram_bot_module.TelegramBot)
+    normalized = "".join(
+        char for char in unicodedata.normalize("NFD", source.casefold())
+        if unicodedata.category(char) != "Mn"
+    )
+    assert "nao confunda neutralidade com confiar automaticamente em fontes oficiais" in normalized
+    assert "reputacao e alinhamento politico nao provam nem refutam" in normalized
+
+
 class FakeResponse:
     def __init__(self, payload):
         self.payload = payload
