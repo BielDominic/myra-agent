@@ -556,6 +556,34 @@ def test_long_internet_research_request_is_not_misrouted_to_operational_status()
     assert web_questions == [("123", question)]
     assert not any(call[1].endswith("/telegram/status") for call in http.calls)
 
+def test_exact_myra_critical_investigation_brief_routes_to_web_not_status():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    web_questions = []
+    bot._handle_web_question = lambda chat_id, text: web_questions.append((chat_id, text))
+
+    question = (
+        "MYRA, quero que voce faca uma investigacao critica e imparcial sobre a seguinte questao: "
+        "O governo brasileiro e o STF agiram dentro dos limites legais e constitucionais nos "
+        "processos relacionados aos acontecimentos de 8 de janeiro de 2023? Consulte fontes de "
+        "diferentes perspectivas, verifique documentos originais, analise competencia do tribunal, "
+        "imparcialidade, decisoes monocraticas, direito de defesa, individualizacao das condutas, "
+        "proporcionalidade das penas e aplicacao dos crimes. Para cada critica, identifique evidencias, "
+        "argumentos contrarios e o que a legislacao permite concluir. Diferencie fatos comprovados, "
+        "alegacoes, interpretacoes juridicas e opinioes politicas. Apresente resumo, argumentos a favor "
+        "e contra, analise de cada controversia, fontes com links diretos, limitacoes e conclusao final. "
+        "Nao presuma que o STF agiu corretamente por ser oficial nem que agiu ilegalmente porque recebeu "
+        "criticas. Avalie cada afirmacao com base nas evidencias e diga explicitamente quando nao houver "
+        "base suficiente para uma conclusao segura."
+    )
+    assert len(question) >= 700
+
+    bot._route_text_message("123", question)
+
+    assert web_questions == [("123", question)]
+    assert not any(call[1].endswith("/telegram/status") for call in http.calls)
+
+
 def test_plain_factual_questions_are_routed_to_web_without_research_keyword():
     assert TelegramBot._is_current_web_question("Quem inventou a internet?")
     assert TelegramBot._is_current_web_question("Qual a diferenca entre energia solar e eolica?")

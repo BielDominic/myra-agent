@@ -1150,13 +1150,13 @@ class TelegramBot:
         # A inten??o expl?cita de pesquisa deve ter prioridade sobre palavras como
         # "resultados", "fontes" ou "MYRA" presentes no briefing; elas n?o pedem status.
         explicit_web_research = bool(re.match(
-            r"^\s*(?:por favor,?\s*)?(?:pesquise|pesquisa|pesquisar|investigue|investigar|"
-            r"fa[cç]a\s+(?:uma\s+)?investiga[cç][aã]o|realize\s+(?:uma\s+)?pesquisa|"
-            r"conduza\s+(?:uma\s+)?investiga[cç][aã]o|analise\s+(?:criticamente\s+)?|"
+            r"^\s*(?:por favor,?\s*)?(?:fa[cç]a\s+(?:uma\s+)?investiga[cç][aã]o|"
+            r"realize\s+(?:uma\s+)?pesquisa|conduza\s+(?:uma\s+)?investiga[cç][aã]o|"
+            r"analise\s+(?:criticamente\s+)?|"
             r"compare\s+(?:as\s+)?fontes|research|investigate|conduct\s+(?:a\s+)?research)\b",
             normalized_text,
         )) or (
-            len(user_text) >= 700
+            len(user_text) >= 400
             and bool(re.search(
                 r"\b(investiga[cç][aã]o|pesquisa|pesquise|investigue|fontes consultadas|"
                 r"evid[eê]ncias|argumentos contr[aá]rios|conclus[aã]o final|"
@@ -1193,7 +1193,9 @@ class TelegramBot:
             self._send_message(chat_id, answer)
             return
 
-        if self._is_current_web_question(user_text):
+        # Briefings explicitos de pesquisa devem entrar no fluxo web mesmo quando
+        # comecam com "MYRA, quero que..." e nao correspondem ao detector de pergunta curta.
+        if explicit_web_research or self._is_current_web_question(user_text):
             self._handle_web_question(chat_id, user_text)
             return
         application_target = self._direct_open_application_target(user_text)
