@@ -911,10 +911,28 @@ def _decidir_proximo_passo(
         "browser_get_tabs", "browser_type_text", "browser_wait",
         "web_search_structured", "search_google_structured", "search_google",
     }
+    # Uma mencao negativa/incidental a clima nao e uma solicitacao meteorologica.
+    # Em diagnosticos que proíbem consultar o clima, retire essas ferramentas
+    # do contexto do planner: regras por substring causavam pesquisa meteorologica
+    # mesmo quando o objetivo pedia inspecionar codigo/logs.
+    texto_normalizado = _normalizar_intencao(objetivo)
+    diagnostico_tecnico = any(t in texto_normalizado for t in (
+        "diagnostique e corrija", "inspecione o codigo", "investigue o erro",
+        "analise os logs", "corrija a causa raiz",
+    ))
+    proibicao_clima = bool(re.search(
+        r"\b(?:nao|nunca|sem)\s+(?:consulte|pesquise|verifique|busque|obtenha)\s+(?:o\s+)?clima\b",
+        texto_normalizado,
+    ))
     nomes_prompt = sorted(
         nome for nome in FERRAMENTAS_DISPONIVEIS
         if not (eh_navegacao and nome in ferramentas_ocultas_navegacao)
         and not (eh_arquivo and nome in ferramentas_ocultas_arquivo)
+        and not (proibicao_clima and nome in {"get_weather", "weather"})
+        and not (diagnostico_tecnico and proibicao_clima and nome in {
+            "browser_search_google", "browser_search_google_visivel",
+            "search_google", "search_google_structured", "web_search_structured",
+        })
     )
     if FERRAMENTAS_DESCRICOES:
         ferramentas_str = "\n".join(
@@ -964,9 +982,12 @@ Se o objetivo menciona HORA, DATA, DIA, MES ou ANO:
   -> use get_current_time().
   Exemplos: "que horas sao", "que dia e hoje", "qual a data".
 
-Se o objetivo menciona CLIMA, TEMPO, TEMPERATURA, CHUVA, FRIO ou CALOR:
+Se o objetivo pede explicitamente uma informacao meteorologica (por exemplo,
+"clima em Dublin", "vai chover hoje", "esta frio?"):
   -> use get_weather(cidade="...").
-  Exemplos: "clima em Dublin", "vai chover hoje", "esta frio?".
+  -> NAO use get_weather se clima/tempo aparecer apenas como contexto, citacao,
+     investigacao de erro ou instrucao negativa ("nao consulte o clima").
+  -> Instrucoes negativas e o objetivo principal prevalecem sobre palavras-chave.
 
 Se o objetivo menciona CRIAR, ESCREVER ou SALVAR arquivo:
   -> use write_file(caminho, conteudo).
