@@ -161,6 +161,54 @@ def web_search_structured(query: str = "", max_resultados: int = 5) -> dict:
         return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
 
 
+def _resolver_google_news_url(url: str, timeout: int = 8) -> str:
+    """Resolve wrappers Google News only when a verifiable canonical destination exists."""
+    from html import unescape
+    from html.parser import HTMLParser
+
+    parsed = urllib.parse.urlparse(url)
+    host = parsed.netloc.lower()
+    if host == "consent.google.com" or host.endswith(".consent.google.com"):
+        continuation = urllib.parse.parse_qs(parsed.query).get("continue", [""])[0]
+        continuation_host = urllib.parse.urlparse(continuation).netloc.lower()
+        if continuation and continuation_host and not (continuation_host == "google.com" or continuation_host.endswith(".google.com")):
+            return continuation
+        return ""
+    if host not in {"news.google.com", "www.news.google.com"}:
+        return url
+    try:
+        response = requests.get(url, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36",
+            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+        }, timeout=timeout, allow_redirects=True)
+        final_url = response.url
+        final_host = urllib.parse.urlparse(final_url).netloc.lower()
+        if final_host and not (final_host == "google.com" or final_host.endswith(".google.com")):
+            return final_url
+
+        class _CanonicalParser(HTMLParser):
+            def __init__(self):
+                super().__init__(convert_charrefs=True)
+                self.candidates = []
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if tag.lower() == "link" and "canonical" in attrs.get("rel", "").lower().split():
+                    self.candidates.append(attrs.get("href", ""))
+                if tag.lower() == "meta" and attrs.get("property", "").lower() == "og:url":
+                    self.candidates.append(attrs.get("content", ""))
+
+        parser = _CanonicalParser()
+        parser.feed(response.text[:500000])
+        for candidate in parser.candidates:
+            candidate = unescape(candidate).strip()
+            host = urllib.parse.urlparse(candidate).netloc.lower()
+            if candidate.startswith(("https://", "http://")) and host and "google.com" not in host:
+                return candidate
+    except Exception:
+        pass
+    return ""
+
+
 def search_google_news_rss_structured(query: str = "", max_resultados: int = 5) -> dict:
     """Busca no Google News RSS; alternativa estruturada quando HTML e bloqueado."""
     if not query:
@@ -178,7 +226,12 @@ def search_google_news_rss_structured(query: str = "", max_resultados: int = 5) 
         for item in root.findall(".//item"):
             titulo = (item.findtext("title") or "").strip()
             link = (item.findtext("link") or "").strip()
+            if link:
+                link = _resolver_google_news_url(link)
             snippet = (item.findtext("description") or "").strip()
+            # Não exponha wrapper opaco como se fosse URL do editor.
+            if not link:
+                continue
             # Google News embute descricoes HTML no RSS; devolva texto legivel.
             from html import unescape
             snippet = unescape(_re.sub(r"<[^>]+>", " ", snippet))
