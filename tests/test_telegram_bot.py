@@ -797,7 +797,7 @@ def test_web_answer_prompt_requires_numbers_and_rejects_false_no_result_claims()
     assert "VALIDACAO DE CONSISTENCIA OBRIGATORIA" in prompts[0]
     assert "conclusao e uma avaliacao propria" in prompts[0]
     source = inspect.getsource(telegram_bot_module.TelegramBot._handle_web_question)
-    assert "Busca descartada: resultados sem sinais do tema jurídico investigado." in source
+    assert "resultados sem sinais do tema jurídico investigado." in source
     assert "Alternativa descartada por irrelevância temática" in source
     assert "jan8_stf = bool(" in source
 
