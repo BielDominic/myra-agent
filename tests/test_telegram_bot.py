@@ -793,6 +793,9 @@ def test_web_answer_prompt_requires_numbers_and_rejects_false_no_result_claims()
     assert "Use somente fatos e URLs que aparecam nos resultados fornecidos" in prompts[0]
     assert "noticias de outra eleicao/ano nao constituem evidencia" in prompts[0]
     assert "responda a cada secao" in prompts[0]
+    assert "PROTOCOLO DE RACIOCINIO ANALITICO OBRIGATORIO" in prompts[0]
+    assert "VALIDACAO DE CONSISTENCIA OBRIGATORIA" in prompts[0]
+    assert "conclusao e uma avaliacao propria" in prompts[0]
 
 
 def test_start_blocks_second_process_polling_lock():
