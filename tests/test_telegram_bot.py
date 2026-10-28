@@ -780,6 +780,9 @@ def test_brazil_2026_election_answer_must_come_from_model_and_search_sources():
 
 
 def test_web_answer_prompt_requires_numbers_and_rejects_false_no_result_claims():
+    import inspect
+    import tasks.telegram_bot as telegram_bot_module
+
     http = FakeHTTP()
     bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
     prompts = []
@@ -795,7 +798,12 @@ def test_web_answer_prompt_requires_numbers_and_rejects_false_no_result_claims()
     assert "responda a cada secao" in prompts[0]
     assert "PROTOCOLO DE RACIOCINIO ANALITICO OBRIGATORIO" in prompts[0]
     assert "VALIDACAO DE CONSISTENCIA OBRIGATORIA" in prompts[0]
-    assert "conclusao e uma avaliacao propria" in prompts[0]
+    import unicodedata
+    normalized_prompt = "".join(
+        char for char in unicodedata.normalize("NFD", prompts[0].casefold())
+        if unicodedata.category(char) != "Mn"
+    )
+    assert "a conclusao deve ser uma avaliacao propria" in normalized_prompt
     source = inspect.getsource(telegram_bot_module.TelegramBot._handle_web_question)
     assert "resultados sem sinais do tema jurídico investigado." in source
     assert "Alternativa descartada por irrelevância temática" in source
