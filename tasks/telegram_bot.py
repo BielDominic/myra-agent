@@ -805,13 +805,15 @@ class TelegramBot:
                         r"\b(irregularidade|irregularidades|suspeita|vacina|covaxin|pfizer|contrato|respons[aá]vel|investiga)\b",
                         prior_research_context.casefold(),
                     ))
+            # Calculado para todas as pesquisas porque o filtro de relevância é usado também
+            # no fluxo comum, embora só seja restritivo para esta investigação específica.
+            jan8_stf = bool(
+                re.search(r"8\s+de\s+janeiro", research_topic, re.IGNORECASE)
+                and re.search(r"\bSTF\b", research_topic, re.IGNORECASE)
+            )
             if allegation_terms:
                 # Triangula alegacoes por fontes distintas. Para o caso de 8 de janeiro,
                 # separa decisao oficial, critica processual, defesa e proporcionalidade penal.
-                jan8_stf = (
-                    re.search(r"8\s+de\s+janeiro", research_topic, re.IGNORECASE)
-                    and re.search(r"\bSTF\b", research_topic, re.IGNORECASE)
-                )
                 if jan8_stf:
                     research_queries = [
                         '"8 de janeiro" STF decisões acórdãos competência relator julgamento site:stf.jus.br',
