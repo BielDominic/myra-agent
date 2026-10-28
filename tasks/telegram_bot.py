@@ -842,7 +842,19 @@ class TelegramBot:
                     timeout=25,
                 )
                 if isinstance(search_result, dict) and search_result.get("status") == "ok":
-                    collected_sources.append(f"RESULTADOS DA BUSCA {index}:\n{self._short_result(search_result, 'Nenhum resultado encontrado.')}")
+                    batch_text = self._short_result(search_result, "Nenhum resultado encontrado.")
+                    # Filtro mínimo de relevância no código, antes da síntese: no caso STF/8 de janeiro,
+                    # resultados sobre assuntos genéricos (ex.: projetos da Câmara sem relação processual)
+                    # não podem contaminar o relatório só porque uma busca alternativa retornou algo.
+                    if jan8_stf and not re.search(
+                        r"\b(STF|Supremo Tribunal Federal|8 de janeiro|Bolsonaro|golpe|ac[oó]rd[aã]o|"
+                        r"processo penal|atos antidemocr[aá]ticos|PGR|den[uú]ncia criminal)\b",
+                        batch_text,
+                        re.IGNORECASE,
+                    ):
+                        search_errors.append(f"Busca {index} descartada: resultados sem sinais do tema jurídico investigado.")
+                        continue
+                    collected_sources.append(f"RESULTADOS DA BUSCA {index}:\n{batch_text}")
                 else:
                     search_errors.append(self._short_result(search_result, "Pesquisa sem resultados."))
             # Recuperacao: se os provedores falharem para a consulta original, tente
@@ -872,6 +884,14 @@ class TelegramBot:
                         continue
                     if isinstance(fallback_result, dict) and fallback_result.get("status") == "ok":
                         fallback_text = self._short_result(fallback_result, "")
+                        if jan8_stf and not re.search(
+                            r"\b(STF|Supremo Tribunal Federal|8 de janeiro|Bolsonaro|golpe|ac[oó]rd[aã]o|"
+                            r"processo penal|atos antidemocr[aá]ticos|PGR|den[uú]ncia criminal)\b",
+                            fallback_text,
+                            re.IGNORECASE,
+                        ):
+                            search_errors.append(f"Alternativa descartada por irrelevância temática: {fallback_query}")
+                            continue
                         if fallback_text.strip():
                             collected_sources.append(
                                 f"RESULTADOS DA BUSCA ALTERNATIVA {len(collected_sources)+1}:\n{fallback_text}"
