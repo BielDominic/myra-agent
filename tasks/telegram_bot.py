@@ -1043,17 +1043,51 @@ class TelegramBot:
 
     @staticmethod
     def _extract_weather_city(user_text: str) -> str | None:
-        """Reconhece pedidos de clima/previsao para roteá-los à ferramenta real da MYRA."""
+        """Retorna uma cidade somente quando a mensagem realmente pede clima/previsao."""
         text = user_text.strip()
         weather_pattern = r"\b(tempo|clima|previs[aã]o|forecast|weather|temperature|temperatura)\b"
-        if not re.search(weather_pattern, text, re.IGNORECASE):
+        weather_match = re.search(weather_pattern, text, re.IGNORECASE)
+        if not weather_match:
             return None
-        # Explicações conceituais sobre meteorologia não devem disparar uma consulta ao clima.
+
+        # Menções incidentais ou negativas ao clima dentro de briefings/tarefas não são
+        # pedidos meteorológicos. Isso evita que "não execute consulta sobre o clima"
+        # desvie uma solicitação de diagnóstico para /get_weather.
+        if re.search(
+            r"\b(?:nao|não)\s+(?:execute|fa[cç]a|faca|realize|inicie|rode|dispare|"
+            r"consulte|pesquise|busque)\b.{0,80}\b(?:clima|tempo|previs[aã]o|forecast|weather)\b",
+            text,
+            re.IGNORECASE,
+        ):
+            return None
+
+        # Para mensagens longas, só aceita clima se a mensagem começar claramente
+        # como uma pergunta/pedido meteorológico. Não basta conter a palavra "clima".
+        starts_weather_request = bool(re.match(
+            r"^\s*(?:(?:por favor|myra)\s*[,!:]?\s*)?"
+            r"(?:qual(?:\s+é|\s+e)?|como\s+(?:est[aá]|vai\s+estar)|"
+            r"me\s+(?:diga|mostre)|quero\s+saber|consulte|verifique|"
+            r"mostre|previs[aã]o|forecast|weather|clima|tempo|temperatura)\b",
+            text,
+            re.IGNORECASE,
+        ))
+        if len(text) > 240 and not starts_weather_request:
+            return None
+
+        # Explicações conceituais sobre meteorologia não devem disparar uma consulta.
         if re.search(r"\b(como funciona|explique|explica|what is|how does|explain)\b", text, re.IGNORECASE):
             return None
-        # Extrai o local depois de uma preposição comum, removendo o horizonte temporal.
+
+        # Não interprete "clima político/econômico" como previsão meteorológica.
+        if re.search(r"\bclima\s+(?:pol[ií]tico|econ[oô]mico|organizacional|social)\b", text, re.IGNORECASE):
+            return None
+
+        # Extrai o local após a última preposição que introduz um local, removendo
+        # o horizonte temporal. A regex só é aplicada depois de validar a intenção.
         match = re.search(r"\b(?:em|no|na|nos|nas|in|at|for)\s+(.+)$", text, re.IGNORECASE)
         if not match:
+            # Sem local explícito, retorna string vazia para permitir o local padrão
+            # configurado pelo backend; não inventa uma cidade a partir de outras palavras.
             return ""
         city = match.group(1).strip(" .?!,;:")
         city = re.split(
@@ -1254,6 +1288,23 @@ class TelegramBot:
                 normalized_text,
             ))
         )
+        # Instruções operacionais longas para diagnosticar/corrigir/testar o projeto
+        # não são consultas de status, mesmo que mencionem "MYRA", "resultado" ou "tarefa".
+        explicit_diagnostic_task = (
+            len(user_text) >= 180
+            and bool(re.search(
+                r"\b(diagn[oó]stico|corrija|corrigir|causa raiz|arquivos respons[aá]veis|"
+                r"implemente|implementar|execute os testes|testes de regress[aã]o|"
+                r"inspect the code|fix the root cause|run the tests)\b",
+                normalized_text,
+                re.IGNORECASE,
+            ))
+        )
+        if explicit_diagnostic_task:
+            self._remember_chat_turn(chat_id, "user", user_text)
+            self._start_routed_task(chat_id, user_text)
+            return
+
         if status_intent and not explicit_web_research:
             self._remember_chat_turn(chat_id, "user", user_text)
             try:

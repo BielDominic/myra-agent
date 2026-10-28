@@ -972,3 +972,50 @@ def test_long_research_prompt_is_reduced_to_its_core_topic():
     assert len(requests[0][2]["query"]) < 100
     assert "inteligência artificial" in requests[0][2]["query"]
     assert "Reuters" not in requests[0][2]["query"]
+
+
+
+def test_weather_router_extracts_city_from_actual_forecast_request():
+    assert TelegramBot._extract_weather_city(
+        "Qual o forecast do tempo em Roscommon Irlanda pela próxima semana"
+    ) == "Roscommon Irlanda"
+
+
+def test_weather_router_ignores_incidental_weather_mention_in_long_diagnostic():
+    diagnostic = (
+        "MYRA, interrompa a resposta meteorológica e retome a tarefa de diagnóstico e correção "
+        "do pipeline de pesquisa que solicitei anteriormente. Não execute uma nova consulta sobre "
+        "o clima. Não responda novamente à investigação jurídica antes de verificar o problema técnico. "
+        "Identifique os arquivos responsáveis, examine os logs e corrija a causa raiz."
+    )
+    assert TelegramBot._extract_weather_city(diagnostic) is None
+
+
+def test_weather_router_ignores_explicit_negative_weather_instruction():
+    assert TelegramBot._extract_weather_city(
+        "Não execute uma nova consulta sobre o clima."
+    ) is None
+
+
+def test_long_diagnostic_routes_to_task_not_weather():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    routes = []
+    bot._agent_request = lambda method, route, payload=None, timeout=20: (
+        routes.append((method, route, payload)) or {"status": "ok", "result": "OK"}
+    )
+    bot._handle_web_question = lambda chat_id, text: routes.append(("RESEARCH", chat_id, text))
+    bot._start_routed_task = lambda chat_id, objective: routes.append(("TASK", chat_id, objective))
+    bot._send_message = lambda chat_id, text: None
+    bot._remember_chat_turn = lambda chat_id, role, content: None
+
+    diagnostic = (
+        "MYRA, interrompa a resposta meteorológica e retome a tarefa de diagnóstico e correção "
+        "do pipeline de pesquisa que solicitei anteriormente. Não execute uma nova consulta sobre "
+        "o clima. Não responda novamente à investigação jurídica antes de verificar o problema técnico. "
+        "Identifique os arquivos responsáveis, examine os logs e corrija a causa raiz."
+    )
+    bot._route_text_message("123", diagnostic)
+
+    assert any(item[0] == "TASK" for item in routes)
+    assert not any(item[1] == "/get_weather" for item in routes if len(item) > 1)
