@@ -1302,7 +1302,24 @@ class TelegramBot:
         )
         if explicit_diagnostic_task:
             self._remember_chat_turn(chat_id, "user", user_text)
-            self._start_routed_task(chat_id, user_text)
+            # O Telegram router aceita mensagens longas, mas o executor de tarefas
+            # tem limite de 1200 caracteres. Transforme briefings de diagnóstico
+            # extensos em um objetivo operacional compacto, sem descartar a intenção.
+            diagnostic_objective = user_text
+            if len(diagnostic_objective) > MAX_TASK_LENGTH:
+                diagnostic_objective = (
+                    "Diagnostique e corrija a falha de roteamento do Telegram da MYRA. "
+                    "Inspecione o código real, especialmente tasks/telegram_bot.py, "
+                    "o backend de pesquisa/contexto e os logs; determine por que uma solicitação "
+                    "jurídica anterior recebeu resposta meteorológica de Tarmonbarry. "
+                    "Verifique roteamento, histórico, seleção de ferramentas e reutilização de resultados. "
+                    "Corrija a causa raiz no código existente, adicione testes de regressão para mensagens "
+                    "meteorológicas e jurídicas consecutivas, execute os testes relevantes e reporte "
+                    "arquivos alterados, causa comprovada e resultados reais. Não invente evidências, "
+                    "não declare sucesso sem validação e informe limitações de acesso. "
+                    "Não execute consulta meteorológica durante este diagnóstico."
+                )
+            self._start_routed_task(chat_id, diagnostic_objective)
             return
 
         if status_intent and not explicit_web_research:

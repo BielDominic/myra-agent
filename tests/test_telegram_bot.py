@@ -1023,7 +1023,11 @@ def test_long_diagnostic_routes_to_task_not_weather():
         "o clima. Não responda novamente à investigação jurídica antes de verificar o problema técnico. "
         "Identifique os arquivos responsáveis, examine os logs e corrija a causa raiz."
     )
+    diagnostic += " " + ("detalhe operacional " * 100)
     bot._route_text_message("123", diagnostic)
 
-    assert any(item[0] == "TASK" for item in routes)
+    task_calls = [item for item in routes if item[0] == "TASK"]
+    assert task_calls
+    assert len(task_calls[0][2]) <= 1200
+    assert "Diagnostique e corrija" in task_calls[0][2]
     assert not any(item[1] == "/get_weather" for item in routes if len(item) > 1)
