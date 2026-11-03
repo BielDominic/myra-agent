@@ -805,7 +805,7 @@ def test_web_answer_prompt_requires_numbers_and_rejects_false_no_result_claims()
     )
     assert "a conclusao deve ser uma avaliacao propria" in normalized_prompt
     source = inspect.getsource(telegram_bot_module.TelegramBot._handle_web_question)
-    assert "resultados sem sinais do tema jurídico investigado." in source
+    assert "_filter_jan8_stf_sources(batch_text)" in source
     assert "Alternativa descartada por irrelevância temática" in source
     assert "jan8_stf = bool(" in source
 
@@ -1031,3 +1031,39 @@ def test_long_diagnostic_routes_to_task_not_weather():
     assert len(task_calls[0][2]) <= 1200
     assert "Diagnostique e corrija" in task_calls[0][2]
     assert not any(item[1] == "/get_weather" for item in routes if len(item) > 1)
+
+
+
+def test_jan8_stf_filter_discards_irrelevant_items_inside_relevant_batch():
+    batch = (
+        "[1] Entenda as condenações de réus pelos atos antidemocráticos de 8 de janeiro\n"
+        "    URL: https://portal.stf.jus.br/noticias/verNoticiaDetalhe.asp?idConteudo=517059\n"
+        "    O Plenário do Supremo Tribunal Federal iniciou o julgamento das ações penais.\n\n"
+        "[2] Projeto define regras para participação de filhos em atividades rurais\n"
+        "    URL: https://www.camara.leg.br/noticias/1314150-projeto-rural\n"
+        "    Projeto de lei sobre atividades práticas e gestão da propriedade familiar.\n\n"
+        "[3] Projeto prevê GPS obrigatório em veículos de transporte escolar\n"
+        "    URL: https://www.camara.leg.br/noticias/1313021-gps-escolar\n"
+        "    Proposta sobre rastreamento de veículos de transporte escolar."
+    )
+
+    filtered = TelegramBot._filter_jan8_stf_sources(batch)
+
+    assert "[1] Entenda as condenações" in filtered
+    assert "portal.stf.jus.br" in filtered
+    assert "Projeto define regras" not in filtered
+    assert "GPS obrigatório" not in filtered
+    assert filtered.count("URL:") == 1
+
+
+def test_jan8_stf_filter_requires_both_event_and_legal_context():
+    batch = (
+        "[1] Memória dos atos de 8 de janeiro\n"
+        "    URL: https://example.org/memoria\n"
+        "    Reportagem histórica sobre manifestações na Praça dos Três Poderes.\n\n"
+        "[2] Decisões do STF sobre direito tributário\n"
+        "    URL: https://www.stf.jus.br/portal/jurisprudencia\n"
+        "    Acórdãos e julgamentos sobre matéria tributária."
+    )
+
+    assert TelegramBot._filter_jan8_stf_sources(batch) == ""

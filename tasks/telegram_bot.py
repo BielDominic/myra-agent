@@ -14,6 +14,7 @@ import os
 import re
 import threading
 import time
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -672,6 +673,42 @@ class TelegramBot:
         ))
         return current_terms or research_intent or factual_question or voting_intent
 
+    @staticmethod
+    def _filter_jan8_stf_sources(batch_text: str) -> str:
+        """Filtra cada resultado individualmente para impedir que um item relevante legitime o lote inteiro."""
+        text = str(batch_text or "")
+        starts = list(re.finditer(r"(?m)^\[\d+\]\s+", text))
+        if not starts:
+            return ""
+
+        relevant = []
+        for index, match in enumerate(starts):
+            end = starts[index + 1].start() if index + 1 < len(starts) else len(text)
+            block = text[match.start():end].strip()
+            first_line = block.splitlines()[0] if block else ""
+            url_match = re.search(r"(?im)^\s*URL:\s*(https?://\S+)", block)
+            url = url_match.group(1) if url_match else ""
+            normalized = unicodedata.normalize("NFKD", f"{first_line} {url} {block}").encode(
+                "ascii", "ignore"
+            ).decode("ascii").casefold()
+
+            event_match = re.search(
+                r"\b(8 de janeiro|08 de janeiro|8/1|08/01/2023|atos antidemocraticos|"
+                r"ataques antidemocraticos|atos golpistas|invasao dos predios|"
+                r"invasao das sedes|praca dos tres poderes)\b",
+                normalized,
+            )
+            legal_match = re.search(
+                r"\b(stf|supremo tribunal federal|moraes|pgr|procuradoria|acao penal|"
+                r"acoes penais|acordao|julgamento|condenacao|defesa|competencia|"
+                r"dosimetria|processo penal|decisao judicial|juridic)\b",
+                normalized,
+            )
+            if event_match and legal_match:
+                relevant.append(block)
+
+        return "\n\n".join(relevant)
+
     def _handle_web_question(self, chat_id: str, user_text: str) -> None:
         # Preserve the subject for short follow-up questions (e.g. "Quem foi o responsável?").
         # Without this, the search provider receives an isolated question and can return unrelated news.
@@ -845,17 +882,15 @@ class TelegramBot:
                 )
                 if isinstance(search_result, dict) and search_result.get("status") == "ok":
                     batch_text = self._short_result(search_result, "Nenhum resultado encontrado.")
-                    # Filtro mínimo de relevância no código, antes da síntese: no caso STF/8 de janeiro,
-                    # resultados sobre assuntos genéricos (ex.: projetos da Câmara sem relação processual)
-                    # não podem contaminar o relatório só porque uma busca alternativa retornou algo.
-                    if jan8_stf and not re.search(
-                        r"\b(STF|Supremo Tribunal Federal|8 de janeiro|Bolsonaro|golpe|ac[oó]rd[aã]o|"
-                        r"processo penal|atos antidemocr[aá]ticos|PGR|den[uú]ncia criminal)\b",
-                        batch_text,
-                        re.IGNORECASE,
-                    ):
-                        search_errors.append(f"Busca {index} descartada: resultados sem sinais do tema jurídico investigado.")
-                        continue
+                    # Avalie cada documento separadamente: um único resultado relevante
+                    # não pode legitimar outros itens irrelevantes no mesmo lote do buscador.
+                    if jan8_stf:
+                        batch_text = self._filter_jan8_stf_sources(batch_text)
+                        if not batch_text:
+                            search_errors.append(
+                                f"Busca {index} descartada: nenhum resultado individual confirmou o tema STF/8 de janeiro."
+                            )
+                            continue
                     collected_sources.append(f"RESULTADOS DA BUSCA {index}:\n{batch_text}")
                 else:
                     search_errors.append(self._short_result(search_result, "Pesquisa sem resultados."))
@@ -886,14 +921,13 @@ class TelegramBot:
                         continue
                     if isinstance(fallback_result, dict) and fallback_result.get("status") == "ok":
                         fallback_text = self._short_result(fallback_result, "")
-                        if jan8_stf and not re.search(
-                            r"\b(STF|Supremo Tribunal Federal|8 de janeiro|Bolsonaro|golpe|ac[oó]rd[aã]o|"
-                            r"processo penal|atos antidemocr[aá]ticos|PGR|den[uú]ncia criminal)\b",
-                            fallback_text,
-                            re.IGNORECASE,
-                        ):
-                            search_errors.append(f"Alternativa descartada por irrelevância temática: {fallback_query}")
-                            continue
+                        if jan8_stf:
+                            fallback_text = self._filter_jan8_stf_sources(fallback_text)
+                            if not fallback_text:
+                                search_errors.append(
+                                    f"Alternativa descartada por irrelevância temática: {fallback_query}"
+                                )
+                                continue
                         if fallback_text.strip():
                             collected_sources.append(
                                 f"RESULTADOS DA BUSCA ALTERNATIVA {len(collected_sources)+1}:\n{fallback_text}"
