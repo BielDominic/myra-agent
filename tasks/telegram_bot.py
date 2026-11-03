@@ -692,6 +692,12 @@ class TelegramBot:
                 "ascii", "ignore"
             ).decode("ascii").casefold()
 
+            # Para esta investigação, a fonte precisa ser primária (domínio oficial
+            # do STF) e tratar de ato decisório/processual específico. Notícias gerais,
+            # relatórios históricos e artigos de terceiros não são decisões judiciais.
+            official_stf = bool(
+                re.search(r"(?i)^https?://(?:[a-z0-9-]+\.)*stf\.jus\.br(?::\d+)?(?:/|$)", url)
+            )
             event_match = re.search(
                 r"\b(8 de janeiro|08 de janeiro|8/1|08/01/2023|atos antidemocraticos|"
                 r"ataques antidemocraticos|atos golpistas|invasao dos predios|"
@@ -704,7 +710,14 @@ class TelegramBot:
                 r"dosimetria|processo penal|decisao judicial|juridic)\b",
                 normalized,
             )
-            if event_match and legal_match:
+            decision_match = re.search(
+                r"\b(acordao|decisao(?: monocratica)?|acao penal|acoes penais|"
+                r"julgamento|condenacao|sentenca|recebimento da denuncia|"
+                r"medida cautelar|habeas corpus|inquerito|recurso|ementa|"
+                r"voto do relator|resultado do julgamento)\b",
+                normalized,
+            )
+            if official_stf and event_match and legal_match and decision_match:
                 relevant.append(block)
 
         return "\n\n".join(relevant)

@@ -1067,3 +1067,37 @@ def test_jan8_stf_filter_requires_both_event_and_legal_context():
     )
 
     assert TelegramBot._filter_jan8_stf_sources(batch) == ""
+
+
+
+def test_jan8_stf_filter_rejects_non_official_jusbrasil_analysis():
+    batch = (
+        "[1] Entre a Legalidade e a Contradição: STF, Bolsonaro e o 8 de Janeiro\n"
+        "    URL: https://www.jusbrasil.com.br/artigos/analise-stf-8-janeiro/123\n"
+        "    Artigo analisa STF, Direito Internacional, direitos humanos e eventos de 8 de janeiro."
+    )
+
+    assert TelegramBot._filter_jan8_stf_sources(batch) == ""
+
+
+def test_jan8_stf_filter_rejects_official_historical_report_without_specific_decision():
+    batch = (
+        "[2] PDF Ministro ALEXANDRE DE MORAES - stf.jus.br\n"
+        "    URL: https://www.stf.jus.br/arquivo/cms/noticiaNoticiaStf/anexo/Relatorio8dejaneiro1ano.pdf\n"
+        "    Relatório histórico registra invasão dos prédios em 8 de janeiro de 2023 e depredação do patrimônio público."
+    )
+
+    assert TelegramBot._filter_jan8_stf_sources(batch) == ""
+
+
+def test_jan8_stf_filter_accepts_official_specific_criminal_decision():
+    batch = (
+        "[1] STF publica acórdão da Ação Penal sobre atos de 8 de janeiro\n"
+        "    URL: https://portal.stf.jus.br/processos/detalhe.asp?incidente=0000000\n"
+        "    O Supremo Tribunal Federal publicou o acórdão do julgamento da ação penal, com condenação pelos atos antidemocráticos de 8 de janeiro."
+    )
+
+    filtered = TelegramBot._filter_jan8_stf_sources(batch)
+
+    assert "acórdão da Ação Penal" in filtered
+    assert "portal.stf.jus.br" in filtered
