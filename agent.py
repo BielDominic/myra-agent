@@ -764,10 +764,21 @@ def setup_download_model(data: SetupModelRequest, request: Request):
     result = subprocess.run([str(ollama), "pull", data.model], capture_output=True, text=True, timeout=3600)
     if result.returncode:
         raise HTTPException(status_code=500, detail=(result.stderr or result.stdout)[-2500:])
-    config_root = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "MYRA" / "config"
+    myra_root = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "MYRA"
+    config_root = myra_root / "config"
     config_root.mkdir(parents=True, exist_ok=True)
     (config_root / "model.json").write_text(json.dumps({"provider":"ollama","base_url":"http://127.0.0.1:11434","model":data.model,"installed_at":datetime.datetime.now(datetime.timezone.utc).isoformat()}, ensure_ascii=False), encoding="utf-8")
-    return {"ok": True, "model": data.model, "message": f"Modelo {data.model} pronto."}
+    global _MYRA_CHAT_MODEL
+    _MYRA_CHAT_MODEL = data.model
+    settings_path = myra_root / "desktop_settings.json"
+    settings = {}
+    try:
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    settings["chat_model"] = data.model
+    settings_path.write_text(json.dumps(settings, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "model": data.model, "message": f"Modelo {data.model} pronto e selecionado para o chat."}
 
 
 @app.get("/")
