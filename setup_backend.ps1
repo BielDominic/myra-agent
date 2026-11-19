@@ -34,11 +34,30 @@ if (-not $pythonExe) {
         if ($detectedVersion -match "Python 3\.14\.") { $pythonExe = $pythonCommand.Source }
     }
 }
+# Find an existing per-user/per-machine Python registration even when PATH and the py launcher are absent.
+if (-not $pythonExe) {
+    $registryPaths = @(
+        "HKCU:\Software\Python\PythonCore\3.14\InstallPath",
+        "HKLM:\Software\Python\PythonCore\3.14\InstallPath",
+        "HKLM:\Software\WOW6432Node\Python\PythonCore\3.14\InstallPath"
+    )
+    foreach ($registryPath in $registryPaths) {
+        if (Test-Path $registryPath) {
+            $key = Get-Item -LiteralPath $registryPath
+            $candidate = $key.GetValue("ExecutablePath")
+            if (-not $candidate) {
+                $installDirectory = $key.GetValue("")
+                if ($installDirectory) { $candidate = Join-Path $installDirectory "python.exe" }
+            }
+            if ($candidate -and (Test-Path $candidate)) { $pythonExe = $candidate; break }
+        }
+    }
+}
 if (-not $pythonExe) {
     if (-not (Test-Path $runtimeInstaller)) { throw "Runtime Python 3.14 nao encontrado no instalador." }
-    $pythonRoot = Join-Path $env:LOCALAPPDATA "Programs\MYRA-Python314"
+    $pythonRoot = Join-Path $env:LOCALAPPDATA "Programs\Python\Python314"
     Write-Host "Instalando Python 3.14.10 incluido no instalador..."
-    $arguments = @("/quiet","InstallAllUsers=0","Include_pip=1","Include_launcher=0","PrependPath=0","Include_test=0","Shortcuts=0",("TargetDir=`"$pythonRoot`""))
+    $arguments = @("/quiet","InstallAllUsers=0","Include_pip=1","Include_launcher=0","PrependPath=0","Include_test=0","Shortcuts=0")
     $process = Start-Process -FilePath $runtimeInstaller -ArgumentList $arguments -Wait -PassThru
     if ($process.ExitCode -ne 0) { throw "Instalacao do Python falhou (codigo $($process.ExitCode))." }
     $pythonExe = Join-Path $pythonRoot "python.exe"
@@ -54,7 +73,7 @@ if (-not (Test-Path $venvPython)) {
     if ($LASTEXITCODE -ne 0) { throw "Nao foi possivel criar o ambiente Python virtual." }
 }
 Write-Host "Instalando dependencias principais a partir do pacote offline incluido..."
-& $venvPython -m pip install --no-index --find-links $wheelhouse -r (Join-Path $backend "requirements-core.lock")
+& $venvPython -m pip install --no-index --find-links $wheelhouse -r (Join-Path $backend "requirements-core.txt")
 if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar dependencias offline do MYRA." }
 
 $installedBrowsers = Join-Path $installRoot "playwright-browsers"

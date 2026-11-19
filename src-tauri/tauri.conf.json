@@ -77,7 +77,8 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "installerHooks": "./windows/hooks.nsh"
+        "installerHooks": "./windows/hooks.nsh",
+        "compression": "zlib"
       }
     }
   }
