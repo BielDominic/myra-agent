@@ -34,18 +34,6 @@ foreach ($name in @("agent.py","tasks","computer","browser-extension","tools","r
 
 # Reuse a compatible Python 3.14 installation; otherwise install the signed official runtime bundled with MYRA.
 $pythonExe = $null
-$pyLauncher = Get-Command py.exe -ErrorAction SilentlyContinue
-if ($pyLauncher) {
-    $detected = & $pyLauncher.Source -3.14 -c "import sys; print(sys.executable)" 2>$null
-    if ($LASTEXITCODE -eq 0 -and $detected) { $pythonExe = ($detected | Select-Object -Last 1).Trim() }
-}
-if (-not $pythonExe) {
-    $pythonCommand = Get-Command python.exe -ErrorAction SilentlyContinue
-    if ($pythonCommand) {
-        $detectedVersion = & $pythonCommand.Source --version 2>&1 | Out-String
-        if ($detectedVersion -match "Python 3\.14\.") { $pythonExe = $pythonCommand.Source }
-    }
-}
 # Find an existing per-user/per-machine Python registration even when PATH and the py launcher are absent.
 if (-not $pythonExe) {
     $registryPaths = @(
@@ -115,3 +103,5 @@ Write-Host "MYRA instalada com dependencias core. Os wheels opcionais de ML/visa
 Write-Host "Cada conta do Windows possui seu proprio workspace em $workspace."
 Write-Host "Abra MYRA pelo menu Iniciar para iniciar backend e interface."
 Write-Host "O setup de boas-vindas dentro da MYRA permitirá escolher Ollama e modelos, agora ou mais tarde."
+
+exit 0
