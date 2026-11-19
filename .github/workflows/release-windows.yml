@@ -31,10 +31,12 @@ jobs:
         run: choco install nsis -y
       - name: Install Tauri CLI
         shell: pwsh
-        run: cargo install tauri-cli --version 2.12.1 --locked
+        run: npm install --global @tauri-apps/cli@2.12.1
       - name: Build MYRA installer
         shell: pwsh
-        run: cargo tauri build --bundles nsis
+        run: |
+          $tauri = Join-Path (npm prefix -g) "tauri.cmd"
+          & $tauri build --bundles nsis
       - name: Package backend setup and checksums
         shell: pwsh
         run: |
