@@ -1194,3 +1194,15 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 - [x] Corrigido o contexto de perguntas curtas: a pesquisa extrai o tema da primeira frase do pedido longo e o prompt final agora inclui explicitamente o contexto da investigação e a pergunta mais recente.
 - [x] Adicionado teste de regressão para a sequência de investigação Covaxin seguida de `Quem é o principal apontado?`; verifica que as consultas continuam no tema e que o briefing inteiro não contamina a busca.
 - [ ] Pendente: validar a resposta investigativa completa de ponta a ponta no Telegram, incluindo relevância das fontes, verificação de páginas, datas/contexto e ausência de truncamento. O backend e os testes automatizados passaram; isso ainda não equivale a declarar a resposta final do bot validada.
+
+
+## 2026-11-19 — Welcome Setup e prompt engineering
+- [x] Tela de boas-vindas na primeira abertura do desktop, com opção explícita de concluir ou adiar antes de enviar a primeira mensagem.
+- [x] Aba persistente **Primeiros passos** para reconfigurar o ambiente posteriormente.
+- [x] Separar dependências essenciais das opcionais: instalador mantém core e Chromium; wheelhouse de visão/ML é incluído, mas só instalado mediante opt-in.
+- [x] Endpoint local de diagnóstico e ativação offline de PyTorch CPU, OpenCV, ONNX Runtime, RapidOCR e Ultralytics.
+- [x] Escolha opcional de instalar Ollama via winget e baixar um modelo local, com alternativas de tamanho e confirmação explícita.
+- [x] Melhorador de prompts no composer: usa o modelo local, preserva intenção/restrições e devolve texto editável sem enviar automaticamente.
+- [x] Endpoints de setup restritos a loopback e modelos limitados a uma allowlist.
+- [ ] Validar o novo fluxo completo em instalação limpa do Windows (core, opt-in ML, Ollama e primeiro modelo).
+- [ ] Validar instalação e setup equivalentes no macOS; os endpoints de Ollama/winget são específicos do Windows nesta etapa.

@@ -17,16 +17,16 @@ The project combines a locally hosted language model with a FastAPI backend, bro
 
 ## Download MYRA
 
-**Latest release: v0.26.2**
+**Latest release: v0.26.3**
 
-- [Windows x64 installer](https://github.com/BielDominic/myra-agent/releases/download/v0.26.2/MYRA_0.26.2_x64-setup.exe)
-- [Complete Windows offline setup package](https://github.com/BielDominic/myra-agent/releases/download/v0.26.2/MYRA_v0.26.2_Backend_Setup.zip)
-- [Windows SHA-256 checksums](https://github.com/BielDominic/myra-agent/releases/download/v0.26.2/SHA256SUMS.txt)
-- [macOS Apple Silicon DMG (arm64)](https://github.com/BielDominic/myra-agent/releases/download/v0.26.2/MYRA_v0.26.2_arm64.dmg)
-- [macOS Intel DMG (x64)](https://github.com/BielDominic/myra-agent/releases/download/v0.26.2/MYRA_v0.26.2_x64.dmg)
+- [Windows x64 installer](https://github.com/BielDominic/myra-agent/releases/download/v0.26.3/MYRA_0.26.3_x64-setup.exe)
+- [Complete Windows offline setup package](https://github.com/BielDominic/myra-agent/releases/download/v0.26.3/MYRA_v0.26.3_Backend_Setup.zip)
+- [Windows SHA-256 checksums](https://github.com/BielDominic/myra-agent/releases/download/v0.26.3/SHA256SUMS.txt)
+- [macOS Apple Silicon DMG (arm64)](https://github.com/BielDominic/myra-agent/releases/download/v0.26.3/MYRA_v0.26.3_arm64.dmg)
+- [macOS Intel DMG (x64)](https://github.com/BielDominic/myra-agent/releases/download/v0.26.3/MYRA_v0.26.3_x64.dmg)
 - [All releases](https://github.com/BielDominic/myra-agent/releases)
 
-**Windows one-click installer:** bundles Python 3.14.10, pinned core wheels, the complete CPU vision/ML wheelhouse (PyTorch, OpenCV, ONNX Runtime, RapidOCR and Ultralytics), and Playwright Chromium. Core and vision dependencies install offline; no Python installation or PyPI download is required. After setup, a wizard lets each user install Ollama and choose a model to download. Model weights are not embedded in the installer.
+**Windows one-click installer:** bundles Python 3.14.10, pinned core wheels, the optional CPU vision/ML wheelhouse (PyTorch, OpenCV, ONNX Runtime, RapidOCR and Ultralytics), and Playwright Chromium. Core dependencies install offline; vision/ML wheels are included but are installed only if the user selects them in the in-app Welcome Setup. On first launch, the user chooses whether to activate vision, install Ollama and download a model, or defer these steps. The same setup remains available under **Primeiros passos**. Model weights are never embedded in the installer.
 
 **macOS:** the DMG is an early-access native desktop shell for Apple Silicon and Intel. Full backend/desktop-automation parity is not yet available; see [INSTALL_MACOS.md](INSTALL_MACOS.md).
 

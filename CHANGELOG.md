@@ -120,3 +120,12 @@ Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.
 - Added native Tauri DMG build workflows for Apple Silicon and Intel.
 - Added macOS URL opening, Chrome activation and local task-status/cancel IPC support in the desktop shell.
 - Documented the macOS build as early access; backend desktop automation parity remains incomplete.
+
+
+## 2026-11-19 — Welcome Setup and prompt refinement
+- Added a first-run Welcome Setup inside the MYRA desktop workspace, with a persistent **Primeiros passos** navigation tab for later changes.
+- Changed Windows setup to install only core dependencies automatically. Vision/ML wheels remain bundled offline but are installed only after explicit opt-in.
+- Added local setup status, optional offline vision installation, opt-in Ollama installation through winget, and selectable local model download.
+- Removed the separate blocking WinForms model wizard from the installer flow; setup choices now live in the MYRA interface.
+- Added a prompt improver beside the chat composer. It uses the configured local model and returns an editable draft; it never sends the improved prompt automatically.
+- Added local-only guards to setup endpoints and documented first-run choices, model download, and per-user workspace behavior.

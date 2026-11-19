@@ -668,6 +668,108 @@ def _fix_encoding(texto: str) -> str:
             return texto
 
 
+class SetupModelRequest(BaseModel):
+    model: str = Field(min_length=1, max_length=100)
+
+
+def _setup_require_local(request: Request):
+    host = request.client.host if request.client else ""
+    if host not in ("127.0.0.1", "::1", "localhost", "testclient"):
+        raise HTTPException(status_code=403, detail="Setup disponível apenas no dispositivo local.")
+
+
+@app.get("/setup/status")
+def setup_status(request: Request):
+    _setup_require_local(request)
+    import importlib.util
+    from shutil import which
+    vision = {name: importlib.util.find_spec(name) is not None for name in ("torch", "cv2", "onnxruntime", "ultralytics", "rapidocr_onnxruntime")}
+    ollama = which("ollama.exe") or which("ollama")
+    if not ollama:
+        candidates = [Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Ollama" / "ollama.exe", Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Ollama" / "ollama.exe"]
+        ollama = next((str(path) for path in candidates if path.is_file()), None)
+    models = []
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=1.5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            models = [item.get("name", "") for item in payload.get("models", [])]
+    except Exception:
+        pass
+    return {"core": True, "vision": vision, "vision_ready": all(vision.values()), "ollama_installed": bool(ollama), "ollama_running": bool(models), "models": models}
+
+
+@app.post("/setup/vision")
+def setup_install_vision(request: Request):
+    _setup_require_local(request)
+    backend_root = Path(__file__).resolve().parent
+    wheelhouse = backend_root.parent / "wheelhouse-vision"
+    requirements = backend_root / "requirements-vision.txt"
+    if not wheelhouse.is_dir() or not requirements.is_file():
+        raise HTTPException(status_code=404, detail="Pacotes offline de visão não estão disponíveis nesta instalação.")
+    result = subprocess.run([sys.executable, "-m", "pip", "install", "--no-index", "--find-links", str(wheelhouse), "-r", str(requirements)], capture_output=True, text=True, timeout=1800)
+    if result.returncode:
+        raise HTTPException(status_code=500, detail=(result.stderr or result.stdout)[-3000:])
+    check = subprocess.run([sys.executable, "-m", "pip", "check"], capture_output=True, text=True, timeout=60)
+    if check.returncode:
+        raise HTTPException(status_code=500, detail="Dependências inconsistentes após instalação: " + (check.stdout or check.stderr)[-2000:])
+    return {"ok": True, "message": "Recursos de visão e ML instalados.", "output": result.stdout[-2000:]}
+
+
+@app.post("/setup/ollama")
+def setup_install_ollama(request: Request):
+    _setup_require_local(request)
+    from shutil import which
+    if which("ollama.exe") or which("ollama"):
+        return {"ok": True, "message": "Ollama já está instalado."}
+    winget = which("winget.exe") or which("winget")
+    if not winget:
+        raise HTTPException(status_code=409, detail="winget não está disponível. Instale o Ollama pelo site oficial.")
+    result = subprocess.run([winget, "install", "--id", "Ollama.Ollama", "-e", "--silent", "--accept-package-agreements", "--accept-source-agreements"], capture_output=True, text=True, timeout=900)
+    if result.returncode not in (0, 3010):
+        raise HTTPException(status_code=500, detail=(result.stderr or result.stdout)[-2500:])
+    return {"ok": True, "message": "Ollama instalado. Aguarde alguns segundos e baixe o modelo escolhido."}
+
+
+@app.post("/setup/model")
+def setup_download_model(data: SetupModelRequest, request: Request):
+    _setup_require_local(request)
+    allowed = {"qwen2.5:3b", "qwen2.5:7b", "llama3.2:3b", "qwen2.5:1.5b"}
+    if data.model not in allowed:
+        raise HTTPException(status_code=400, detail="Modelo fora da lista permitida.")
+    from shutil import which
+    ollama = which("ollama.exe") or which("ollama")
+    candidates = [Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Ollama" / "ollama.exe", Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Ollama" / "ollama.exe"]
+    if not ollama:
+        ollama = next((str(path) for path in candidates if path.is_file()), None)
+    if not ollama:
+        raise HTTPException(status_code=409, detail="Ollama ainda não está instalado. Use o link oficial nesta tela e tente novamente.")
+    try:
+        urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=1.5).close()
+    except Exception:
+        try:
+            subprocess.Popen([str(ollama), "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            for _ in range(25):
+                time.sleep(1)
+                try:
+                    urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=1).close()
+                    break
+                except Exception:
+                    continue
+            else:
+                raise HTTPException(status_code=503, detail="Ollama não iniciou. Abra o Ollama e tente novamente.")
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Não foi possível iniciar o Ollama: {exc}")
+    result = subprocess.run([str(ollama), "pull", data.model], capture_output=True, text=True, timeout=3600)
+    if result.returncode:
+        raise HTTPException(status_code=500, detail=(result.stderr or result.stdout)[-2500:])
+    config_root = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "MYRA" / "config"
+    config_root.mkdir(parents=True, exist_ok=True)
+    (config_root / "model.json").write_text(json.dumps({"provider":"ollama","base_url":"http://127.0.0.1:11434","model":data.model,"installed_at":datetime.datetime.now(datetime.timezone.utc).isoformat()}, ensure_ascii=False), encoding="utf-8")
+    return {"ok": True, "model": data.model, "message": f"Modelo {data.model} pronto."}
+
+
 @app.get("/")
 def home():
     return {"status": "online", "agent": "computer-agent"}

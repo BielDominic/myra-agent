@@ -147,7 +147,82 @@
     pluginRequests.unshift({id:"custom-"+Date.now(),name:url.pathname.split("/").filter(Boolean).slice(0,2).join("/"),url:url.href,createdAt:Date.now(),status:"pending-review"});
     save(PLUGIN_REQUESTS_KEY,pluginRequests);input.value="";$("plugin-source-status").textContent="Fonte adicionada à fila. A MYRA ainda não executou nem instalou esse código.";renderPluginRequests();
   }
-  function showView(name){document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id==="view-"+name));document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===name));const names={chat:"Conversas",activity:"Atividades",tools:"Ferramentas",settings:"Configurações",projects:"Projetos",code:"Code Studio",preview:"Pré-visualização",integrations:"Integrações",plugins:"Biblioteca de plugins",models:"Modelos",widget:"Widget Studio"};$("top-context").textContent=names[name]||"MYRA";if(name==="code"||name==="preview")renderPreview();if(name==="projects")renderProjects();if(name==="models")refreshModels();if(name==="integrations"){refreshGitHub();refreshApiIntegrations()}if(name==="plugins")renderPlugins()}
+  const SETUP_KEY="myra-first-run-setup-v1";
+  let setupStatus=null;
+  function setupLog(message){const el=$("setup-log");if(el)el.textContent=message}
+  async function refreshSetupStatus(){
+    try{
+      const r=await fetch(API+"/setup/status",{cache:"no-store",signal:AbortSignal.timeout(5000)});
+      if(!r.ok)throw new Error("Não foi possível consultar o ambiente.");
+      setupStatus=await r.json();
+      $("setup-core-status").textContent=setupStatus.core?"Instalado e pronto":"Não encontrado";
+      $("setup-vision-status").textContent=setupStatus.vision_ready?"Todos os módulos instalados":Object.entries(setupStatus.vision||{}).filter(([,v])=>v).map(([k])=>k).join(", ")||"Ainda não ativado";
+      $("setup-model-status").textContent=setupStatus.ollama_installed?(setupStatus.models?.length?setupStatus.models.join(", "):"Ollama instalado; nenhum modelo detectado"):"Ollama não instalado";
+      const done=Number(Boolean(setupStatus.core))+Number(Boolean(setupStatus.vision_ready))+Number(Boolean(setupStatus.models?.length))+1;
+      $("setup-progress-count").textContent=done+" / 4";
+      $("setup-progress-label").textContent=done>=4?"Ambiente pronto": "Você pode configurar os recursos opcionais agora ou depois";
+      $("setup-vision").checked=Boolean(setupStatus.vision_ready)||$("setup-vision").checked;
+      return setupStatus;
+    }catch(e){setupLog("O backend ainda não respondeu. Inicie a MYRA novamente ou tente atualizar esta tela. "+e.message);return null}
+  }
+  async function runSetup(){
+    const finish=$("setup-finish"),saveButton=$("setup-save");finish.disabled=true;saveButton.disabled=true;
+    try{
+      const prefs={vision:$("setup-vision").checked,ollama:$("setup-ollama").checked,model:$("setup-model").value,updatedAt:Date.now()};
+      save("myra-setup-preferences-v1",prefs);
+      if(prefs.vision&&!(setupStatus?.vision_ready)){
+        setupLog("Instalando PyTorch CPU, OpenCV, ONNX Runtime, RapidOCR e Ultralytics a partir dos pacotes incluídos…");
+        const r=await fetch(API+"/setup/vision",{method:"POST",signal:AbortSignal.timeout(1800000)});const data=await r.json().catch(()=>({}));
+        if(!r.ok)throw new Error(data.detail||"Falha ao ativar visão/ML.");
+        setupLog("Visão computacional ativada. "+(data.message||""));
+      }
+      if(prefs.ollama){
+        if(!setupStatus?.ollama_installed){
+          setupLog("Instalando Ollama pelo Windows Package Manager. Isso pode levar alguns minutos…");
+          const r=await fetch(API+"/setup/ollama",{method:"POST",signal:AbortSignal.timeout(900000)});const data=await r.json().catch(()=>({}));
+          if(!r.ok)throw new Error(data.detail||"Não foi possível instalar Ollama.");
+          setupLog(data.message||"Ollama instalado.");
+          await new Promise(resolve=>setTimeout(resolve,5000));
+        }
+        setupLog("Baixando "+prefs.model+". O download depende da sua conexão e pode levar alguns minutos…");
+        const r=await fetch(API+"/setup/model",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:prefs.model}),signal:AbortSignal.timeout(3600000)});
+        const data=await r.json().catch(()=>({}));
+        if(!r.ok)throw new Error(data.detail||"Falha ao baixar o modelo.");
+        setupLog(data.message||"Modelo pronto.");
+        await refreshModels();
+      }
+      save(SETUP_KEY,{completed:true,completedAt:Date.now(),preferences:prefs});
+      setupLog("Configuração concluída. Seu workspace MYRA está pronto.");
+      await refreshSetupStatus();
+      showView("chat");
+    }catch(e){setupLog("Não foi possível concluir esta etapa: "+e.message+" Você pode corrigir a opção e tentar novamente.");}
+    finally{finish.disabled=false;saveButton.disabled=false}
+  }
+  function initSetup(){
+    const prefs=load("myra-setup-preferences-v1",{});
+    $("setup-vision").checked=prefs.vision??false;
+    $("setup-ollama").checked=prefs.ollama??false;
+    if(prefs.model)$("setup-model").value=prefs.model;
+    $("setup-finish").addEventListener("click",runSetup);
+    $("setup-save").addEventListener("click",()=>{save("myra-setup-preferences-v1",{vision:$("setup-vision").checked,ollama:$("setup-ollama").checked,model:$("setup-model").value,updatedAt:Date.now()});setupLog("Preferências salvas neste perfil. Nenhum pacote foi baixado.")});
+    $("setup-skip").addEventListener("click",()=>{save(SETUP_KEY,{completed:true,deferred:true,completedAt:Date.now()});setupLog("Etapas adiadas. Você poderá voltar a esta aba quando quiser.");showView("chat")});
+    refreshSetupStatus();
+  }
+  async function improvePrompt(){
+    const input=$("message-input"),draft=input.value.trim(),button=$("improve-prompt");
+    if(!draft){input.focus();button.title="Escreva primeiro o que deseja pedir à MYRA.";return}
+    button.disabled=true;button.textContent="Aprimorando…";
+    try{
+      const r=await fetch(API+"/v1/chat/completions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"myra-agent",stream:false,messages:[{role:"system",content:"Você é um especialista sênior em engenharia de prompts. Reescreva o pedido do usuário para ficar claro, específico, completo e executável. Preserve a intenção e as restrições; acrescente critérios de sucesso, formato esperado e perguntas apenas quando indispensáveis. Não execute o pedido, não invente requisitos. Retorne somente o prompt aprimorado em português brasileiro."},{role:"user",content:draft}]}),signal:AbortSignal.timeout(120000)});
+      const data=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(data.detail||"O modelo local não respondeu.");
+      const improved=data?.choices?.[0]?.message?.content?.trim();
+      if(!improved)throw new Error("A resposta do melhorador veio vazia.");
+      input.value=improved;resizeInput();input.focus();button.title="Prompt aprimorado. Revise antes de enviar.";setupLog("Prompt aprimorado. Revise o texto antes de enviar.");
+    }catch(e){button.title="Não foi possível melhorar: "+e.message;setupLog("Melhorador de prompts: "+e.message)}
+    finally{button.disabled=false;button.textContent="✦ Melhorar prompt"}
+  }
+  function showView(name){document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id==="view-"+name));document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===name));const names={chat:"Conversas",activity:"Atividades",tools:"Ferramentas",settings:"Configurações",projects:"Projetos",code:"Code Studio",preview:"Pré-visualização",integrations:"Integrações",plugins:"Biblioteca de plugins",models:"Modelos",widget:"Widget Studio",setup:"Primeiros passos"};$("top-context").textContent=names[name]||"MYRA";if(name==="code"||name==="preview")renderPreview();if(name==="projects")renderProjects();if(name==="models")refreshModels();if(name==="integrations"){refreshGitHub();refreshApiIntegrations()}if(name==="plugins")renderPlugins();if(name==="setup")refreshSetupStatus()}
   const PLATFORM_ICONS={
     github:'<path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 6v-3.9a3.4 3.4 0 0 0-.9-2.6c3-.3 6.1-1.5 6.1-6.7a5.2 5.2 0 0 0-1.4-3.6 4.8 4.8 0 0 0-.1-3.6s-1.1-.3-3.7 1.4a13 13 0 0 0-6.8 0C5.6.3 4.5.6 4.5.6a4.8 4.8 0 0 0-.1 3.6A5.2 5.2 0 0 0 3 7.8c0 5.2 3.1 6.4 6.1 6.7a3.4 3.4 0 0 0-.9 2.6V22"/>',
     tools:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4L15 12l-3-3z"/>',
@@ -196,6 +271,7 @@
     messageQueue.forEach((item,index)=>{const row=document.createElement("div");row.className="queue-item";const label=document.createElement("span");label.textContent=(index+1)+". "+(item.displayContent||item.content);const mode=document.createElement("small");mode.textContent=item.taskMode?"TAREFA":"CHAT";const remove=document.createElement("button");remove.type="button";remove.textContent="×";remove.title="Remover da fila";remove.addEventListener("click",()=>{messageQueue.splice(index,1);renderQueue()});row.append(label,mode,remove);panel.append(row)});
   }
   function sendMessage(raw){
+    if(!load(SETUP_KEY,{}).completed){showView("setup");setupLog("Conclua ou adie os primeiros passos antes de iniciar uma conversa.");return}
     const displayContent=String(raw||"").trim();if(!displayContent)return;let content=displayContent;
     const instructions={code:"Atue como engenheira de software sênior. Planeje a solução, produza código completo e executável, valide acessibilidade, segurança, responsividade e testes. Não entregue apenas snippets quando o pedido exigir um projeto.",research:"Pesquise fontes externas atuais e confiáveis antes de responder. Compare fontes, cite links e separe fatos verificados de hipóteses.",design:"Atue como designer de produto e frontend sênior. Defina hierarquia visual, tipografia, espaçamento, responsividade, estados vazios e microinterações.",review:"Faça uma revisão crítica de nível sênior: procure bugs, riscos de segurança, acessibilidade, desempenho, casos extremos e testes ausentes."};
     if(activeSkills.size){const guidance=[...activeSkills].map(key=>instructions[key]).filter(Boolean).join("\n\n");content="[MODO DE TRABALHO ATIVADO]\n"+guidance+"\n\n[PEDIDO]\n"+content}
@@ -473,7 +549,7 @@
   $("clear-history").addEventListener("click",()=>{historySelectionMode=true;renderSidebar()});
   $("select-all-history").addEventListener("change",e=>{if(e.target.checked)conversations.forEach(c=>selectedConversationIds.add(c.id));else selectedConversationIds.clear();renderSidebar()});
   $("delete-selected-history").addEventListener("click",()=>deleteConversations([...selectedConversationIds]));
-  $("voice-input").addEventListener("click",startVoiceInput);$("voice-read").addEventListener("click",readLastAnswer);
+  $("voice-input").addEventListener("click",startVoiceInput);$("voice-read").addEventListener("click",readLastAnswer);$("improve-prompt").addEventListener("click",improvePrompt);
   document.querySelectorAll(".skill-chip").forEach(button=>button.addEventListener("click",()=>{const key=button.dataset.skill;if(activeSkills.has(key)){activeSkills.delete(key);button.classList.remove("active")}else{activeSkills.add(key);button.classList.add("active")}}));
   $("plugin-source-add").addEventListener("click",addPluginSource);$("plugin-search").addEventListener("input",renderPlugins);$("plugin-category").addEventListener("change",renderPlugins);
   $("github-refresh").addEventListener("click",refreshGitHub);$("github-fetch").addEventListener("click",()=>githubSync("fetch"));$("github-pull").addEventListener("click",()=>githubSync("pull"));$("github-push").addEventListener("click",()=>githubSync("push"));$("github-export").addEventListener("click",exportWorkspace);
@@ -481,5 +557,5 @@
   document.querySelectorAll("[data-integration]").forEach(b=>b.addEventListener("click",()=>{const k=b.dataset.integration;showModal(k==="github"?"GitHub":k==="api"?"Adicionar API":"Arquitetura de plugins",k==="github"?"O repositório privado conectado usa a autenticação GitHub CLI desta máquina. Fetch, pull e push são executados pelo Git local.":k==="api"?"Cadastre um endpoint HTTPS público e teste uma chamada GET real. Tokens são temporários e não ficam armazenados.":"Expansão modular da MYRA.",k)}));
   $("modal-close").addEventListener("click",closeModal);$("modal-cancel").addEventListener("click",closeModal);$("modal-backdrop").addEventListener("click",e=>{if(e.target===$("modal-backdrop"))closeModal()});
   document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();createConversation();showView("chat");$("message-input").focus()}if(e.key==="Escape"&&!busy){closeModal();showView("chat")}});
-  renderPlatformIcons();setChatActivity(false);setBusy(false);if(!conversations.length)createConversation(false);renderSidebar();renderMessages();renderFiles();loadActiveCode();initSettings();renderProjects();checkBackend();refreshTaskStatus();refreshModels();renderPreview();refreshGitHub();refreshApiIntegrations();renderQueue();initWidgetStudio();renderPlugins();setInterval(checkBackend,10000);setInterval(refreshTaskStatus,750);if(messageQueue.length){queueNeedsResume=true;renderQueue();}
+  renderPlatformIcons();initSetup();setChatActivity(false);setBusy(false);if(!conversations.length)createConversation(false);renderSidebar();renderMessages();renderFiles();loadActiveCode();initSettings();renderProjects();checkBackend();refreshTaskStatus();refreshModels();renderPreview();refreshGitHub();refreshApiIntegrations();renderQueue();initWidgetStudio();renderPlugins();if(!load(SETUP_KEY,{}).completed)showView("setup");setInterval(checkBackend,10000);setInterval(refreshTaskStatus,750);if(messageQueue.length){queueNeedsResume=true;renderQueue();}
 })();
