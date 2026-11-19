@@ -698,7 +698,7 @@
 - [x] Composer skill toggles: Code, Research, Design and Review.
 - [x] Voice dictation and answer playback using WebView speech APIs.
 - [x] Close the widget and overlay when the main desktop window closes.
-- [x] Single-file NSIS installer with automatic backend setup (Python 3.14).
+- [x] NSIS installer bundles Python 3.14, offline core wheels and Playwright Chromium; backend setup installs core dependencies without PyPI downloads.
 - [x] Initial plugin reference library and local queue for source review.
 - [x] Plugin architecture contract documented in docs/PLUGIN_ARCHITECTURE.md.
 - [ ] Secure plugin runtime, manifest validation, capability permissions, install/enable and rollback.

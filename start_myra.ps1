@@ -7,6 +7,7 @@ $env:MYRA_DATA_DIR = $root
 $env:MYRA_WORKSPACE = Join-Path $root "workspace"
 $env:MYRA_CHROME_PROFILE = Join-Path $root "chrome_profile"
 $env:MYRA_SCREENSHOTS = Join-Path $root "screenshots"
+$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $root "playwright-browsers"
 $env:MYRA_NOTES_FILE = Join-Path $root "notes.txt"
 $repo = Join-Path $root "repo"
 $env:MYRA_REPO_ROOT = if (Test-Path (Join-Path $repo ".git")) { $repo } else { $backend }

@@ -1,6 +1,12 @@
 $ErrorActionPreference = "Stop"
 $source = Join-Path $PSScriptRoot "backend"
-if (-not (Test-Path (Join-Path $source "agent.py"))) { throw "Arquivos do backend nÃ£o encontrados ao lado do instalador." }
+$wheelhouse = Join-Path $PSScriptRoot "wheelhouse"
+$playwrightPayload = Join-Path $PSScriptRoot "playwright-browsers"
+$runtimeInstaller = Join-Path $PSScriptRoot "runtime\python-3.14.10-amd64.exe"
+if (-not (Test-Path (Join-Path $source "agent.py"))) { throw "Arquivos do backend MYRA nao encontrados." }
+if (-not (Test-Path $wheelhouse)) { throw "Pacotes offline do MYRA nao encontrados: $wheelhouse" }
+if (-not (Test-Path $playwrightPayload)) { throw "Navegador Chromium do Playwright nao encontrado no instalador." }
+
 $installRoot = Join-Path $env:LOCALAPPDATA "MYRA"
 $backend = Join-Path $installRoot "backend"
 $logs = Join-Path $installRoot "logs"
@@ -9,37 +15,53 @@ $profile = Join-Path $installRoot "chrome_profile"
 $screenshots = Join-Path $installRoot "screenshots"
 New-Item -ItemType Directory -Force -Path $backend,$logs,$workspace,$profile,$screenshots | Out-Null
 Write-Host "Instalando arquivos locais da MYRA em $backend"
-foreach ($name in @("agent.py","tasks","computer","browser-extension","tools","requirements.txt","README.md")) {
+foreach ($name in @("agent.py","tasks","computer","browser-extension","tools","requirements.txt","requirements-core.txt","requirements-core.lock","requirements-vision.txt","README.md")) {
     $from = Join-Path $source $name
     if (Test-Path $from) { Copy-Item -LiteralPath $from -Destination $backend -Recurse -Force }
 }
-$python = Get-Command py.exe -ErrorAction SilentlyContinue
-if ($python) {
-    $pythonExe = $python.Source
-    $previousErrorAction = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-    & $pythonExe -3.14 --version *> $null
-    $pythonExitCode = $LASTEXITCODE
-    $ErrorActionPreference = $previousErrorAction
-    if ($pythonExitCode -ne 0) { throw "Python 3.14 is required. Install it and retry." }
-    $pythonArgs = @("-3.14")
-} else {
-    $python = Get-Command python.exe -ErrorAction SilentlyContinue
-    if (-not $python) { throw "Python 3.14 is required." }
-    $version = (& $python.Source --version 2>&1 | Out-String)
-    if ($version -notmatch "Python 3\.14\.") { throw "Python 3.14 is required. Detected: $version" }
-    $pythonExe = $python.Source
-    $pythonArgs = @()
+
+# Reuse a compatible Python 3.14 installation; otherwise install the signed official runtime bundled with MYRA.
+$pythonExe = $null
+$pyLauncher = Get-Command py.exe -ErrorAction SilentlyContinue
+if ($pyLauncher) {
+    $detected = & $pyLauncher.Source -3.14 -c "import sys; print(sys.executable)" 2>$null
+    if ($LASTEXITCODE -eq 0 -and $detected) { $pythonExe = ($detected | Select-Object -Last 1).Trim() }
 }
+if (-not $pythonExe) {
+    $pythonCommand = Get-Command python.exe -ErrorAction SilentlyContinue
+    if ($pythonCommand) {
+        $detectedVersion = & $pythonCommand.Source --version 2>&1 | Out-String
+        if ($detectedVersion -match "Python 3\.14\.") { $pythonExe = $pythonCommand.Source }
+    }
+}
+if (-not $pythonExe) {
+    if (-not (Test-Path $runtimeInstaller)) { throw "Runtime Python 3.14 nao encontrado no instalador." }
+    $pythonRoot = Join-Path $env:LOCALAPPDATA "Programs\MYRA-Python314"
+    Write-Host "Instalando Python 3.14.10 incluido no instalador..."
+    $arguments = @("/quiet","InstallAllUsers=0","Include_pip=1","Include_launcher=0","PrependPath=0","Include_test=0","Shortcuts=0",("TargetDir=`"$pythonRoot`""))
+    $process = Start-Process -FilePath $runtimeInstaller -ArgumentList $arguments -Wait -PassThru
+    if ($process.ExitCode -ne 0) { throw "Instalacao do Python falhou (codigo $($process.ExitCode))." }
+    $pythonExe = Join-Path $pythonRoot "python.exe"
+}
+if (-not (Test-Path $pythonExe)) { throw "Python 3.14 nao foi instalado corretamente." }
+$version = & $pythonExe --version 2>&1 | Out-String
+if ($version -notmatch "Python 3\.14\.") { throw "MYRA requer Python 3.14. Detectado: $version" }
+Write-Host "Runtime selecionado: $pythonExe ($version.Trim())"
+
 $venvPython = Join-Path $backend "venv\Scripts\python.exe"
 if (-not (Test-Path $venvPython)) {
-    & $pythonExe @pythonArgs -m venv (Join-Path $backend "venv")
-    if ($LASTEXITCODE -ne 0) { throw "NÃ£o foi possÃ­vel criar o ambiente Python." }
+    & $pythonExe -m venv (Join-Path $backend "venv")
+    if ($LASTEXITCODE -ne 0) { throw "Nao foi possivel criar o ambiente Python virtual." }
 }
-& $venvPython -m pip install --upgrade pip
-if ($LASTEXITCODE -ne 0) { throw "Could not upgrade pip." }
-& $venvPython -m pip install -r (Join-Path $backend "requirements.txt")
-if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar dependÃªncias." }
+Write-Host "Instalando dependencias principais a partir do pacote offline incluido..."
+& $venvPython -m pip install --no-index --find-links $wheelhouse -r (Join-Path $backend "requirements-core.lock")
+if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar dependencias offline do MYRA." }
+
+$installedBrowsers = Join-Path $installRoot "playwright-browsers"
+if (Test-Path $installedBrowsers) { Remove-Item $installedBrowsers -Recurse -Force }
+New-Item -ItemType Directory -Force -Path $installedBrowsers | Out-Null
+Copy-Item -Path (Join-Path $playwrightPayload "*") -Destination $installedBrowsers -Recurse -Force
+
 $repo = Join-Path $installRoot "repo"
 if (Get-Command gh.exe -ErrorAction SilentlyContinue) { try { & gh auth setup-git *> $null } catch { Write-Warning "GitHub CLI authentication could not be connected to Git." } }
 if ($env:MYRA_SKIP_GIT_CLONE -ne "1" -and -not (Test-Path (Join-Path $repo ".git")) -and (Get-Command git.exe -ErrorAction SilentlyContinue)) {
@@ -53,5 +75,5 @@ $shortcut.TargetPath = "powershell.exe"
 $shortcut.Arguments = ('-NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $installRoot "start_myra.ps1") + '"')
 $shortcut.WorkingDirectory = $installRoot
 $shortcut.Save()
-Write-Host "Backend MYRA instalado. Atalho criado no menu Iniciar."
+Write-Host "MYRA instalada. Dependencias Python principais instaladas sem baixar pacotes do PyPI."
 Write-Host "Abra MYRA pelo menu Iniciar para iniciar backend e interface."

@@ -242,3 +242,9 @@ archive/backups/
 scripts/dev/legacy-patches/
 docs/context-history/
 docs/project-notes/
+
+# Generated Windows installer payloads (built by scripts/prepare_installer.py and CI)
+installer/wheelhouse/
+installer/runtime/
+installer/playwright-browsers/
+installer/.playwright-build-venv/

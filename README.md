@@ -17,14 +17,14 @@ The project combines a locally hosted language model with a FastAPI backend, bro
 
 ## Download MYRA for Windows
 
-**Release v0.26.0**
+**Release v0.26.1**
 
-- [Download the Windows x64 installer](https://github.com/BielDominic/myra-agent/releases/download/v0.26.0/MYRA_0.26.0_x64-setup.exe)
-- [Download the backend setup package](https://github.com/BielDominic/myra-agent/releases/download/v0.26.0/MYRA_v0.26.0_Backend_Setup.zip)
-- [Verify SHA-256 checksums](https://github.com/BielDominic/myra-agent/releases/download/v0.26.0/SHA256SUMS.txt)
+- [Download the Windows x64 installer](https://github.com/BielDominic/myra-agent/releases/download/v0.26.1/MYRA_0.26.1_x64-setup.exe)
+- [Download the complete offline backend package](https://github.com/BielDominic/myra-agent/releases/download/v0.26.1/MYRA_v0.26.1_Backend_Setup.zip)
+- [Verify SHA-256 checksums](https://github.com/BielDominic/myra-agent/releases/download/v0.26.1/SHA256SUMS.txt)
 - [All releases](https://github.com/BielDominic/myra-agent/releases)
 
-**One-click installer:** the EXE bundles the desktop shell and runs the backend setup automatically after copying its resources. Python 3.14 and internet access are required for the first dependency installation. The companion ZIP is optional recovery/manual setup only. The repository is private, so GitHub sign-in with repository access is required. See [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md).
+**One-click installer:** the Windows x64 EXE bundles the official Python 3.14.10 runtime, all pinned core Python wheels, and the Playwright Chromium browser. Core backend dependencies are installed offline from the included wheelhouse; no Python installation or PyPI package download is required. Ollama, model weights, and the optional computer-vision/ML stack are separate components. See [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md).
 
 ## Contents
 
