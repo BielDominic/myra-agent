@@ -213,6 +213,31 @@ def abrir_aplicativo(nome: str) -> dict:
         return {"status": "not_launchable", "result": f"{nome!r} aparece no registro de aplicativos, mas n?o h? execut?vel seguro identificado."}
     if not candidatos:
         return {"status": "erro", "result": f"Nenhum atalho encontrado para {nome!r}. Liste os aplicativos para ver nomes disponíveis."}
+
+    # O Windows pode expor o mesmo programa em vários atalhos (Menu Iniciar,
+    # Desktop público e AppsFolder). Isso não representa aplicativos diferentes.
+    # Agrupa pelo nome normalizado e escolhe um destino de inicialização estável.
+    grupos = {}
+    for app in candidatos:
+        chave = _normalizar_texto_janela(str(app.get("nome") or ""))
+        grupos.setdefault(chave, []).append(app)
+
+    def prioridade_lancamento(app):
+        atalho = str(app.get("atalho") or "").casefold().replace("/", "\\")
+        origem = str(app.get("origem") or "").casefold()
+        if atalho.startswith("shell:appsfolder\\") or "windows startapps" in origem:
+            return 0
+        if "\\start menu\\programs\\" in atalho:
+            return 1
+        if "\\desktop\\" in atalho:
+            return 2
+        return 3
+
+    candidatos_unicos = []
+    for grupo in grupos.values():
+        candidatos_unicos.append(sorted(grupo, key=prioridade_lancamento)[0])
+    candidatos = candidatos_unicos
+
     if len(candidatos) > 1:
         return {"status": "ambiguous", "result": [{"nome": a["nome"], "atalho": a["atalho"]} for a in candidatos[:15]], "message": "Há vários aplicativos correspondentes; informe um nome mais específico."}
     alvo = candidatos[0]["atalho"]

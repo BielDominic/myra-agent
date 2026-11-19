@@ -4,9 +4,10 @@ Screen Capture - tira screenshot via mss.
 import mss
 import os
 import datetime
+from pathlib import Path
 
 
-SCREENSHOTS_DIR = r"C:\computer-agent\screenshots"
+SCREENSHOTS_DIR = os.environ.get("MYRA_SCREENSHOTS", str(Path(os.environ.get("MYRA_DATA_DIR", Path(__file__).resolve().parents[1])) / "screenshots"))
 
 
 def screenshot(salvar: bool = True) -> dict:

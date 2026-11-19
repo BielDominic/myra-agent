@@ -20,6 +20,7 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, Field
+from tasks.cancel_state import esta_cancelada, esta_pausada
 
 router = APIRouter()
 COMMAND_TIMEOUT_SECONDS = max(
@@ -203,7 +204,7 @@ def _normalizar_url_http(value: object) -> str | None:
 
 
 def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> dict:
-    if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text", "get_tabs", "type_text", "new_tab", "close_tab", "scroll", "search_google", "search_google_visivel"}:
+    if action not in {"read_active_tab", "read_page_url", "navigate_active_tab", "click_text", "get_tabs", "type_text", "select_option", "new_tab", "close_tab", "scroll", "search_google", "search_google_visivel"}:
         return {"status": "erro", "result": "Acao do navegador nao permitida."}
     if action in {"read_page_url", "navigate_active_tab", "new_tab"}:
         raw_url = _normalizar_url_http(args.get("url", ""))
@@ -288,6 +289,13 @@ def _run_command(action: str, *, timeout_seconds: int | None = None, **args) -> 
             return {"status": "erro", "result": "texto deve ter no máximo 5000 caracteres."}
         args["campo"] = campo
         args["texto"] = texto
+    if action == "select_option":
+        campo = str(args.get("campo", "")).strip()
+        opcao = str(args.get("opcao", "")).strip()
+        if not campo or not opcao or len(campo) > 500 or len(opcao) > 500:
+            return {"status": "erro", "result": "Informe campo e opcao, ambos com até 500 caracteres."}
+        args["campo"] = campo
+        args["opcao"] = opcao
     if action == "click_text":
         raw_text = args.get("text", "")
         if not isinstance(raw_text, str):
@@ -360,9 +368,9 @@ def browser_get_tabs() -> dict:
     return _run_command("get_tabs")
 
 
-def browser_read_active_tab(url_contains: str = "") -> dict:
-    """Lê título, URL e texto visível de uma aba do Chrome; opcionalmente seleciona por trecho da URL."""
-    return _run_command("read_active_tab", url_contains=url_contains)
+def browser_read_active_tab(url_contains: str = "", tab_id: int | None = None) -> dict:
+    """Lê título, URL e texto visível de uma aba do Chrome; prefira tab_id retornado ao abrir a aba."""
+    return _run_command("read_active_tab", url_contains=url_contains, **({"tab_id": tab_id} if tab_id is not None else {}))
 
 
 def browser_read_page(url: str) -> dict:
@@ -386,10 +394,19 @@ def browser_new_tab(url: str) -> dict:
 
 
 def browser_wait(ms: int) -> dict:
-    """Aguarda de 100 a 30000 milissegundos localmente."""
+    """Aguarda em pequenos intervalos para respeitar pausa e cancelamento."""
     if isinstance(ms, bool) or not isinstance(ms, int) or not 100 <= ms <= 30000:
         return {"status": "erro", "result": "ms deve ser um inteiro entre 100 e 30000."}
-    time.sleep(ms / 1000.0)
+    deadline = time.monotonic() + (ms / 1000.0)
+    while True:
+        if esta_cancelada():
+            return {"status": "cancelado", "result": "Espera interrompida pelo usuário.", "waited": ms}
+        if esta_pausada():
+            return {"status": "pausado", "result": "Espera interrompida no ponto seguro para pausar.", "waited": ms}
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        time.sleep(min(0.1, remaining))
     return {"status": "ok", "result": {"waited": ms}, "waited": ms}
 
 
@@ -418,14 +435,34 @@ def browser_close_tab(tab_id: int | None = None) -> dict:
     return _run_command("close_tab", **({"tab_id": tab_id} if tab_id is not None else {}))
 
 
-def browser_type_text(campo: str, texto: str) -> dict:
-    """Substitui o conteúdo de um campo de formulário identificado por seletor CSS ou label exato."""
-    return _run_command("type_text", campo=campo, texto=texto)
+def browser_type_text(campo: str, texto: str, url_contains: str = "", tab_id: int | None = None) -> dict:
+    """Substitui o conteúdo de um campo em uma aba específica do Chrome."""
+    args = {"campo": campo, "texto": texto}
+    if url_contains:
+        args["url_contains"] = url_contains
+    if tab_id is not None:
+        args["tab_id"] = tab_id
+    return _run_command("type_text", **args)
 
 
-def browser_click_text(text: str) -> dict:
-    """Clica em um botão/link visível cujo texto corresponda exatamente ao informado."""
-    return _run_command("click_text", text=text)
+def browser_select_option(campo: str, opcao: str, url_contains: str = "", tab_id: int | None = None) -> dict:
+    """Seleciona uma opção de select/radio/checkbox pelo rótulo em uma aba específica."""
+    args = {"campo": campo, "opcao": opcao}
+    if url_contains:
+        args["url_contains"] = url_contains
+    if tab_id is not None:
+        args["tab_id"] = tab_id
+    return _run_command("select_option", **args)
+
+
+def browser_click_text(text: str, url_contains: str = "", tab_id: int | None = None) -> dict:
+    """Clica em um botão/link visível na aba indicada pelo tab_id ou URL."""
+    args = {"text": text}
+    if url_contains:
+        args["url_contains"] = url_contains
+    if tab_id is not None:
+        args["tab_id"] = tab_id
+    return _run_command("click_text", **args)
 
 
 def registrar_ferramentas(registrar_ferramenta) -> None:
@@ -437,7 +474,7 @@ def registrar_ferramentas(registrar_ferramenta) -> None:
     registrar_ferramenta(
         "browser_read_active_tab",
         browser_read_active_tab,
-        "Lê título, URL e texto visível de uma aba do Chrome via extensão MYRA. Opcional: url_contains='github.com' seleciona uma aba cuja URL contenha esse trecho (case-insensitive), útil quando há várias abas. Sem url_contains, usa a aba ativa ou a aba web mais recente se o Open WebUI estiver ativo. Requer Chrome aberto e Browser Bridge habilitado."
+        "Lê título, URL e texto visível de uma aba do Chrome via extensão MYRA. Prefira tab_id retornado por browser_new_tab/browser_get_tabs para garantir a aba exata; opcionalmente use url_contains. Sem ambos, usa a aba ativa. Requer Chrome aberto e Browser Bridge habilitado."
     )
     registrar_ferramenta(
         "browser_read_page",
@@ -462,12 +499,17 @@ def registrar_ferramentas(registrar_ferramenta) -> None:
     registrar_ferramenta(
         "browser_type_text",
         browser_type_text,
-        "Digita texto em um campo identificado por seletor CSS (ex.: #search, input[name=q], [placeholder=Pesquisar]) ou pelo texto exato de um label acessível. Obrigatórios: campo e texto. Falha se não encontrar ou se houver mais de uma correspondência; limpa o valor anterior e dispara eventos input/change."
+        "Digita texto em um campo identificado por seletor CSS ou label acessível. Obrigatórios: campo e texto. Prefira tab_id retornado ao abrir a aba; opcionalmente url_contains. Falha se não encontrar ou houver ambiguidade; limpa o valor anterior e dispara eventos input/change."
+    )
+    registrar_ferramenta(
+        "browser_select_option",
+        browser_select_option,
+        "Seleciona uma opção em um campo select, radio ou checkbox usando o rótulo da pergunta e o texto da opção. Obrigatórios: campo e opcao. Prefira tab_id para atuar na aba exata."
     )
     registrar_ferramenta(
         "browser_click_text",
         browser_click_text,
-        "Clica em botão/link cujo texto corresponda exatamente. Obrigatório: text='Continuar'. Use apenas quando a ação estiver claramente autorizada pelo objetivo do usuário."
+        "Clica em botão/link cujo texto corresponda exatamente na aba indicada por tab_id ou url_contains. Obrigatório: text. Prefira tab_id retornado ao abrir a vaga para não clicar em outra aba. Use apenas quando a ação estiver claramente autorizada pelo objetivo do usuário."
     )
     registrar_ferramenta(
         "browser_scroll",

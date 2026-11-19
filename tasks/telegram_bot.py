@@ -570,6 +570,14 @@ class TelegramBot:
             r"busque na web|busca na web)\b",
             r"^(please\s+)?(open|launch|visit|go to|navigate to|click|type into|"
             r"search google for|search the web for|look this up online)\b",
+            # Permite comandos contextualizados por aplicativo: "No Notepad, clique...".
+            # Exige um verbo operacional logo apos a referencia ao contexto para nao
+            # transformar frases informativas em comandos de computador.
+            r"^(?:no|na|em|dentro do|dentro da)\s+[^,.;]{1,60}[,;:]\s*"
+            r"(?:clique|clica|clicar|digite|digita|pressione|pressionar|selecione|"
+            r"selecionar|abra|abrir|marque|marcar|ative|ativar|desative|desativar)\b",
+            r"^(?:in|on|inside)\s+[^,.;]{1,60}[,;:]\s*"
+            r"(?:click|type|press|select|open|check|toggle)\b",
         )
         return any(re.search(pattern, text) for pattern in patterns)
 
@@ -608,7 +616,12 @@ class TelegramBot:
     def _direct_open_application_target(user_text: str) -> str | None:
         """Resolve comandos diretos para aplicativos locais comuns do Windows."""
         text = user_text.strip().casefold().strip(" .!?")
-        pattern = r"^(?:por favor,?\s*)?(?:abra|abrir|abre|inicie|iniciar|execute|executar|open|launch)\s+(?:(?:o|a|os|as)\s+)?(.+)$"
+        pattern = (
+            r"^(?:(?:por favor,?\s*)|(?:sim,?\s*)|(?:sim,?\s*pode\s+))?"
+            r"(?:pode\s+abrir|poderia\s+abrir|consegue\s+abrir|"
+            r"abra|abrir|abre|inicie|iniciar|execute|executar|open|launch)"
+            r"\s+(?:(?:o|a|os|as)\s+)?(.+)$"
+        )
         match = re.match(pattern, text)
         if not match:
             return None

@@ -10,56 +10,133 @@ const SETTINGS_W = 380, SETTINGS_H = 550;
 
 let lastState = null;
 let resetting = false;
-// Impede consultas assíncronas sobrepostas: uma resposta antiga "running"
-// não pode chegar depois de "done" e reabrir o estado de execução.
 let pollInFlight = false;
+let windowResizeChain = Promise.resolve();
+let requestedWindowSize = "";
+
+// Todas as mudanças nativas passam por uma fila: uma chamada antiga de
+// "idle" nunca pode terminar depois e encolher o painel que já está executando.
+function resizeNativeWindow(width, height) {
+    const key = width + "x" + height;
+    if (requestedWindowSize === key) return windowResizeChain;
+    requestedWindowSize = key;
+    windowResizeChain = windowResizeChain.catch(() => {}).then(() =>
+        invoke("resize_window", { width, height })
+    ).catch(error => {
+        if (requestedWindowSize === key) requestedWindowSize = "";
+        console.error("[RESIZE] não foi possível redimensionar a janela:", error);
+        throw error;
+    });
+    return windowResizeChain;
+}
 
 async function setWindowSize(state) {
     const compact = document.body.dataset.compact === "on";
-    let size;
-    if (state === "idle") size = compact ? "compact" : "idle";
-    else if (state === "settings") {
-        // Keep the existing larger settings window.
-        const w = SETTINGS_W, h = SETTINGS_H;
-        setTimeout(async () => {
-            try { await invoke('resize_window', { width: w, height: h }); }
-            catch (e) { console.error("[RESIZE]", e); }
-        }, 320);
+    if (state === "running") {
+        let config = {};
+        try { config = JSON.parse(localStorage.getItem("myra-widget-config-v1") || "{}"); } catch (_) {}
+        const width = Math.max(340, Math.min(480, Number(config.width) || 360));
+        const height = Math.max(260, Math.min(420, Number(config.height) || 280));
+        const island = document.getElementById("island");
+        if (island) { island.style.width = width + "px"; island.style.height = height + "px"; }
+        try {
+            await resizeNativeWindow(width, height);
+            document.body.dataset.agentPanelSized = "on";
+        } catch (primaryError) {
+            try {
+                await invoke("set_widget_size", { size: "running" });
+                document.body.dataset.agentPanelSized = "on";
+            } catch (fallbackError) {
+                delete document.body.dataset.agentPanelSized;
+                console.error("[RESIZE] painel completo indisponível:", fallbackError);
+            }
+        }
         return;
-    } else if (state === "running" && document.body.dataset.runningMode === "pill") size = "pill";
-    else size = "running";
-
-    setTimeout(async () => {
-        try { await invoke('set_widget_size', { size }); }
+    }
+    delete document.body.dataset.agentPanelSized;
+    if (state === "settings") {
+        try { await resizeNativeWindow(SETTINGS_W, SETTINGS_H); }
         catch (e) { console.error("[RESIZE]", e); }
-    }, 320);
+        return;
+    }
+    const size = state === "idle" ? (compact ? "compact" : "idle") : state;
+    const dimensions = size === "compact" ? [90, 44] : [200, 44];
+    try {
+        // A fila mantém a ordem mesmo quando o status muda rapidamente.
+        await windowResizeChain.catch(() => {});
+        requestedWindowSize = "";
+        await invoke("set_widget_size", { size });
+    } catch (e) {
+        try { await resizeNativeWindow(dimensions[0], dimensions[1]); }
+        catch (fallbackError) { console.error("[RESIZE] idle fallback", fallbackError); }
+    }
+}
+
+function enforceAgentPanel() {
+    const island = document.getElementById("island");
+    if (!island) return;
+    // O painel de execução nunca pode herdar o modo compacto salvo.
+    document.body.dataset.runningMode = "full";
+    try { localStorage.setItem("myra-running-mode", "full"); } catch (_) {}
+    const modeButton = document.getElementById("btn-toggle-running-mode");
+    if (modeButton) {
+        modeButton.disabled = true;
+        modeButton.title = "Painel completo durante a execução";
+        modeButton.setAttribute("aria-label", "Painel completo durante a execução");
+    }
+    // Se as preferências estavam abertas, devolve o usuário ao painel da tarefa.
+    if (island.classList.contains("settings")) {
+        island.classList.remove("settings");
+        document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+        document.querySelector(".view-running")?.classList.add("active");
+    }
+    // Garante também o tamanho da janela nativa (não apenas o CSS interno).
+    if (document.body.dataset.agentPanelSized !== "on") {
+        setWindowSize("running");
+    }
+    if (document.body.dataset.agentInteractive !== "on") {
+        document.body.dataset.agentInteractive = "on";
+        invoke("set_ignore_cursor_events", { label: "main", ignore: false })
+            .catch(err => {
+                delete document.body.dataset.agentInteractive;
+                console.warn("[WIDGET] Não foi possível habilitar interação:", err);
+            });
+    }
+}
+
+function updateMascotState(state) {
+    // Os estados visuais principais já são definidos pelas classes das views.
+    // Esta função só aplica o humor de conclusão/erro quando o módulo Vida está carregado.
+    if ((state === "done" || state === "error") && typeof setMood === "function") {
+        try { setMood(state); } catch (error) { console.warn("[MASCOT STATE]", error); }
+    }
 }
 
 function switchView(state) {
     const island = document.getElementById("island");
     if (!island) return;
 
-    const settingsOpen = island.classList.contains("settings");
-    island.classList.remove("idle", "running", "done", "error");
-    island.classList.add(state);
-
-    // Sempre redimensiona a janela nativa quando o estado muda, inclusive em updates SSE.
-    setWindowSize(state);
-
-    // A tarefa pode mudar enquanto as configuracoes estao abertas.
-    // Atualiza o estado de retorno sem fechar a tela de configuracoes.
-    if (settingsOpen) {
-        island.dataset.prevState = state;
-        document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
-        document.querySelector(".view-settings")?.classList.add("active");
-        updateMascotState(state);
-        return;
+    if (state === "running") enforceAgentPanel();
+    else {
+        delete document.body.dataset.agentInteractive;
+        delete document.body.dataset.agentPanelSized;
+        delete document.body.dataset.widgetSizeKey;
+        delete document.body.dataset.runningMode;
+        try { localStorage.removeItem("myra-running-mode"); } catch (_) {}
+        island.style.width = "";
+        island.style.height = "";
+        const modeButton = document.getElementById("btn-toggle-running-mode");
+        if (modeButton) modeButton.disabled = false;
     }
+
+    island.classList.remove("idle", "running", "done", "error", "settings");
+    island.classList.add(state);
 
     document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
     const view = document.querySelector(".view-" + state);
     if (view) view.classList.add("active");
-
+    // Primeiro aplica a view e seus estilos; depois redimensiona a janela nativa.
+    void setWindowSize(state);
     updateMascotState(state);
 }
 
@@ -108,9 +185,13 @@ function startEyeTracking() {
 
 function setupMascotClick() {
     document.querySelectorAll('.mascot').forEach(m => {
-        m.addEventListener('click', (e) => {
+        m.addEventListener('click', async (e) => {
             e.stopPropagation();
-            console.log("[MASCOT] click -> abrir chat");
+            try {
+                await invoke('focus_desktop_window');
+            } catch (error) {
+                console.warn('[MASCOT] não foi possível focar o MYRA Desktop:', error);
+            }
         });
     });
 }
@@ -139,15 +220,74 @@ async function cancelTask() {
     setTimeout(() => { resetting = false; }, 1200);
 }
 
+const widgetStudioChannel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("myra-widget-sync") : null;
+if (widgetStudioChannel) {
+    widgetStudioChannel.addEventListener("message", event => {
+        if (event.data?.type !== "config") return;
+        applyWidgetStudioConfig();
+        console.log("[WIDGET SYNC] configuração recebida do Widget Studio");
+    });
+}
+
+function applyWidgetStudioConfig() {
+    let config = {};
+    try {
+        config = JSON.parse(localStorage.getItem("myra-widget-config-v1") || "{}");
+        if (Number(config.width) === 400 && Number(config.height) === 300) {
+            config.width = 360; config.height = 280; config.updatedAt = Date.now();
+            localStorage.setItem("myra-widget-config-v1", JSON.stringify(config));
+        }
+    } catch (_) {}
+    const island = document.getElementById("island");
+    if (!island) return;
+    const accent = ["purple", "blue", "green"].includes(config.accent) ? config.accent : "purple";
+    document.body.dataset.widgetAccent = accent;
+    try {
+        const desktopPrefs = JSON.parse(localStorage.getItem("myra-desktop-prefs-v1") || "{}");
+        if (desktopPrefs.theme === "light" || desktopPrefs.theme === "dark") document.body.dataset.theme = desktopPrefs.theme;
+    } catch (_) {}
+    const opacity = Math.max(85, Math.min(100, Number(config.opacity) || 100));
+    island.style.opacity = String(opacity / 100);
+    const width = Math.max(340, Math.min(480, Number(config.width) || 360));
+    const height = Math.max(260, Math.min(420, Number(config.height) || 280));
+    // O tamanho de painel completo só vale enquanto a tarefa está ativa.
+    // A preferência nunca pode deixar uma ilha vazia cobrindo a tela em idle.
+    const isRunning = island.classList.contains("running");
+    if (isRunning) {
+        island.style.width = width + "px";
+        island.style.height = height + "px";
+        if (document.body.dataset.widgetSizeKey !== width + "x" + height) {
+            document.body.dataset.widgetSizeKey = width + "x" + height;
+            resizeNativeWindow(width, height).catch(err => console.warn("[WIDGET CONFIG] resize", err));
+        }
+    } else {
+        island.style.width = "";
+        island.style.height = "";
+    }
+}
+
 async function pollStatus() {
     if (resetting || pollInFlight) return;
     pollInFlight = true;
     try {
-        const status = await invoke('get_task_status');
-        // Um reset/cancelamento pode acontecer enquanto a consulta nativa aguarda.
+        const response = await fetch("http://127.0.0.1:8000/task_status", {
+            cache: "no-store",
+            signal: AbortSignal.timeout(2500)
+        });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const status = await response.json();
+        // O widget lê o mesmo estado local que o Desktop e o backend atualizam.
         if (resetting || !status) return;
-        const state = status.state || "idle";
         window.__ultimoStatus = status;
+        const state = status.state || "idle";
+        // Reforça o painel completo em todo ciclo: preferências ou modo pill
+        // não podem ocultar os controles enquanto a tarefa estiver ativa.
+        if (state === "running") enforceAgentPanel();
+        applyWidgetStudioConfig();
+        document.querySelectorAll(".mascot.chat-thinking").forEach(m => m.classList.remove("chat-thinking"));
+        const activeMascot = document.querySelector(".view-" + state + " .mascot");
+        const chatActive = Boolean(status.chat_activity) && state !== "running";
+        if (activeMascot && chatActive) activeMascot.classList.add("chat-thinking");
         if (status.objetivo) window.__ultimoObjetivo = status.objetivo;
         renderTaskProgress(status);
         updatePauseResumeButton(status);
@@ -309,6 +449,18 @@ async function pauseResumeTask() {
         if (btn) btn.textContent = paused ? "Retomando..." : "Pausando...";
     } catch (err) {
         console.error("[TASK PAUSE/RESUME]", err);
+        // Atualiza o estado antes de oferecer nova tentativa: a tarefa pode ter
+        // concluído entre o clique e a resposta do backend.
+        try { await pollStatus(); } catch (_) {}
+        const refreshed = window.__ultimoStatus || {};
+        if (refreshed.state !== "running") {
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = refreshed.state === "done" ? "Concluída" : "Indisponível";
+                btn.title = "A tarefa já terminou; não há nada para retomar.";
+            }
+            return;
+        }
         if (btn) {
             btn.disabled = false;
             btn.textContent = "Tentar novamente";
@@ -317,6 +469,39 @@ async function pauseResumeTask() {
     }
 }
 window.pauseResumeTask = pauseResumeTask;
+
+async function assumeBrowserControl() {
+    const button = document.getElementById("btn-assume-browser");
+    const status = window.__ultimoStatus || {};
+    if (!status.task_id || status.state !== "running") return;
+    if (button) { button.disabled = true; button.textContent = "Pausando..."; }
+    try {
+        const paused = String(status.passo_atual || "").toUpperCase().includes("PAUSADO");
+        if (!paused) {
+            const response = await fetch("http://127.0.0.1:8000/task_pause", { method: "POST", signal: AbortSignal.timeout(5000) });
+            const data = await response.json();
+            if (!response.ok || data.status === "erro") throw new Error(data.result || "Não foi possível pausar a tarefa.");
+        }
+        await new Promise(resolve => setTimeout(resolve, 900));
+        const result = await window.__TAURI__.core.invoke("focus_chrome_window");
+        if (result && result.ok === false) throw new Error(result.error || "Chrome não encontrado.");
+        if (button) button.textContent = "Navegador aberto";
+    } catch (error) {
+        console.error("[ASSUME BROWSER]", error);
+        try { await pollStatus(); } catch (_) {}
+        const refreshed = window.__ultimoStatus || {};
+        if (refreshed.state !== "running") {
+            if (button) {
+                button.disabled = true;
+                button.textContent = "Tarefa concluída";
+                button.title = "A tarefa já terminou; o navegador não precisa ser assumido.";
+            }
+            return;
+        }
+        if (button) { button.disabled = false; button.textContent = "Tentar novamente"; button.title = String(error.message || error); }
+    }
+}
+window.assumeBrowserControl = assumeBrowserControl;
 
 function saveTaskHistory(status, outcome) {
     const objective = String(status.objetivo || window.__ultimoObjetivo || "").trim();
@@ -516,7 +701,8 @@ window.addEventListener("DOMContentLoaded", () => {
     startBlinking();
     setupMascotClick();
     setupLocalTaskTools();
-    setInterval(pollStatus, 300);
+    pollStatus();
+    setInterval(pollStatus, 500);
 });
 
 // ============================================================

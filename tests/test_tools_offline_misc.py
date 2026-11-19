@@ -747,6 +747,10 @@ class DeveObservarTestCase(CasoOffline):
                 with self.subTest(nome=nome):
                     self.assertTrue(st._deve_observar(nome))
 
+    def test_pc_control_action_e_observavel(self):
+        with sem_rede():
+            self.assertTrue(st._deve_observar("pc_control_action"))
+
     def test_ferramentas_de_leitura_nao_sao_observaveis(self):
         nao_observaveis = [
             "read_file", "list_dir", "browser_get_tabs",
@@ -772,6 +776,23 @@ class ObservarSimpleTaskTestCase(CasoOffline):
             resultado = st._observar("objetivo", "read_file", {"caminho": "a"}, "conteudo", None)
         self.assertIsNone(resultado)
         falso.assert_not_called()
+
+    def test_pc_control_action_chama_observer_com_evidencias(self):
+        observado = {"status": "ok", "sucesso": True, "objetivo_atingido": True}
+        resultado_tool = {"status": "ok", "verified": False, "mudanca_observavel": True}
+        with mock.patch("computer.observer.observar", return_value=observado) as falso, sem_rede():
+            resultado = st._observar(
+                "clique no botao salvar", "pc_control_action",
+                {"titulo": "Notepad", "alvo": "saveButton", "acao": "click"},
+                resultado_tool, None,
+            )
+        self.assertEqual(resultado, observado)
+        falso.assert_called_once_with("clique no botao salvar", {
+            "ferramenta": "pc_control_action",
+            "args": {"titulo": "Notepad", "alvo": "saveButton", "acao": "click"},
+            "resultado": resultado_tool,
+            "erro": None,
+        })
 
     def test_leituras_browser_sao_observadas(self):
         observado = {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "titulo confirmado"}

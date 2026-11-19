@@ -20,7 +20,14 @@ function isMyraUiTab(tab) {
   } catch { return false; }
 }
 
-async function getTargetTab(urlContains = "") {
+async function getTargetTab(urlContains = "", rawTabId = null) {
+  if (rawTabId !== null && rawTabId !== undefined && rawTabId !== "") {
+    const tabId = Number(rawTabId);
+    if (!Number.isSafeInteger(tabId) || tabId <= 0) throw new Error("tab_id inválido.");
+    const exactTab = await chrome.tabs.get(tabId);
+    if (!Number.isInteger(exactTab.id) || isMyraUiTab(exactTab)) throw new Error("Aba solicitada não é uma página web válida.");
+    return exactTab;
+  }
   const needle = String(urlContains || "").trim().toLowerCase();
   if (needle) {
     if (needle.length > 300) throw new Error("url_contains muito longo.");
@@ -153,7 +160,7 @@ async function executeBridgeCommand(command) {
     return { ok: true, result: { tabs: visibleTabs } };
   }
   if (command.action === "read_active_tab") {
-    const tab = await getTargetTab(command.args?.url_contains);
+    const tab = await getTargetTab(command.args?.url_contains, command.args?.tab_id);
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: () => {
@@ -171,9 +178,59 @@ async function executeBridgeCommand(command) {
           .filter(Boolean).slice(0, 20);
         const inputs = [...document.querySelectorAll("input,textarea")]
           .filter(el => visible(el))
-          .slice(0, 15)
-          .map(el => ({ placeholder: el.getAttribute("placeholder") || "", name: el.getAttribute("name") || "", type: el.getAttribute("type") || "text" }))
-          .filter(el => el.placeholder || el.name);
+          .slice(0, 40)
+          .map(el => ({
+            id: el.id || "",
+            placeholder: el.getAttribute("placeholder") || "",
+            name: el.getAttribute("name") || "",
+            type: el.getAttribute("type") || "text",
+            value: el.type === "password" ? "" : (el.value || ""),
+            checked: Boolean(el.checked),
+            labels: [...(el.labels || [])].map(l => (l.innerText || l.textContent || "").trim())
+          }))
+          .filter(el => el.placeholder || el.name || el.id || el.labels.length);
+        const selects = [...document.querySelectorAll("select")]
+          .filter(el => visible(el))
+          .map(el => ({
+            id: el.id || "",
+            name: el.getAttribute("name") || "",
+            ariaLabel: el.getAttribute("aria-label") || "",
+            labels: [...(el.labels || [])].map(l => (l.innerText || l.textContent || "").trim()),
+            value: el.value || "",
+            options: [...el.options].map(o => ({text:(o.textContent || "").trim(),value:o.value}))
+          }));
+        const questionNodes = [...document.querySelectorAll("body *")]
+          .filter(el => el.children.length <= 2 && /Have you completed QQI|Do you live in Ireland|professional experience in Healthcare|full, clean, Irish\/EU/i.test(el.innerText || el.textContent || ""))
+          .slice(0, 20)
+          .map(el => ({tag:el.tagName.toLowerCase(),className:typeof el.className === "string" ? el.className.slice(0,160) : "",text:(el.innerText || el.textContent || "").replace(/\\s+/g," ").trim().slice(0,220),parent:el.parentElement?.outerHTML.slice(0,1200)||""}));
+        const customControls = [...document.querySelectorAll('button,[role="combobox"],[role="listbox"],[role="option"],[aria-haspopup],input[type="radio"],input[type="checkbox"]')]
+          .filter(visible)
+          .slice(0, 100)
+          .map(el => ({
+            tag: el.tagName.toLowerCase(), role: el.getAttribute("role") || "", type: el.getAttribute("type") || "",
+            name: el.getAttribute("name") || "", ariaLabel: el.getAttribute("aria-label") || "",
+            text: (el.innerText || el.textContent || el.value || "").replace(/\\s+/g," ").trim().slice(0,180),
+            className: typeof el.className === "string" ? el.className.slice(0,180) : "",
+            parentText: (el.parentElement?.innerText || "").replace(/\\s+/g," ").trim().slice(0,220),
+            html: el.outerHTML.slice(0,500)
+          }));
+
+        const jobCards = [...document.querySelectorAll(
+          "[data-job-id], [data-occludable-job-id], .job-card-container, li.jobs-search-results__list-item"
+        )]
+          .filter(visible)
+          .map(card => {
+            const titleEl = card.querySelector(".job-card-list__title, .artdeco-entity-lockup__title, h3");
+            const title = (titleEl?.innerText || titleEl?.textContent || "").replace(/\s+/g, " ").trim();
+            const rawId = card.getAttribute("data-job-id") || card.getAttribute("data-occludable-job-id") || "";
+            const anchor = card.querySelector("a[href*='/jobs/view/']");
+            const href = anchor?.href || (rawId ? "https://www.linkedin.com/jobs/view/" + rawId + "/" : "");
+            const company = (card.querySelector(".job-card-container__primary-description, .artdeco-entity-lockup__subtitle")?.innerText || "").replace(/\s+/g, " ").trim();
+            const location = (card.querySelector(".job-card-container__metadata-item, .artdeco-entity-lockup__caption")?.innerText || "").replace(/\s+/g, " ").trim();
+            return { title, company, location, href, text: (card.innerText || "").replace(/\s+/g, " ").trim().slice(0, 700) };
+          })
+          .filter(card => card.title && card.href)
+          .slice(0, 20);
 
           const tables = [...document.querySelectorAll("table")]
             .slice(0, 5)
@@ -198,6 +255,10 @@ async function executeBridgeCommand(command) {
           links,
           buttons,
           inputs,
+          selects,
+          custom_controls: customControls,
+          question_nodes: questionNodes,
+          job_cards: jobCards,
           tables
         };
       }
@@ -283,11 +344,28 @@ async function executeBridgeCommand(command) {
       await waitForTabComplete(tab.id, 20000);
       await focusTabWindow(tab.id);
     } catch (e) {
+      // Sites como LinkedIn mantêm requisições abertas mesmo depois de renderizar
+      // a página. Se a aba já tem URL HTTP e título, a navegação está utilizável.
+      const currentTab = await chrome.tabs.get(tab.id).catch(() => null);
+      if (currentTab?.title && /^https?:\/\//i.test(currentTab.url || "")) {
+        await focusTabWindow(tab.id).catch(() => {});
+        return {
+          ok: true,
+          result: {
+            tabId: currentTab.id,
+            url: currentTab.url || url.href,
+            title: currentTab.title,
+            loaded: true,
+            warning: "A página já estava utilizável; o evento completo de carregamento demorou além do limite."
+          }
+        };
+      }
       return {
         ok: true,
         result: {
           tabId: tab.id,
-          url: tab.url || url.href,
+          url: currentTab?.url || tab.url || url.href,
+          title: currentTab?.title || "",
           loaded: false,
           warning: e?.message || String(e)
         }
@@ -579,8 +657,69 @@ async function executeBridgeCommand(command) {
     await chrome.tabs.update(tab.id, { url: url.href });
     return { ok: true, result: { tabId: tab.id, url: url.href } };
   }
+  if (command.action === "select_option") {
+    const tab = await getTargetTab(command.args?.url_contains, command.args?.tab_id);
+    const campo = String(command.args?.campo || "").trim();
+    const opcao = String(command.args?.opcao || "").trim();
+    const frameResults = await chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      func: (campo, opcao) => {
+        const norm = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLocaleLowerCase();
+        const alvo = norm(opcao);
+        const labels = [...document.querySelectorAll("label")].filter(x => norm(x.innerText || x.textContent) === norm(campo));
+        if (labels.length > 1) return { ok:false, error:"Rótulo ambíguo: " + campo };
+        let control = labels.length === 1 ? (labels[0].control || (labels[0].htmlFor ? document.getElementById(labels[0].htmlFor) : null)) : null;
+        if (!control) {
+          const named = [...document.querySelectorAll("select,[role=combobox],[aria-label]")].filter(x => norm(x.getAttribute("aria-label") || x.getAttribute("name")) === norm(campo));
+          if (named.length === 1) control = named[0];
+        }
+        if (!control) {
+          const candidates = [...document.querySelectorAll("select")].map(el => {
+            let node = el.parentElement;
+            for (let depth = 1; node && depth <= 6; depth++, node = node.parentElement) {
+              if (norm(node.innerText || node.textContent).includes(norm(campo))) return {el,depth};
+            }
+            return null;
+          }).filter(Boolean).sort((a,b)=>a.depth-b.depth);
+          if (candidates.length && (candidates.length === 1 || candidates[0].depth < candidates[1].depth)) control = candidates[0].el;
+        }
+        if (control instanceof HTMLSelectElement) {
+          const option = [...control.options].find(o => norm(o.textContent) === alvo || norm(o.value) === alvo);
+          if (!option) return { ok:false, error:"Opção não encontrada em " + campo + ": " + opcao };
+          control.value = option.value;
+          control.dispatchEvent(new Event("input",{bubbles:true}));
+          control.dispatchEvent(new Event("change",{bubbles:true}));
+          return { ok:true, result:{field:campo,selected:option.textContent.trim()} };
+        }
+        let group = [];
+        if (control && (control.type === "radio" || control.type === "checkbox")) group = [control];
+        if (!group.length && labels.length === 1) {
+          const parent = labels[0].closest("fieldset") || labels[0].parentElement?.parentElement || labels[0].parentElement;
+          if (parent) group = [...parent.querySelectorAll('input[type="radio"],input[type="checkbox"]')];
+        }
+        if (group.length) {
+          const match = group.find(el => {
+            const associated = [...(el.labels || [])].map(l => norm(l.innerText || l.textContent)).join(" ");
+            return associated === alvo || norm(el.value) === alvo || associated.includes(alvo);
+          });
+          if (!match) return { ok:false, error:"Opção de rádio/checkbox não encontrada: " + opcao };
+          match.checked = true;
+          match.dispatchEvent(new Event("input",{bubbles:true}));
+          match.dispatchEvent(new Event("change",{bubbles:true}));
+          match.click();
+          return { ok:true, result:{field:campo,selected:opcao} };
+        }
+        return { ok:false, error:"Campo de seleção não encontrado ou não suportado: " + campo };
+      },
+      args: [campo, opcao]
+    });
+    const framePayloads = frameResults.map(frame => frame.result).filter(Boolean);
+    const result = framePayloads.find(item => item.ok) || framePayloads.find(item => item.error) || {ok:false,error:"Nenhum frame expôs o campo solicitado."};
+    if (!result.ok) throw new Error(result.error || "Não foi possível selecionar a opção.");
+    return result;
+  }
   if (command.action === "type_text") {
-    const tab = await getTargetTab();
+    const tab = await getTargetTab(command.args?.url_contains, command.args?.tab_id);
     const campo = String(command.args?.campo || "").trim();
     const texto = String(command.args?.texto ?? "");
     if (!campo) throw new Error("Informe campo como seletor CSS ou label acessível.");
@@ -646,7 +785,7 @@ async function executeBridgeCommand(command) {
     return result || { ok: false, error: "Sem resultado ao digitar no campo." };
   }
   if (command.action === "click_text") {
-    const tab = await getTargetTab();
+    const tab = await getTargetTab(command.args?.url_contains, command.args?.tab_id);
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: (needle) => {

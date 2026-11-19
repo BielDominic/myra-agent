@@ -1847,7 +1847,7 @@ dependencies = [
 
 [[package]]
 name = "myra-widget"
-version = "0.1.0"
+version = "0.25.0"
 dependencies = [
  "log",
  "serde",
@@ -1855,6 +1855,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-log",
+ "url",
 ]
 
 [[package]]

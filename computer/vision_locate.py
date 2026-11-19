@@ -15,9 +15,10 @@ import json
 import base64
 import urllib.request
 from difflib import SequenceMatcher
+from pathlib import Path
 
 
-SCREENSHOTS_DIR = r"C:\computer-agent\screenshots"
+SCREENSHOTS_DIR = os.environ.get("MYRA_SCREENSHOTS", str(Path(os.environ.get("MYRA_DATA_DIR", Path(__file__).resolve().parents[1])) / "screenshots"))
 LLM_EYES_URL = os.environ.get("LLM_EYES_URL", "http://127.0.0.1:8081/v1/chat/completions")
 LLM_EYES_MODEL = os.environ.get("LLM_EYES_MODEL", "Qwen3.5-0.8B")
 
@@ -194,11 +195,11 @@ def _llm_escolher(descricao: str, candidatos: list) -> dict:
 def vision_locate(descricao: str, screenshot_path: str = None) -> dict:
     """
     Acha um elemento na tela pela descricao textual.
-    
+
     Args:
         descricao: texto do elemento (ex: "New Chat", "botao de login")
         screenshot_path: caminho de screenshot existente (opcional)
-    
+
     Returns:
         {
             "status": "ok" | "erro",

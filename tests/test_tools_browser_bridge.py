@@ -39,7 +39,7 @@ from tasks import browser_bridge as bb
 
 TOKEN = "token-de-teste-1234567890"
 
-#: Nomes exatos esperados em ``registrar_ferramentas`` (as 12 ferramentas).
+#: Nomes exatos esperados em ``registrar_ferramentas`` (as 13 ferramentas).
 FERRAMENTAS_ESPERADAS = {
     "browser_get_tabs",
     "browser_read_active_tab",
@@ -48,6 +48,7 @@ FERRAMENTAS_ESPERADAS = {
     "browser_new_tab",
     "browser_close_tab",
     "browser_type_text",
+    "browser_select_option",
     "browser_click_text",
     "browser_scroll",
     "browser_search_google_visivel",
@@ -680,7 +681,7 @@ class RunCommandValidacaoTests(_BaseBridge):
 
 
 # ============================================================
-# 3. Contrato das 12 ferramentas
+# 3. Contrato das 13 ferramentas
 # ============================================================
 
 def test_type_text_rejects_non_string_text_payloads():
@@ -715,7 +716,7 @@ class FerramentasContratoTests(_BaseBridge):
         self.assertEqual(chamada_args, (acao,), f"{acao}: args posicionais inesperados")
         self.assertEqual(chamada_kwargs, esperado, f"{acao}: argumentos inesperados")
 
-    def test_registrar_ferramentas_registra_as_12_com_callable(self):
+    def test_registrar_ferramentas_registra_as_13_com_callable(self):
         registradas: list[tuple[str, object]] = []
 
         def registrar(nome, fn, descricao):
@@ -727,7 +728,7 @@ class FerramentasContratoTests(_BaseBridge):
         bb.registrar_ferramentas(registrar)
 
         nomes = [nome for nome, _ in registradas]
-        self.assertEqual(len(nomes), 12, f"esperava 12 ferramentas, veio {nomes!r}")
+        self.assertEqual(len(nomes), 13, f"esperava 13 ferramentas, veio {nomes!r}")
         self.assertEqual(set(nomes), FERRAMENTAS_ESPERADAS)
         self.assertEqual(len(nomes), len(set(nomes)), "ferramenta registrada duas vezes")
         for nome, fn in registradas:
@@ -794,22 +795,42 @@ class FerramentasContratoTests(_BaseBridge):
         self.assertAcao(self._chamar(bb.browser_type_text, "Label", "")[1], "type_text",
                         {"campo": "Label", "texto": ""})
 
+    def test_browser_select_option(self):
+        self.assertAcao(self._chamar(bb.browser_select_option, "Work authorisation", "Stamp 2")[1],
+                        "select_option", {"campo": "Work authorisation", "opcao": "Stamp 2"})
+        self.assertAcao(self._chamar(bb.browser_select_option, "#availability", "Part-time",
+                                     "linkedin.com", 77)[1],
+                        "select_option", {"campo": "#availability", "opcao": "Part-time",
+                                          "url_contains": "linkedin.com", "tab_id": 77})
+
     def test_browser_click_text(self):
         self.assertAcao(self._chamar(bb.browser_click_text, "Continuar")[1], "click_text",
                         {"text": "Continuar"})
 
     def test_browser_wait_nao_usa_bridge(self):
+        clock = [0.0]
+        def avancar(segundos):
+            clock[0] += segundos
+        fake_time = mock.Mock()
+        fake_time.monotonic.side_effect = lambda: clock[0]
+        fake_time.sleep.side_effect = avancar
+
         with sem_rede(), mock.patch.object(bb, "_run_command") as falso, \
-             mock.patch.object(bb.time, "sleep") as dormir:
+             mock.patch.object(bb, "time", fake_time):
+            total_esperado = 0
             for ms, esperado in ((100, 100), (30000, 30000), (250, 250)):
+                inicio = clock[0]
                 self.assertEqual(
                     bb.browser_wait(ms),
                     {"status": "ok", "result": {"waited": esperado}, "waited": esperado},
                 )
-                dormir.assert_called_with(esperado / 1000.0)
+                self.assertAlmostEqual(clock[0] - inicio, esperado / 1000.0, places=6)
+                total_esperado += esperado / 1000.0
 
         falso.assert_not_called()
-        self.assertEqual(dormir.call_count, 3)
+        chamadas = fake_time.sleep.call_args_list
+        self.assertAlmostEqual(sum(call.args[0] for call in chamadas), total_esperado, places=6)
+        self.assertTrue(all(0 < call.args[0] <= 0.1 for call in chamadas))
 
     def test_browser_wait_rejeita_valores_invalidos(self):
         with sem_rede(), mock.patch.object(bb, "_run_command") as falso, \

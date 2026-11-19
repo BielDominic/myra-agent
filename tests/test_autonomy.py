@@ -51,6 +51,19 @@ class VerificarTestCase(unittest.TestCase):
         v = autonomy.verificar("abra example.com", historico, obs)
         self.assertTrue(v["atingido"])
 
+    def test_negated_click_instruction_does_not_require_interaction(self):
+        objective = "Abra o LinkedIn e leia a página. Não clique em Apply e não envie candidatura."
+        self.assertFalse(autonomy._objetivo_exige_interacao_pagina(objective))
+
+    def test_later_positive_click_still_requires_interaction(self):
+        objective = "Não clique em Apply; depois clique em Continuar."
+        self.assertTrue(autonomy._objetivo_exige_interacao_pagina(objective))
+
+    def test_mojibake_negation_does_not_require_interaction(self):
+        objective = "NA?o clique em Apply e nA?o envie nenhuma candidatura."
+        self.assertFalse(autonomy._objetivo_exige_interacao_pagina(objective))
+        self.assertTrue(autonomy._objetivo_exige_leitura_pagina("leia a pA?gina do LinkedIn"))
+
     def test_navegacao_nao_satisfaz_objetivo_que_exige_clique(self):
         obs = {"status": "ok", "sucesso": True, "objetivo_atingido": True, "motivo": "pagina aberta"}
         resultado = {"status": "ok", "url": "https://example.com/", "title": "Example Domain"}

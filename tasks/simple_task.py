@@ -13,6 +13,7 @@ import re
 import time
 import unicodedata
 import urllib.request
+import urllib.parse
 
 OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
 MODELO_PLANNER = "qwen2.5:3b-instruct-q5_K_M"
@@ -217,7 +218,9 @@ def _extrair_intencao_app_abertura(objetivo: str) -> str | None:
         texto,
     ).strip(" .!?")
     m = re.fullmatch(
-        r"(?:por favor )?(?:abra|abre|abrir|inicie|iniciar|execute|executar) "
+        r"(?:(?:por favor|sim) )?"
+        r"(?:(?:pode|poderia|consegue) abrir|"
+        r"abra|abre|abrir|inicie|iniciar|execute|executar) "
         r"(?:o|a|os|as )?(.+)",
         texto,
     )
@@ -458,13 +461,80 @@ def _decidir_proximo_passo(
     diretriz_recuperacao: str = "",
     acoes_bloqueadas: list | None = None,
 ) -> dict:
-    # Em pedidos de navegação, priorize o navegador Playwright local isolado.
-    # Mantemos as ferramentas de pesquisa disponíveis para outros tipos de objetivo.
+    # Em pedidos de navegador, use a sessao unica do Chrome real via Browser Bridge.
+    # O Playwright isolado nao deve ser misturado ao fluxo de automacao visivel.
     objetivo_lower = objetivo.lower()
 
     # Roteamento deterministico para comandos compostos abrir + pesquisar em app.
     # Mantem cada acao como um passo auditavel no loop de autonomia.
     texto_intencao = _normalizar_intencao(objetivo)
+
+    # Rota deterministica para "abrir YouTube e pesquisar X". Executa a busca
+    # diretamente numa unica aba do Chrome real via Browser Bridge; evita que
+    # o planner misture abrir app, pesquisa Google e paginas Playwright.
+    busca_youtube = re.search(
+        r"\b(?:pesquise|pesquisar|procure|procurar|busque|buscar)\s+(?:por\s+)?['\"]?(.+?)['\"]?(?=\s+no\s+youtube\b|[.!?;]|$)",
+        str(objetivo or ""),
+        re.IGNORECASE,
+    )
+    menciona_youtube = "youtube" in texto_intencao
+    if (
+        not historico
+        and menciona_youtube
+        and busca_youtube
+        and "browser_new_tab" in FERRAMENTAS_DISPONIVEIS
+    ):
+        termo = busca_youtube.group(1).strip().strip("'").strip('"')
+        if termo:
+            url = "https://www.youtube.com/results?search_query=" + urllib.parse.quote(termo)
+            return {
+                "acao": "chamar",
+                "ferramenta": "browser_new_tab",
+                "args": {"url": url},
+                "motivo": "abrir a pesquisa solicitada diretamente em uma unica aba do Chrome conectado",
+            }
+
+    # Busca de vagas no LinkedIn: quando o pedido envolve vagas/candidaturas,
+    # nunca comece lendo a aba ativa (ela pode ser o ChatGPT). Abra primeiro
+    # uma unica busca dedicada, filtrada para part-time e a regiao do usuario.
+    busca_linkedin_vagas = bool(
+        "linkedin" in texto_intencao
+        and re.search(r"\b(vaga|vagas|emprego|empregos|candidatura|candidatar|aplicar|apply)\b", texto_intencao)
+        and not historico
+        and not re.search(r"https?://", str(objetivo or ""), re.IGNORECASE)
+        and "browser_new_tab" in FERRAMENTAS_DISPONIVEIS
+    )
+    if busca_linkedin_vagas:
+        url_linkedin = (
+            "https://www.linkedin.com/jobs/search/?"
+            "keywords=" + urllib.parse.quote("Healthcare Assistant OR Home Care Assistant")
+            + "&location=Longford%2C%20Ireland&distance=50.0&f_JT=P&f_TPR=r2592000"
+        )
+        return {
+            "acao": "chamar",
+            "ferramenta": "browser_new_tab",
+            "args": {"url": url_linkedin},
+            "motivo": "abrir uma unica busca do LinkedIn para vagas part-time de Healthcare/Home Care Assistant na regiao de Longford",
+        }
+
+    # Continuidade de uma tarefa no navegador: pedidos curtos como
+    # "se inscreva no primeiro canal" referem-se a pagina que ja esta aberta.
+    # Leia a aba real do YouTube antes de pesquisar fora ou escolher um alvo.
+    pedido_inscricao_youtube = bool(re.search(
+        r"\b(?:se\s+)?inscreva(?:-se)?\b|\binscrever(?:-se)?\b",
+        texto_intencao,
+    ))
+    if (
+        not historico
+        and pedido_inscricao_youtube
+        and "browser_read_active_tab" in FERRAMENTAS_DISPONIVEIS
+    ):
+        return {
+            "acao": "chamar",
+            "ferramenta": "browser_read_active_tab",
+            "args": {"url_contains": "youtube.com"},
+            "motivo": "continuar na sessao real do Chrome e identificar o primeiro canal antes de se inscrever",
+        }
 
     # Chamada MCP REA explicita: o planner frequentemente achata os campos
     # do argumento (por exemplo, address) em vez de aninha-los em `arguments`.
@@ -503,6 +573,260 @@ def _decidir_proximo_passo(
                 "motivo": "chamada MCP REA explicitamente solicitada; argumentos normalizados e validados pela allowlist",
             }
 
+
+    # Espera explicita e limitada: permite tarefas longas observaveis sem abrir sites.
+    espera_match = re.search(r"\b(?:aguarde|espere|esperar)\s+(\d{1,2})\s*(?:segundos?|s)\b", str(objetivo or ""), re.IGNORECASE)
+    if espera_match and "browser_wait" in FERRAMENTAS_DISPONIVEIS:
+        espera_ms = max(100, min(30000, int(espera_match.group(1)) * 1000))
+        espera_existente = any(h.get("ferramenta") == "browser_wait" for h in historico)
+        if not espera_existente:
+            return {
+                "acao": "chamar", "ferramenta": "browser_wait",
+                "args": {"ms": espera_ms},
+                "motivo": "cumprir a espera solicitada antes de concluir a tarefa",
+            }
+        ultimo_espera = next((h for h in reversed(historico) if h.get("ferramenta") == "browser_wait"), {})
+        if ultimo_espera.get("ok"):
+            return {
+                "acao": "finalizar",
+                "resultado": "Espera concluida: " + str(ultimo_espera.get("resultado") or ""),
+                "motivo": "tempo solicitado aguardado com sucesso",
+            }
+
+    # Leitura explicita da aba ativa: nao depende de o planner adivinhar a ferramenta.
+    pede_aba_ativa = bool(re.search(
+        r"\b(leia|ler|analise|analise|inspecione|verifique)\b.*\b(aba ativa|pagina atual|pagina aberta|site aberto)\b",
+        str(objetivo or ""), re.IGNORECASE,
+    ))
+    if pede_aba_ativa and "browser_read_active_tab" in FERRAMENTAS_DISPONIVEIS:
+        leitura_existente = next(
+            (h for h in reversed(historico) if h.get("ferramenta") == "browser_read_active_tab"),
+            None,
+        )
+        if leitura_existente is None:
+            return {
+                "acao": "chamar", "ferramenta": "browser_read_active_tab",
+                "args": {},
+                "motivo": "ler a aba ativa do Chrome conectado e devolver titulo, URL e texto visivel",
+            }
+        if leitura_existente.get("ok") and leitura_existente.get("resultado"):
+            return {
+                "acao": "finalizar",
+                "resultado": "Leitura da aba ativa concluida: "
+                    + str(leitura_existente.get("resultado"))[:5000],
+                "motivo": "conteudo real extraido da aba ativa",
+            }
+
+    # Fluxo assistido de Easy Apply: abrir formulario, inspecionar e parar antes do envio.
+    pede_easy_apply = bool(
+        re.search(r"\b(candidatura simplificada|easy apply)\b", str(objetivo or ""), re.IGNORECASE)
+        and re.search(r"\b(formulario|formul[aá]rio|primeira etapa)\b", str(objetivo or ""), re.IGNORECASE)
+    )
+    if pede_easy_apply and all(n in FERRAMENTAS_DISPONIVEIS for n in (
+        "browser_read_active_tab", "browser_click_text"
+    )):
+        url_easy_match = re.search(r"https?://[^\s'\"<>]+", str(objetivo or ""), re.IGNORECASE)
+        abertura = next((h for h in reversed(historico) if h.get("ferramenta") == "browser_new_tab"), {})
+        if url_easy_match and not abertura:
+            url_easy = url_easy_match.group(0).rstrip(".,;:!?)]")
+            return {
+                "acao": "chamar", "ferramenta": "browser_new_tab",
+                "args": {"url": url_easy},
+                "motivo": "abrir a vaga exata no Chrome antes de iniciar a candidatura simplificada",
+            }
+        abertura = abertura or next((h for h in reversed(historico) if h.get("ferramenta") == "browser_new_tab"), {})
+        abertura_resultado = abertura.get("resultado") or {}
+        tab_id = abertura_resultado.get("tabId") if isinstance(abertura_resultado, dict) else None
+        if tab_id is None and isinstance(abertura_resultado, dict):
+            tab_id = (abertura_resultado.get("result") or {}).get("tabId")
+        args_aba = {"tab_id": tab_id} if tab_id else {}
+        leituras = [(i, h) for i, h in enumerate(historico) if h.get("ferramenta") == "browser_read_active_tab"]
+        cliques = [(i, h) for i, h in enumerate(historico) if h.get("ferramenta") == "browser_click_text"]
+        if not leituras:
+            return {
+                "acao": "chamar", "ferramenta": "browser_read_active_tab",
+                "args": args_aba,
+                "motivo": "confirmar a vaga e a aba correta antes de abrir o Easy Apply",
+            }
+
+        ultima_leitura = leituras[-1][1]
+        resultado_leitura = ultima_leitura.get("resultado") or {}
+        dados_pagina = resultado_leitura.get("result") if isinstance(resultado_leitura, dict) else {}
+        if not isinstance(dados_pagina, dict):
+            dados_pagina = {}
+        url_pagina = (
+            resultado_leitura.get("url") if isinstance(resultado_leitura, dict) else ""
+        ) or dados_pagina.get("url", "")
+        links_pagina = (
+            resultado_leitura.get("links") if isinstance(resultado_leitura, dict) else None
+        ) or dados_pagina.get("links", [])
+        job_opens = [
+            (i, h) for i, h in enumerate(historico)
+            if h.get("ferramenta") == "browser_new_tab"
+            and h.get("ok")
+            and "/jobs/view/" in str((h.get("args") or {}).get("url", ""))
+        ]
+        if "linkedin.com/jobs/search" in str(url_pagina):
+            if not job_opens:
+                candidatos = [
+                    link for link in links_pagina if isinstance(link, dict)
+                    and "/jobs/view/" in str(link.get("href", ""))
+                ]
+                if not candidatos:
+                    return {
+                        "acao": "finalizar",
+                        "resultado": "A busca do LinkedIn abriu, mas não encontrei links de vagas identificáveis nos resultados. Nenhuma candidatura foi iniciada.",
+                        "motivo": "não há vaga verificável para abrir com segurança",
+                    }
+                escolhido = next(
+                    (link for link in candidatos
+                     if re.search(r"healthcare|home care|care assistant", str(link.get("text", "")), re.I)),
+                    candidatos[0],
+                )
+                url_vaga = str(escolhido.get("href", "")).strip()
+                return {
+                    "acao": "chamar", "ferramenta": "browser_new_tab",
+                    "args": {"url": url_vaga},
+                    "motivo": "abrir a primeira vaga de Healthcare/Home Care Assistant encontrada na busca para verificar requisitos e candidatura",
+                }
+            indice_abertura_vaga, abertura_vaga = job_opens[-1]
+            leitura_detalhe = next(
+                ((i, h) for i, h in reversed(list(enumerate(historico)))
+                 if i > indice_abertura_vaga
+                 and h.get("ferramenta") == "browser_read_active_tab"),
+                None,
+            )
+            if leitura_detalhe is None:
+                detalhe_resultado = abertura_vaga.get("resultado") or {}
+                detalhe_tab_id = detalhe_resultado.get("tabId") if isinstance(detalhe_resultado, dict) else None
+                if detalhe_tab_id is None and isinstance(detalhe_resultado, dict):
+                    detalhe_tab_id = (detalhe_resultado.get("result") or {}).get("tabId")
+                return {
+                    "acao": "chamar", "ferramenta": "browser_read_active_tab",
+                    "args": {"tab_id": detalhe_tab_id} if detalhe_tab_id else {},
+                    "motivo": "ler a descrição da vaga aberta e confirmar se oferece Easy Apply e aceita candidatura part-time",
+                }
+            ultima_leitura = leitura_detalhe[1]
+            resultado_leitura = ultima_leitura.get("resultado") or {}
+            dados_pagina = resultado_leitura.get("result") if isinstance(resultado_leitura, dict) else {}
+            if not isinstance(dados_pagina, dict):
+                dados_pagina = {}
+            url_pagina = (resultado_leitura.get("url") if isinstance(resultado_leitura, dict) else "") or dados_pagina.get("url", "")
+            tab_id_vaga = (
+                (abertura_vaga.get("resultado") or {}).get("tabId")
+                if isinstance(abertura_vaga.get("resultado"), dict) else None
+            )
+            args_aba = {"tab_id": tab_id_vaga} if tab_id_vaga else args_aba
+
+        if not cliques:
+            botoes = (
+                resultado_leitura.get("buttons") if isinstance(resultado_leitura, dict) else None
+            ) or dados_pagina.get("buttons", [])
+            rotulo_easy = next(
+                (label for label in ("Easy Apply", "Candidatura simplificada", "Candidatar-se")
+                 if label in botoes),
+                None,
+            )
+            if not rotulo_easy:
+                return {
+                    "acao": "finalizar",
+                    "resultado": "A vaga foi aberta, mas não há botão Easy Apply visível. Não iniciei candidatura externa nem enviei dados.",
+                    "motivo": "a vaga não oferece Easy Apply identificável nesta página",
+                }
+            return {
+                "acao": "chamar", "ferramenta": "browser_click_text",
+                "args": {"text": rotulo_easy, **args_aba},
+                "motivo": "abrir o formulário Easy Apply identificado na página da vaga, sem enviar",
+            }
+        ultimo_clique_idx, ultimo_clique = cliques[-1]
+        if not ultimo_clique.get("ok"):
+            tentativas = [str((h.get("args") or {}).get("text", "")).casefold() for _, h in cliques]
+            alternativa = next((label for label in ("Candidatura simplificada", "Easy Apply")
+                                if label.casefold() not in tentativas), None)
+            if alternativa:
+                return {
+                    "acao": "chamar", "ferramenta": "browser_click_text",
+                    "args": {"text": alternativa, **args_aba},
+                    "motivo": "tentar o rótulo alternativo do botão Easy Apply",
+                }
+            return {
+                "acao": "finalizar",
+                "resultado": "Não consegui abrir o formulário Easy Apply. Último erro: "
+                    + str(ultimo_clique.get("erro") or "botão não localizado"),
+                "motivo": "nenhum rótulo de candidatura simplificada correspondeu a um botão visível",
+            }
+        leitura_apos_clique = any(i > ultimo_clique_idx for i, _ in leituras)
+        if not leitura_apos_clique:
+            return {
+                "acao": "chamar", "ferramenta": "browser_read_active_tab",
+                "args": args_aba,
+                "motivo": "inspecionar a primeira etapa do formulário sem preencher nem enviar",
+            }
+        ultima_leitura = leituras[-1][1]
+        if ultima_leitura.get("ok"):
+            return {
+                "acao": "finalizar",
+                "resultado": "Formulário Easy Apply aberto e primeira etapa inspecionada. "
+                    + str(ultima_leitura.get("resultado") or "")[:4000]
+                    + " Nenhuma candidatura foi enviada.",
+                "motivo": "teste de candidatura interrompido antes do envio final, conforme solicitado",
+            }
+
+    # Fluxo deterministico abrir URL + ler titulo/conteudo no Chrome real.
+    # Impede que o planner volte a abrir a mesma pagina a cada iteracao.
+    url_leitura = re.search(r"https?://[^\s'\"<>]+", str(objetivo or ""), re.IGNORECASE)
+    pede_leitura = bool(re.search(
+        r"\b(leia|ler|leia o|informe|identifique|verifique|mostre)\b.*\b(t[ií]tulo|title|p[aá]gina|site)\b",
+        str(objetivo or ""), re.IGNORECASE,
+    ))
+    if url_leitura and pede_leitura and all(
+        nome in FERRAMENTAS_DISPONIVEIS
+        for nome in ("browser_new_tab", "browser_read_active_tab")
+    ):
+        url = url_leitura.group(0).rstrip(".,;:!?)]")
+        abriu = any(
+            h.get("ferramenta") == "browser_new_tab"
+            and (h.get("args") or {}).get("url") == url
+            and h.get("ok")
+            for h in historico
+        )
+        leu = any(
+            h.get("ferramenta") == "browser_read_active_tab"
+            and h.get("ok")
+            for h in historico
+        )
+        if not abriu:
+            return {
+                "acao": "chamar", "ferramenta": "browser_new_tab",
+                "args": {"url": url},
+                "motivo": "abrir a URL solicitada uma unica vez no Chrome conectado",
+            }
+        if not leu:
+            parsed_url = urllib.parse.urlparse(url)
+            target_hint = parsed_url.path or parsed_url.netloc
+            abertura = next((h for h in reversed(historico) if h.get("ferramenta") == "browser_new_tab"), {})
+            abertura_resultado = abertura.get("resultado") or {}
+            tab_id = abertura_resultado.get("tabId") if isinstance(abertura_resultado, dict) else None
+            if tab_id is None and isinstance(abertura_resultado, dict):
+                tab_id = (abertura_resultado.get("result") or {}).get("tabId")
+            alvo = {"tab_id": tab_id} if tab_id else {"url_contains": target_hint}
+            return {
+                "acao": "chamar", "ferramenta": "browser_read_active_tab",
+                "args": alvo,
+                "motivo": "ler o titulo e o conteudo da pagina ja aberta, sem criar outra aba",
+            }
+        ultima_leitura = next(
+            (h for h in reversed(historico)
+             if h.get("ferramenta") == "browser_read_active_tab"),
+            {},
+        )
+        if ultima_leitura.get("ok"):
+            return {
+                "acao": "finalizar",
+                "resultado": "Pagina aberta e lida. Resultado da leitura: "
+                    + str(ultima_leitura.get("resultado") or "")[:3500],
+                "motivo": "leitura realizada no Chrome conectado",
+            }
 
     # Fluxo web composto explicito (URL + preencher campo + clicar + confirmar).
     # Evita que um planner pequeno escolha ferramentas irrelevantes, e mantem
@@ -947,7 +1271,8 @@ def _decidir_proximo_passo(
     system = (
         "Voce e um agente autonomo que decide UM passo por vez. "
         "Olhe o objetivo e o historico, e escolha a MELHOR proxima acao. "
-        "As ferramentas browser_* do registro MYRA operam no Playwright local isolado, nunca na sessão real do Chrome. "
+        "As ferramentas browser_* operam na sessao REAL do Google Chrome conectada pela extensao MYRA (Browser Bridge). "
+        "Use a mesma sessao e as abas existentes; nao afirme que nao pode acessar sites quando as ferramentas browser_* estiverem disponiveis. "
         "Responda SEMPRE com JSON puro, sem texto antes ou depois."
     )
 
@@ -1013,6 +1338,15 @@ Se o objetivo menciona EMAIL, GMAIL, CAIXA DE ENTRADA:
 
 Se o objetivo menciona ABRIR SITE, NAVEGAR, PESQUISAR NO GOOGLE:
   -> use browser_new_tab(url) ou browser_search_google(termo).
+
+Se o objetivo pede INSCREVER-SE/SE INSCREVER em um canal do YouTube:
+  -> NAO responda que nao consegue acessar o YouTube se browser_* estiver disponivel.
+  -> primeiro use browser_read_active_tab(url_contains="youtube.com") para inspecionar a pagina atual e identificar o primeiro canal dos resultados.
+  -> confirme pelo DOM o nome do canal e o botao "Inscrever-se" correspondente ao primeiro canal; nao confunda com botoes de videos ou outros canais.
+  -> clique somente no botao "Inscrever-se" associado ao primeiro canal usando browser_click_text ou a ferramenta de clique mais especifica disponivel.
+  -> depois leia a pagina novamente e confirme se o estado mudou para "Inscrito" ou equivalente.
+  -> se a pagina nao for resultados do YouTube, navegue para a pesquisa original ou pergunte qual canal; nunca escolha um canal por suposicao.
+  -> se o YouTube exigir login, CAPTCHA ou confirmacao adicional, pare e informe o bloqueio real ao usuario.
 
 Se o objetivo pede STATUS, DISPONIBILIDADE, CONFIGURACAO ou PR?-REQUISITOS do REA,
 ou pergunta se Node.js/npx estao disponiveis, quais pastas estao autorizadas,
@@ -1155,12 +1489,13 @@ Para finalizar:
 FERRAMENTAS_OBSERVAVEIS = {
     # Visao / desktop
     "vision_click", "vision_type", "vision_locate",
+    "pc_control_action",
     "pc_click", "pc_double_click", "pc_right_click",
     "pc_type_text", "pc_hotkey", "pc_press_key",
     # Browser
     "browser_click_text", "browser_type_text",
     "browser_navigate_active_tab", "browser_new_tab",
-    "browser_read_active_tab", "browser_read_page",
+    "browser_read_page", "browser_read_active_tab",
     "browser_search_google", "browser_search_google_visivel",
     # Email
     "email_send", "email_reply", "email_delete_by_search",
@@ -1686,6 +2021,42 @@ def executar_task(
             # nao comprova instalacao. So aceitamos conclusao quando a arvore UIA
             # mostra o botao Open/Abrir na ficha do Telegram Desktop.
             verificacao = autonomy.verificar(objetivo, historico, observacao)
+            pede_leitura_depois_de_abrir = bool(
+                ferramenta == "browser_new_tab"
+                and re.search(
+                    r"\b(leia|ler|informe|identifique|verifique|mostre)\b.*\b(t[ií]tulo|title|conte[uú]do|resultados?|p[aá]gina|site)\b",
+                    _normalizar_intencao(objetivo),
+                )
+                and not any(h.get("ferramenta") in {"browser_read_active_tab", "browser_read_page"}
+                            for h in historico)
+            )
+            if pede_leitura_depois_de_abrir and verificacao.get("atingido") is True:
+                verificacao = {
+                    **verificacao,
+                    "atingido": None,
+                    "confianca": "indeterminada",
+                    "motivo": "a URL foi aberta, mas o pedido tambem exige leitura do titulo/conteudo; falta executar browser_read_active_tab",
+                }
+            ultimo_clique_idx = max(
+                (i for i, item in enumerate(historico) if item.get("ferramenta") == "browser_click_text"),
+                default=-1,
+            )
+            leitura_depois_do_clique = any(
+                i > ultimo_clique_idx and item.get("ferramenta") in {"browser_read_active_tab", "browser_read_page"}
+                for i, item in enumerate(historico)
+            )
+            pede_inspecao_formulario = bool(
+                ferramenta == "browser_click_text"
+                and re.search(r"\b(formulario|formul[aá]rio|primeira etapa)\b", _normalizar_intencao(objetivo))
+                and not leitura_depois_do_clique
+            )
+            if pede_inspecao_formulario and verificacao.get("atingido") is True:
+                verificacao = {
+                    **verificacao,
+                    "atingido": None,
+                    "confianca": "indeterminada",
+                    "motivo": "o botao abriu a candidatura, mas falta inspecionar os campos da primeira etapa antes de encerrar",
+                }
             intencao_store_instalacao = _extrair_intencao_app_busca(objetivo)
             eh_instalacao_store = bool(
                 intencao_store_instalacao
@@ -1950,4 +2321,3 @@ def retomar_task(task_id: str, max_passos: int | None = None) -> dict:
         historico=historico,
         passo_inicial=len(historico) + 1,
     )
-

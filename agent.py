@@ -1,5 +1,6 @@
 import asyncio
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -70,9 +71,11 @@ context = None
 page = None
 playwright = None
 
-PERFIL_DIR = r"C:\computer-agent\chrome_profile"
-NOTES_FILE = r"C:\computer-agent\notes.txt"
-WORKSPACE_DIR = r"C:\computer-agent\workspace"
+MYRA_PROJECT_DIR = Path(__file__).resolve().parent
+MYRA_DATA_DIR = Path(os.environ.get("MYRA_DATA_DIR", str(MYRA_PROJECT_DIR))).expanduser()
+PERFIL_DIR = os.environ.get("MYRA_CHROME_PROFILE", str(MYRA_DATA_DIR / "chrome_profile"))
+NOTES_FILE = os.environ.get("MYRA_NOTES_FILE", str(MYRA_DATA_DIR / "notes.txt"))
+WORKSPACE_DIR = os.environ.get("MYRA_WORKSPACE", str(MYRA_DATA_DIR / "workspace"))
 
 
 def caminho_no_workspace(caminho: str, base: str | None = None) -> str:
@@ -91,7 +94,7 @@ def caminho_no_workspace(caminho: str, base: str | None = None) -> str:
     return str(destino)
 
 
-SCREENSHOTS_DIR = r"C:\computer-agent\screenshots"
+SCREENSHOTS_DIR = os.environ.get("MYRA_SCREENSHOTS", str(MYRA_DATA_DIR / "screenshots"))
 LLM_EYES_URL = "http://127.0.0.1:8081/v1/chat/completions"
 
 OPENWEBUI_URL = "http://127.0.0.1:8080"
@@ -125,6 +128,8 @@ _widget_status = {
     "resultado": None,
     "erro": None,
     "historico": [],
+    "chat_activity": False,
+    "chat_activity_at": None,
 }
 
 _widget_listeners = []
@@ -1291,10 +1296,22 @@ def task_detalhe(task_id: str):
         return {"status": "erro", "result": f"{type(e).__name__}: {e}"}
 
 
+@app.post("/chat_activity")
+async def chat_activity(request: Request):
+    """Sinaliza atividade de conversa sem alterar o estado de execução de tarefas."""
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    active = bool(payload.get("active")) if isinstance(payload, dict) else False
+    _widget_set(chat_activity=active, chat_activity_at=time.time())
+    return {"status": "ok", "active": active}
+
+
 @app.get("/task_events")
 async def task_events(request: Request):
     """SSE: envia atualizacoes assim que o estado do widget muda."""
-    from fastapi.responses import StreamingResponse
+    from fastapi.responses import Response
     import asyncio
     import json as _json
 
@@ -3895,21 +3912,11 @@ def _t_browser_search_google_visivel(termo: str, delay_typing_ms: int = 150, scr
 def _t_browser_wait(ms: int = 1000):
     return _t_playwright_wait(seconds=max(0, min(int(ms), 30000)) / 1000)
 
-for _name, _fn, _description in (
-    ("browser_get_tabs", _t_browser_get_tabs, "Lista páginas do navegador Playwright isolado da MYRA; não acessa abas reais do Chrome."),
-    ("browser_read_active_tab", _t_browser_read_active_tab, "Lê a página atual do Playwright isolado. Opcional: url_contains para validar a URL atual."),
-    ("browser_read_page", _t_browser_read_page, "Lê título, URL, texto e links usando Playwright; opcionalmente navega para url antes de ler."),
-    ("browser_navigate_active_tab", _t_browser_navigate_active_tab, "Navega a página Playwright atual para uma URL HTTP/HTTPS."),
-    ("browser_new_tab", _t_browser_new_tab, "Abre URL numa nova página Playwright isolada da MYRA; não usa a sessão real do Chrome."),
-    ("browser_close_tab", _t_browser_close_tab, "Fecha uma página Playwright por índice opcional tab_id; cria uma página em branco se necessário."),
-    ("browser_type_text", _t_browser_type_text, "Preenche um campo da página Playwright; campos: campo e texto."),
-    ("browser_click_text", _t_browser_click_text, "Clica por texto visível na página Playwright."),
-    ("browser_scroll", _t_browser_scroll, "Rola a página Playwright; direcao up/down/top/bottom e quantidade em pixels."),
-    ("browser_search_google_visivel", _t_browser_search_google_visivel, "Pesquisa no Google com Playwright local e mantém a página aberta; não usa extensão Chrome."),
-    ("browser_search_google", _t_browser_search_google, "Pesquisa no Google com Playwright local e retorna resultado."),
-    ("browser_wait", _t_browser_wait, "Aguarda milissegundos sem bloquear o Chrome real; usa a página Playwright local."),
-):
-    registrar_ferramenta(_name, _fn, _description)
+# IMPORTANTE: nao sobrescrever os nomes browser_* registrados acima pelo
+# Browser Bridge. O planner deve controlar uma unica sessao: o Chrome real
+# conectado pela extensao MYRA. Os helpers Playwright acima ficam internos
+# para compatibilidade/diagnostico, mas nao sao publicados como ferramentas.
+# O registro autoritativo e browser_bridge.registrar_ferramentas(registrar_ferramenta).
 
 # Ferramentas de sistema (arquivos, codigo, email, PC, utilitarias)
 import tasks.system_tools as _system_tools
@@ -4079,6 +4086,21 @@ def _run_remote_task(data: TaskSimple):
         with _remote_task_lock:
             _remote_task_scheduled = False
 
+
+@app.post("/task_start")
+def task_start(data: TaskSimple, background_tasks: BackgroundTasks):
+    """Aceita uma tarefa local e a executa em background para liberar a interface."""
+    global _remote_task_scheduled
+    if not data.objetivo.strip():
+        raise HTTPException(status_code=422, detail="Informe um objetivo de tarefa nao vazio.")
+    with _remote_task_lock:
+        if _remote_task_scheduled or _widget_status.get("state") == "running":
+            raise HTTPException(status_code=409, detail="Ja existe uma tarefa em execucao.")
+        _remote_task_scheduled = True
+        background_tasks.add_task(_run_remote_task, data)
+    return {"status": "accepted", "result": "Tarefa recebida pela MYRA."}
+
+
 @app.get("/remote/v1/status")
 def remote_v1_status(_authorized: bool = Depends(_require_remote_api)):
     status = _widget_status if isinstance(_widget_status, dict) else {}
@@ -4238,6 +4260,16 @@ _MYRA_CHAT_MEMORY_PATH = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) 
 _MYRA_CHAT_MEMORY_LOCK = threading.RLock()
 _MYRA_CHAT_MAX_TURNS = 12
 _MYRA_CHAT_MODEL = os.environ.get("MYRA_CHAT_MODEL", "qwen2.5:3b-instruct-q5_K_M")
+
+_MYRA_DESKTOP_SETTINGS_PATH = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "MYRA" / "desktop_settings.json"
+try:
+    _desktop_settings = json.loads(_MYRA_DESKTOP_SETTINGS_PATH.read_text(encoding="utf-8"))
+    _saved_chat_model = str(_desktop_settings.get("chat_model") or "").strip()
+    if _saved_chat_model:
+        _MYRA_CHAT_MODEL = _saved_chat_model
+except Exception:
+    pass
+
 
 
 def _myra_message_text(content):
@@ -4506,11 +4538,53 @@ async def _myra_route_message(data, messages, user_msg, model):
         except Exception as exc:
             answer = f"Falha ao executar a ação ({type(exc).__name__}: {str(exc)[:300]})."
             _widget_set(state="error", terminado_em=time.time(), erro=answer)
+    elif _re.search(r"\b(o que (?:voce|você) (?:consegue|pode) fazer|mostre tudo|mostrar tudo|suas capacidades|seus recursos|what can you do)\b", user_msg.lower()):
+        answer = (
+            "Neste ambiente, posso ajudar com:\n\n"
+            "**Conversa e programação**\n"
+            "- Explicar, escrever, revisar, corrigir e documentar código.\n"
+            "- Planejar projetos e orientar testes e depuração.\n"
+            "- Code Studio: editar HTML, CSS e JavaScript, visualizar o resultado dentro da MYRA e importar/exportar arquivos individuais.\n\n"
+            "**Ações locais**\n"
+            "- Executar tarefas pelo agente local, quando a ferramenta correspondente estiver disponível.\n"
+            "- Abrir aplicativos e páginas, interagir com o navegador e trabalhar com arquivos do Windows conforme as ferramentas habilitadas.\n"
+            "- Consultar e trocar o modelo local do Ollama.\n\n"
+            "**Projeto e integrações**\n"
+            "- Consultar o repositório Git conectado e usar operações Git locais, respeitando bloqueios por alterações pendentes.\n"
+            "- Exportar uma cópia ZIP do projeto.\n"
+            "- Cadastrar e testar endpoints HTTPS públicos.\n\n"
+            "**Limites atuais**\n"
+            "- Os arquivos do Code Studio ainda ficam no armazenamento local da interface; não são automaticamente sincronizados com pastas reais do Windows.\n"
+            "- Cadastrar/testar uma API não significa que posso executar qualquer operação dela automaticamente.\n"
+            "- A área de plugins ainda não equivale a um catálogo de plugins instaláveis.\n"
+            "- Não devo afirmar que executei algo sem confirmação do agente.\n\n"
+            "Exemplo: peça para criar uma página HTML com formulário, validar os campos, mostrar uma prévia e exportar os arquivos."
+        )
     else:
         system = (
-            "Você é MYRA, assistente pessoal local. Responda no idioma do usuário, de forma direta e natural. "
-            "Use o histórico recente para entender referências como 'isso', 'continue' e perguntas de acompanhamento. "
-            "Não afirme que executou ações sem confirmação real. Não invente fatos."
+            'You are MYRA, a local productivity, programming and automation assistant. '
+            'You can create, explain, review, debug, test and document code, plan projects, '
+            'and use available local tools when execution is requested. Never claim you lack '
+            'programming capabilities. Distinguish advice, code generation and actual tool execution. '
+            'When asked what you can do in this environment, give a practical inventory: local chat and '
+            'reasoning; code explanation, generation, review and debugging; Code Studio HTML/CSS/JS editor '
+            'with in-app preview and import/export; task execution through the local computer agent; '
+            'browser and Windows app/file operations only when the relevant tools are available; local '
+            'Ollama model selection; Git operations through the connected local repository; ZIP export '
+            'of the project; and registration/testing of public HTTPS API endpoints. Explain limits: '
+            'Code Studio browser storage is not the Windows filesystem, API registration does not mean '
+            'the agent can autonomously call every API, plugin cards are not installed plugins, and '
+            'Git operations may be blocked by uncommitted changes. Do not invent calendar classes, '
+            'connected services, tools, or successful actions. Offer one short real example the user '
+            'can request. Reply in the user language and use recent conversation context. If essential '
+            'information is missing or choices materially change the result, ask instead of guessing. '
+            'For two or more independent decisions, output an interactive questionnaire on its own line '
+            'using the exact markers [[MYRA_QUESTIONS]] and [[/MYRA_QUESTIONS]], with valid JSON between: '
+            'object keys title and questions; each question has id, label, type (choice or text), '
+            'optional options array, placeholder and required boolean. Maximum five questions. '
+            'For one simple doubt, ask one natural question instead. Continue after answers without '
+            'repeating questions. Never claim an action succeeded without confirmation and never '
+            'invent capabilities, results or integrations.'
         )
         prompt_messages = [{"role": "system", "content": system}] + history[-24:]
         payload = {
@@ -4541,6 +4615,58 @@ async def _myra_route_message(data, messages, user_msg, model):
 
 
 
+
+@app.get("/models/local")
+async def myra_list_local_models():
+    """Lista modelos instalados no Ollama e informa o modelo de conversa ativo."""
+    try:
+        req = urllib.request.Request("http://127.0.0.1:11434/api/tags", headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=3) as response:
+            payload = json.loads(response.read().decode("utf-8", errors="replace"))
+        models = []
+        for item in payload.get("models", []):
+            details = item.get("details") or {}
+            models.append({
+                "name": item.get("name") or item.get("model") or "",
+                "size": item.get("size", 0),
+                "parameter_size": details.get("parameter_size", ""),
+                "quantization_level": details.get("quantization_level", ""),
+                "family": details.get("family", ""),
+            })
+        return {"models": models, "selected": _MYRA_CHAT_MODEL}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Ollama indisponível: {type(exc).__name__}")
+
+
+@app.post("/models/chat")
+async def myra_select_chat_model(payload: dict):
+    """Seleciona apenas o modelo de conversa; o planner de tarefas permanece independente."""
+    global _MYRA_CHAT_MODEL
+    requested = str(payload.get("model") or "").strip()
+    if not requested or len(requested) > 160:
+        raise HTTPException(status_code=400, detail="Nome de modelo inválido.")
+    try:
+        req = urllib.request.Request("http://127.0.0.1:11434/api/tags", headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=3) as response:
+            available = json.loads(response.read().decode("utf-8", errors="replace")).get("models", [])
+        names = {str(item.get("name") or item.get("model") or "") for item in available}
+        if requested not in names:
+            raise HTTPException(status_code=404, detail="Esse modelo não está instalado no Ollama.")
+        _MYRA_CHAT_MODEL = requested
+        _MYRA_DESKTOP_SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        current = {}
+        try:
+            current = json.loads(_MYRA_DESKTOP_SETTINGS_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+        current["chat_model"] = requested
+        _MYRA_DESKTOP_SETTINGS_PATH.write_text(json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
+        return {"ok": True, "selected": _MYRA_CHAT_MODEL, "scope": "chat"}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Não foi possível atualizar o modelo: {type(exc).__name__}")
+
 @app.get("/v1/models")
 async def openai_list_models():
     """Lista modelos (formato OpenAI)."""
@@ -4554,3 +4680,168 @@ if __name__ == "__main__":
     # Keep the legacy local API bound to loopback. Remote access must go through
     # the dedicated Bearer-authenticated /remote/v1 routes and a private proxy.
     uvicorn.run(app, host="127.0.0.1", port=8000, workers=1)
+
+
+# MYRA Desktop: integra??o Git/GitHub e exporta??o do workspace.
+from fastapi.responses import Response
+import io
+import zipfile
+
+_MYRA_REPO_ROOT = Path(os.environ.get("MYRA_REPO_ROOT", str(Path(__file__).resolve().parent))).expanduser()
+_MYRA_EXPORT_EXCLUDES = {".git", ".venv", "venv", "node_modules", "__pycache__", ".pytest_cache",
+                         "target", "target-fix", "target-desktop", "chrome_profile", "chromium_profile",
+                         "screenshots", "_backups", "recovery-backups", "backups", "_patches",
+                         "logs", ".idea", ".vscode", "dist", "build"}
+
+def _myra_git(args, timeout=20):
+    return subprocess.run(["git", "-C", str(_MYRA_REPO_ROOT), *args], capture_output=True,
+                          text=True, encoding="utf-8", errors="replace", timeout=timeout,
+                          creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+@app.get("/workspace/status")
+def myra_workspace_status():
+    branch = _myra_git(["branch", "--show-current"]).stdout.strip()
+    remote = _myra_git(["remote", "get-url", "origin"])
+    status = _myra_git(["status", "--short"])
+    repo = {}
+    gh_ok = False
+    try:
+        result = subprocess.run(["gh", "repo", "view", "--json", "nameWithOwner,url,isPrivate,defaultBranchRef"],
+                                cwd=str(_MYRA_REPO_ROOT), capture_output=True, text=True,
+                                encoding="utf-8", errors="replace", timeout=12,
+                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if result.returncode == 0:
+            repo = json.loads(result.stdout or "{}")
+            gh_ok = True
+    except Exception:
+        pass
+    return {"root": str(_MYRA_REPO_ROOT), "branch": branch, "remote": remote.stdout.strip() if remote.returncode == 0 else "",
+            "dirty": bool(status.stdout.strip()), "changes": status.stdout.splitlines()[:100],
+            "github_authenticated": gh_ok, "repository": repo,
+            "github_login": (repo.get("nameWithOwner", "").split("/")[0] if gh_ok else None)}
+
+@app.post("/github/sync")
+def myra_github_sync(payload: dict):
+    action = str(payload.get("action") or "").lower()
+    if action not in {"fetch", "pull", "push"}:
+        raise HTTPException(status_code=400, detail="A??o inv?lida. Use fetch, pull ou push.")
+    if action == "pull" and _myra_git(["status", "--porcelain"]).stdout.strip():
+        raise HTTPException(status_code=409, detail="Existem altera??es locais. Fa?a backup/commit antes de atualizar para evitar sobrescrever trabalho.")
+    args = {"fetch": ["fetch", "origin"], "pull": ["pull", "--ff-only", "origin", "HEAD"],
+            "push": ["push", "-u", "origin", "HEAD"]}[action]
+    result = _myra_git(args, timeout=120)
+    if result.returncode:
+        raise HTTPException(status_code=409, detail=(result.stderr or result.stdout or "Falha no Git")[-1800:])
+    return {"ok": True, "action": action, "output": (result.stdout or result.stderr)[-1800:]}
+
+@app.get("/workspace/export")
+def myra_workspace_export():
+    memory = io.BytesIO()
+    with zipfile.ZipFile(memory, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=5) as archive:
+        for root, dirs, files in os.walk(_MYRA_REPO_ROOT):
+            dirs[:] = [name for name in dirs if name not in _MYRA_EXPORT_EXCLUDES]
+            root_path = Path(root)
+            for filename in files:
+                path = root_path / filename
+                rel = path.relative_to(_MYRA_REPO_ROOT)
+                if filename.lower() in {".env", ".env.local", ".env.production", "id_rsa", "id_ed25519"}:
+                    continue
+                if filename.endswith((".pyc", ".pyo", ".log")) or ".bak" in filename.lower() or ".before_" in filename.lower():
+                    continue
+                if filename in {".telegram_chat_memory.json", ".telegram_chat_first_messages.json", "notes.txt"}:
+                    continue
+                try:
+                    if path.stat().st_size > 25 * 1024 * 1024:
+                        continue
+                    archive.write(path, arcname=str(Path("myra-agent") / rel))
+                except (OSError, PermissionError):
+                    continue
+    memory.seek(0)
+    return Response(content=memory.getvalue(), media_type="application/zip",
+                    headers={"Content-Disposition": 'attachment; filename="myra-agent-workspace.zip"'})
+
+
+# MYRA Desktop: APIs HTTPS configuraveis (credenciais nunca persistidas).
+_MYRA_API_INTEGRATIONS_PATH = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "MYRA" / "api_integrations.json"
+
+def _myra_api_integrations_read():
+    try:
+        value = json.loads(_MYRA_API_INTEGRATIONS_PATH.read_text(encoding="utf-8"))
+        return value if isinstance(value, list) else []
+    except Exception:
+        return []
+
+def _myra_validate_public_https(url: str):
+    import ipaddress
+    import socket
+    parsed = urllib.parse.urlparse(str(url or "").strip())
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+        raise HTTPException(status_code=400, detail="Informe uma URL HTTPS publica, sem usuario ou senha.")
+    if parsed.port not in (None, 443):
+        raise HTTPException(status_code=400, detail="Somente HTTPS na porta 443 e permitido.")
+    host = parsed.hostname.rstrip(".").lower()
+    if host in {"localhost"} or host.endswith((".local", ".internal", ".localhost")):
+        raise HTTPException(status_code=400, detail="Hosts locais ou internos nao sao permitidos.")
+    try:
+        addresses = {item[4][0] for item in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)}
+    except Exception:
+        raise HTTPException(status_code=400, detail="Nao foi possivel resolver o host da API.") from None
+    if not addresses or any(not ipaddress.ip_address(address).is_global for address in addresses):
+        raise HTTPException(status_code=400, detail="A API precisa resolver exclusivamente para enderecos IP publicos.")
+    return parsed.geturl()
+
+@app.get("/integrations/apis")
+def myra_list_api_integrations():
+    return {"integrations": _myra_api_integrations_read()}
+
+@app.post("/integrations/apis")
+def myra_save_api_integration(payload: dict):
+    name = str(payload.get("name") or "").strip()[:80]
+    url = _myra_validate_public_https(str(payload.get("url") or "").strip())
+    if not name:
+        raise HTTPException(status_code=400, detail="Informe um nome para a API.")
+    integrations = _myra_api_integrations_read()
+    item_id = hashlib.sha256((name.casefold() + "|" + url).encode("utf-8")).hexdigest()[:16]
+    item = {"id": item_id, "name": name, "url": url}
+    integrations = [item if entry.get("id") == item_id else entry for entry in integrations]
+    if not any(entry.get("id") == item_id for entry in integrations):
+        integrations.append(item)
+    _MYRA_API_INTEGRATIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _MYRA_API_INTEGRATIONS_PATH.write_text(json.dumps(integrations, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "integration": item, "integrations": integrations}
+
+@app.delete("/integrations/apis/{integration_id}")
+def myra_delete_api_integration(integration_id: str):
+    integrations = _myra_api_integrations_read()
+    updated = [item for item in integrations if item.get("id") != integration_id]
+    if len(updated) == len(integrations):
+        raise HTTPException(status_code=404, detail="Integracao nao encontrada.")
+    _MYRA_API_INTEGRATIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _MYRA_API_INTEGRATIONS_PATH.write_text(json.dumps(updated, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "integrations": updated}
+
+@app.post("/integrations/apis/test")
+def myra_test_api_integration(payload: dict):
+    url = _myra_validate_public_https(str(payload.get("url") or "").strip())
+    token = str(payload.get("bearer_token") or "").strip()
+    if len(token) > 4096:
+        raise HTTPException(status_code=400, detail="Token muito longo.")
+    headers = {"Accept": "application/json, text/plain;q=0.9, */*;q=0.1", "User-Agent": "MYRA-Local-Agent/1.0"}
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    request = urllib.request.Request(url, headers=headers, method="GET")
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+    opener = urllib.request.build_opener(_NoRedirect)
+    try:
+        with opener.open(request, timeout=12) as response:
+            body = response.read(4096).decode("utf-8", errors="replace")
+            return {"ok": 200 <= response.status < 300, "status": response.status,
+                    "content_type": response.headers.get("Content-Type", ""),
+                    "preview": body[:1200]}
+    except urllib.error.HTTPError as exc:
+        body = exc.read(2048).decode("utf-8", errors="replace")
+        return {"ok": False, "status": exc.code, "error": str(exc.reason), "preview": body[:800]}
+    except Exception as exc:
+        return {"ok": False, "status": None, "error": f"{type(exc).__name__}: {str(exc)[:240]}"}

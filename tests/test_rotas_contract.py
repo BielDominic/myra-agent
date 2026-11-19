@@ -70,6 +70,8 @@ CHAVES_WIDGET = {
     "erro",
     "historico",
     "computer_activity",
+    "chat_activity",
+    "chat_activity_at",
 }
 
 DIAS_SEMANA = ("segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo")

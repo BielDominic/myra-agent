@@ -288,6 +288,23 @@ def test_explicit_web_search_command_routes_to_computer():
     assert routed == [("123", "Pesquise na web como plantar tomates")]
 
 
+def test_contextualized_desktop_command_routes_to_task_not_chat():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    routed = []
+    bot._start_routed_task = lambda chat_id, objective: routed.append((chat_id, objective))
+    objective = (
+        "No Notepad, clique no menu View e verifique visualmente se o menu foi aberto. "
+        "Não execute nenhuma outra ação."
+    )
+
+    assert TelegramBot._is_explicit_computer_action(objective)
+    bot._route_text_message("123", objective)
+
+    assert routed == [("123", objective)]
+    assert not any("11434/api/generate" in call[1] for call in http.calls)
+
+
 def test_uncertain_intent_defaults_to_chat_not_computer_action():
     http = FakeHTTP()
     http.intent_response = "nao sei"
@@ -477,6 +494,8 @@ def test_direct_open_application_target_resolves_windows_aliases():
     assert TelegramBot._direct_open_application_target("Abra os meus arquivos") == "explorador de arquivos"
     assert TelegramBot._direct_open_application_target("Abra o Chrome") == "chrome"
     assert TelegramBot._direct_open_application_target("Abra o Google") is None
+    assert TelegramBot._direct_open_application_target("Sim, pode abrir o Bloco de Notas.") == "bloco de notas"
+    assert TelegramBot._direct_open_application_target("Pode abrir o Bloco de Notas.") == "bloco de notas"
 
 
 def test_open_local_application_uses_safe_application_endpoint():

@@ -72,7 +72,7 @@ fn resize_window(window: tauri::Window, width: u32, height: u32) -> Result<(), S
 }
 
 #[tauri::command]
-fn set_widget_size(window: tauri::Window, size: String) -> Result<(), String> {
+fn set_widget_size(app: tauri::AppHandle, size: String) -> Result<(), String> {
     let (width, height) = match size.as_str() {
         "idle" => (200.0, 44.0),
         "pill" => (200.0, 44.0),
@@ -80,6 +80,9 @@ fn set_widget_size(window: tauri::Window, size: String) -> Result<(), String> {
         "compact" => (90.0, 44.0),
         _ => return Err(format!("unknown widget size: {size}")),
     };
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "janela principal do widget nao encontrada".to_string())?;
     window
         .set_size(tauri::LogicalSize::new(width, height))
         .map_err(|e| e.to_string())
@@ -210,8 +213,55 @@ async fn cancel_task() -> Result<serde_json::Value, String> {
 }
 
 // ============================================================
+// IPC: focus the existing Chrome window for human takeover
+#[tauri::command]
+fn focus_chrome_window() -> Result<serde_json::Value, String> {
+    let script = r#"
+Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class MyraForeground { [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd); [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow); }'
+$p = Get-Process chrome -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+if ($null -eq $p) { @{ok=$false;error="Nenhuma janela visível do Chrome foi encontrada."} | ConvertTo-Json -Compress; exit 0 }
+[void][MyraForeground]::ShowWindowAsync($p.MainWindowHandle, 9)
+$ok = [MyraForeground]::SetForegroundWindow($p.MainWindowHandle)
+@{ok=$ok;processId=$p.Id} | ConvertTo-Json -Compress
+"#;
+    let output = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script])
+        .output().map_err(|e| e.to_string())?;
+    if !output.status.success() { return Err(String::from_utf8_lossy(&output.stderr).to_string()); }
+    serde_json::from_slice(&output.stdout).map_err(|_| String::from_utf8_lossy(&output.stdout).to_string())
+}
 // RUN
 // ============================================================
+
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let parsed = url::Url::parse(&url).map_err(|e| e.to_string())?;
+    if !matches!(parsed.scheme(), "https" | "http") {
+        return Err("Somente links HTTP/HTTPS podem ser abertos externamente.".to_string());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("rundll32.exe")
+            .args(["url.dll,FileProtocolHandler", parsed.as_str()])
+            .spawn().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(parsed.as_str()).spawn().map_err(|e| e.to_string())?;
+        Ok(())
+    }
+}
+
+#[tauri::command]
+fn focus_desktop_window(app: tauri::AppHandle) -> Result<(), String> {
+    let win = app.get_webview_window("desktop")
+        .ok_or_else(|| "janela desktop nao encontrada".to_string())?;
+    win.show().map_err(|e| e.to_string())?;
+    win.set_focus().map_err(|e| e.to_string())?;
+    Ok(())
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -223,6 +273,11 @@ pub fn run() {
                 overlay.set_ignore_cursor_events(true)?;
                 overlay.set_always_on_top(true)?;
                 overlay.hide()?;
+            }
+            // The normal desktop workspace is the primary app window; show it on launch.
+            if let Some(desktop) = app.get_webview_window("desktop") {
+                desktop.show()?;
+                desktop.set_focus()?;
             }
             Ok(())
         })
@@ -236,7 +291,10 @@ pub fn run() {
             get_cursor_relative_to_window,
             get_mouse_pos,
             set_ignore_cursor_events,
-            set_overlay_visible
+            set_overlay_visible,
+            focus_chrome_window,
+            open_external_url,
+            focus_desktop_window
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

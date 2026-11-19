@@ -1,23 +1,21 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "MYRA widget and transparent visual overlay",
-  "windows": [
-    "main",
-    "overlay"
-  ],
+  "description": "MYRA desktop and widget capabilities",
+  "windows": ["main", "desktop"],
   "permissions": [
     "core:default",
-    "core:window:allow-set-size",
     "core:window:allow-close",
-    "core:window:allow-set-focus",
-    "core:window:allow-set-always-on-top",
-    "core:window:allow-start-dragging",
     "core:window:allow-show",
     "core:window:allow-hide",
     "core:window:allow-set-ignore-cursor-events",
-    "core:window:allow-show",
-    "core:window:allow-hide",
-    "core:window:allow-set-ignore-cursor-events"
+    "core:window:allow-start-dragging",
+    "core:window:allow-start-resize-dragging",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position",
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-toggle-maximize"
   ]
 }

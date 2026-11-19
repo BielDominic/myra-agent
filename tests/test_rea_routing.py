@@ -3,6 +3,35 @@ from unittest import mock
 from tasks import simple_task
 
 
+def test_autorizacao_pode_abrir_app_rota_para_ferramenta_deterministica():
+    objetivo = "Sim, pode abrir o Bloco de Notas."
+    assert simple_task._extrair_intencao_app_abertura(objetivo) == "bloco de notas"
+
+    original_tools = dict(simple_task.FERRAMENTAS_DISPONIVEIS)
+    original_descriptions = dict(simple_task.FERRAMENTAS_DESCRICOES)
+    try:
+        simple_task.FERRAMENTAS_DISPONIVEIS.clear()
+        simple_task.FERRAMENTAS_DESCRICOES.clear()
+        simple_task.registrar_ferramenta(
+            "pc_open_application",
+            lambda nome: {"status": "ok", "verified": True, "nome": nome},
+            "Abre um aplicativo e verifica a janela",
+        )
+        with mock.patch.object(
+            simple_task, "_llm",
+            side_effect=AssertionError("autorizacao nao deve cair no planner generico"),
+        ):
+            decisao = simple_task._decidir_proximo_passo(objetivo, [])
+        assert decisao["acao"] == "chamar"
+        assert decisao["ferramenta"] == "pc_open_application"
+        assert decisao["args"] == {"nome": "bloco de notas"}
+    finally:
+        simple_task.FERRAMENTAS_DISPONIVEIS.clear()
+        simple_task.FERRAMENTAS_DISPONIVEIS.update(original_tools)
+        simple_task.FERRAMENTAS_DESCRICOES.clear()
+        simple_task.FERRAMENTAS_DESCRICOES.update(original_descriptions)
+
+
 def test_status_rea_forca_chamada_da_ferramenta_mesmo_se_planner_promete():
     objetivo = "Verifique o status do REA usando a ferramenta rea_status e apresente os valores retornados, sem inventar resultados."
     original_tools = dict(simple_task.FERRAMENTAS_DISPONIVEIS)

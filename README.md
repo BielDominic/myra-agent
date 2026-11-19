@@ -568,3 +568,8 @@ MYRA builds on open-source and community tools, including:
 ---
 
 **MYRA — local models, computer-use tools, and an evolving path toward a more capable personal agent.**
+
+
+## Instalação no Windows
+
+Consulte [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md) para os requisitos, instalação do backend local e configuração da extensão Chrome. Os instaladores x64 serão publicados em [GitHub Releases](https://github.com/BielDominic/myra-agent/releases).

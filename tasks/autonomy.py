@@ -123,7 +123,7 @@ def _objetivo_exige_leitura_pagina(objetivo: str) -> bool:
     texto = unicodedata.normalize("NFKD", str(objetivo or "").casefold())
     texto = "".join(caractere for caractere in texto if not unicodedata.combining(caractere))
     marcadores = (
-        "leia a pagina", "ler a pagina", "leia o conteudo", "ler o conteudo",
+        "leia a ", "ler a ", "leia o conteudo", "ler o conteudo",
         "conteudo da pagina", "texto da pagina", "texto principal da pagina",
         "primeiro paragrafo", "paragrafo da pagina", "extraia o texto",
         "read the page", "read page content", "page content", "first paragraph",
@@ -133,7 +133,7 @@ def _objetivo_exige_leitura_pagina(objetivo: str) -> bool:
 
 
 def _objetivo_exige_interacao_pagina(objetivo: str) -> bool:
-    """Detecta pedidos explicitos de clique, digitacao, selecao ou envio."""
+    """Detecta pedidos explicitos de clique, digitacao, selecao ou envio, respeitando negacoes."""
     texto = unicodedata.normalize("NFKD", str(objetivo or "").casefold())
     texto = "".join(caractere for caractere in texto if not unicodedata.combining(caractere))
     marcadores = (
@@ -144,7 +144,18 @@ def _objetivo_exige_interacao_pagina(objetivo: str) -> bool:
         "click the", "click on", "type into", "fill in", "submit the",
         "press the key", "select the option",
     )
-    return any(marcador in texto for marcador in marcadores)
+    for marcador in marcadores:
+        inicio = 0
+        while True:
+            posicao = texto.find(marcador, inicio)
+            if posicao < 0:
+                break
+            prefixo = texto[max(0, posicao - 16):posicao]
+            # Uma ação explicitamente negada não deve ser tratada como requisito.
+            if not re.search(r"(?:\bn.{0,2}o\b|\bsem\b)\s*$", prefixo):
+                return True
+            inicio = posicao + len(marcador)
+    return False
 
 
 def _resultado_contem_conteudo_pagina(resultado) -> bool:

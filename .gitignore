@@ -201,3 +201,6 @@ recovery-backups/**
 *.env
 !.env.example
 
+
+# Installer payload is generated from source during release builds
+installer/backend/

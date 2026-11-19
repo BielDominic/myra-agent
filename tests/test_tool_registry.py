@@ -9,7 +9,7 @@ registo (``_executar_passo``).
 Regras de seguranca respeitadas:
   * nenhuma ligacao de rede: ``helpers.sem_rede()`` activo em todos os testes;
   * nenhuma ferramenta real e chamada: o registo e substituido por fakes
-    deterministicos (as 53 ferramentas reais so sao inspeccionadas, nunca
+    deterministicos (as ferramentas reais so sao inspeccionadas, nunca
     invocadas);
   * bancos/temporarios redirecionados para tmp por ``helpers.CasoBase``;
   * ``time.sleep`` e sempre mockado (o retry de ``_executar_passo`` dorme 1s)
@@ -47,7 +47,7 @@ GRUPOS_ESPERADOS = {
     "browser_bridge": frozenset({
         "browser_get_tabs", "browser_read_active_tab", "browser_read_page",
         "browser_navigate_active_tab", "browser_new_tab", "browser_close_tab",
-        "browser_type_text", "browser_click_text", "browser_scroll",
+        "browser_type_text", "browser_select_option", "browser_click_text", "browser_scroll",
         "browser_search_google_visivel", "browser_search_google", "browser_wait",
     }),
     "visao_pc": frozenset({
@@ -77,7 +77,7 @@ GRUPOS_ESPERADOS = {
 }
 
 TAMANHOS_ESPERADOS = {
-    "browser_bridge": 12,
+    "browser_bridge": 13,
     "visao_pc": 18,
     "ficheiros": 7,
     "codigo": 2,
@@ -90,7 +90,7 @@ TAMANHOS_ESPERADOS = {
 NOMES_ESPERADOS = frozenset(
     nome for grupo in GRUPOS_ESPERADOS.values() for nome in grupo
 )
-TOTAL_FERRAMENTAS = 62
+TOTAL_FERRAMENTAS = 63
 
 # Aliases legados (rotas HTTP antigas) que o registo do planner ja nao expoe.
 LEGADOS_ESPERADOS = frozenset({
@@ -116,7 +116,7 @@ OBSERVAVEIS_NAO_REGISTADOS_DOCUMENTADOS = frozenset({
     "email_move",
 })
 
-TOTAL_OBSERVAVEIS = 29
+TOTAL_OBSERVAVEIS = 30
 
 # Nomes das ferramentas renderizados no prompt: "- nome: descricao".
 _RE_LINHA_FERRAMENTA = re.compile(r"^- ([A-Za-z0-9_]+):", re.M)
@@ -167,7 +167,7 @@ class RegistoRealTestCase(_BaseRegisto):
         self.assertEqual(AGENT.executar_task.__module__, simple_task.__name__)
 
     # -- item (1): conjunto exacto, ordenado --------------------------------
-    def test_registo_exato_de_61_ferramentas(self):
+    def test_registo_exato_de_63_ferramentas(self):
         reais = sorted(simple_task.FERRAMENTAS_DISPONIVEIS)
         self.assertEqual(
             len(reais), TOTAL_FERRAMENTAS,
@@ -184,7 +184,7 @@ class RegistoRealTestCase(_BaseRegisto):
             "ferramentas em falta no registo",
         )
 
-    def test_grupos_somam_61_e_nao_se_sobrepoem(self):
+    def test_grupos_somam_63_e_nao_se_sobrepoem(self):
         todos: list[str] = []
         for grupo, nomes in GRUPOS_ESPERADOS.items():
             with self.subTest(grupo=grupo):

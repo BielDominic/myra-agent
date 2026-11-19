@@ -101,7 +101,7 @@ def test_chat_key_prefers_explicit_id_and_falls_back_to_stable_conversation_fing
     assert agent._myra_chat_key({}, []) is None
 
 
-def test_planner_browser_tools_use_playwright_not_real_chrome(monkeypatch):
+def test_planner_browser_tools_use_real_chrome_bridge(monkeypatch):
     captured = {}
 
     def fake_llm(prompt, system=""):
@@ -118,9 +118,9 @@ def test_planner_browser_tools_use_playwright_not_real_chrome(monkeypatch):
 
     assert decision["ferramenta"] == "browser_new_tab"
     assert "browser_new_tab:" in captured["prompt"]
-    assert "Playwright isolado" in captured["prompt"]
+    assert "Playwright isolado" not in captured["prompt"]
     assert "playwright_open_url:" not in captured["prompt"]
-    assert simple_task.FERRAMENTAS_DISPONIVEIS["browser_new_tab"].__name__ == "_t_browser_new_tab"
+    assert simple_task.FERRAMENTAS_DISPONIVEIS["browser_new_tab"].__module__ == "tasks.browser_bridge"
 
 
 def test_synthesis_history_preserves_structured_browser_metadata():
@@ -466,3 +466,17 @@ def test_registry_inventory_deduplicates_start_menu_apps(monkeypatch):
     inventory = applications.listar_aplicativos()
     assert len(inventory["result"]) == 1
     assert inventory["result"][0]["origem"] == "Windows StartApps"
+
+
+def test_local_task_start_queues_background_execution(monkeypatch):
+    from fastapi import BackgroundTasks
+    monkeypatch.setattr(agent, "_remote_task_scheduled", False)
+    monkeypatch.setattr(agent, "_widget_status", {**agent._widget_status, "state": "idle"})
+    background = BackgroundTasks()
+
+    result = agent.task_start(agent.TaskSimple(objetivo="Abra o Bloco de Notas", max_passos=8), background)
+
+    assert result["status"] == "accepted"
+    assert len(background.tasks) == 1
+    assert background.tasks[0].func is agent._run_remote_task
+    monkeypatch.setattr(agent, "_remote_task_scheduled", False)
