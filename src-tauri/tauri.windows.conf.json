@@ -8,7 +8,6 @@
       "../installer/runtime": "runtime",
       "../installer/playwright-browsers": "playwright-browsers",
       "../setup_backend.ps1": "setup_backend.ps1",
-      "../setup_models.ps1": "setup_models.ps1",
       "../start_myra.ps1": "start_myra.ps1",
       "../INSTALL_WINDOWS.md": "INSTALL_WINDOWS.md"
     }

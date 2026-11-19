@@ -104,7 +104,6 @@ if ($env:MYRA_SKIP_GIT_CLONE -ne "1" -and -not (Test-Path (Join-Path $repo ".git
     try { & git clone --depth 1 --branch feature/fase26-vision-fixes https://github.com/BielDominic/myra-agent.git $repo; if ($LASTEXITCODE -ne 0) { Write-Warning "GitHub clone unavailable; GitHub sync remains disabled until a repository is connected." } } catch { Write-Warning "Could not clone repository: $_" }
 }
 Copy-Item (Join-Path $PSScriptRoot "start_myra.ps1") (Join-Path $installRoot "start_myra.ps1") -Force
-Copy-Item (Join-Path $PSScriptRoot "setup_models.ps1") (Join-Path $installRoot "setup_models.ps1") -Force
 $startMenu = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\MYRA"
 New-Item -ItemType Directory -Force -Path $startMenu | Out-Null
 $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $startMenu "MYRA.lnk"))

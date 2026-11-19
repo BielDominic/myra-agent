@@ -44,7 +44,7 @@ jobs:
           $tag = "${{ github.ref_name }}"
           $package = "MYRA_${tag}_Backend_Setup"
           New-Item -ItemType Directory -Force -Path $package | Out-Null
-          Copy-Item installer/backend,installer/wheelhouse,installer/wheelhouse-vision,installer/runtime,installer/playwright-browsers,setup_backend.ps1,setup_models.ps1,start_myra.ps1,INSTALL_WINDOWS.md $package -Recurse -Force
+          Copy-Item installer/backend,installer/wheelhouse,installer/wheelhouse-vision,installer/runtime,installer/playwright-browsers,setup_backend.ps1,start_myra.ps1,INSTALL_WINDOWS.md $package -Recurse -Force
           Compress-Archive -Path $package -DestinationPath "$package.zip" -CompressionLevel Optimal -Force
           $installer = Get-ChildItem src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
           @($installer, (Get-Item "$package.zip")) | ForEach-Object {
