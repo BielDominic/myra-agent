@@ -1,3 +1,10 @@
+## [0.26.5] - 2026-11-19 — Declarative plugin intake, updater cadence and security hardening
+
+- Added secure local plugin APIs for validating, installing, listing and removing declarative Skills/Prompts. Executable packages, requested permissions and capabilities are rejected; packages remain disabled by default.
+- Added streamed ZIP upload limits, path/symlink/duplicate checks, UTF-8 and manifest validation, SHA-256 recording and atomic installation.
+- Windows updater now checks for releases every 15 minutes and defers installation while MYRA is active.
+- Full test suite: 1,250 passed, 9 skipped, 12 xfailed, 1 warning and 3,250 subtests passed.
+
 ## [0.26.4] - 2026-11-19 — Telegram image generation, local image storage, Windows updater and security hardening
 
 - Added per-conversation agent profiles in the native chat (general, senior developer, browser, research, vision and computer control), with agent-specific backend memory namespaces.
@@ -19,6 +26,13 @@
 Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Datas em ISO 8601. O histórico abaixo resume mudanças identificáveis nos commits recentes do repositório; não pretende substituir o histórico Git completo.
 
 ## [Unreleased]
+
+### Plugin manager — intake declarativo seguro (2026-11-19)
+- Adicionado `tasks/plugin_manager.py` com API local para validar, instalar, listar e remover pacotes (`/plugins`).
+- Importação limitada a Skills e Prompts declarativos em Markdown/texto; pacotes executáveis, permissões/capacidades, scripts e tipos não suportados são rejeitados.
+- Valida manifesto, SemVer, ID, entry point, README, licença, UTF-8, tamanho/quantidade de arquivos, caminhos ZIP, symlinks, duplicados e SHA-256.
+- Instalação atômica em diretório local, com registro persistente e estado `enabled=false` por padrão. Nenhum código de terceiros é executado.
+- 13 testes específicos aprovados. Runtime/sandbox e integração com seletor de ferramentas continuam pendentes.
 
 ### Robustez da retomada de tasks (2026-10-22)
 - `GET /task_pendentes` rejeita `limite` negativo com HTTP 422 e limita valores maiores que int64 ao maximo suportado pelo SQLite, evitando lista vazia por erro interno.

@@ -138,7 +138,12 @@
 - [x] Instalador NSIS com Python 3.14.10, 50 wheels principais offline e Chromium do Playwright incluídos; setup do backend sem downloads do PyPI.
 - [x] Primeira biblioteca de referências e fila local de fontes de plugins para avaliação.
 - [x] Contrato de arquitetura de plugins documentado em docs/PLUGIN_ARCHITECTURE.md.
-- [ ] Runtime seguro de plugins, validação de manifestos, permissões por capacidade, instalação, ativação e rollback.
+- [x] FASE 32-A inicial: API local de catálogo/validação/instalação/listagem/remoção de plugins declarativos (`GET /plugins`, `POST /plugins/validate`, `POST /plugins/install`, `DELETE /plugins/{plugin_id}`).
+- [x] Validação estrita de manifesto, SemVer, IDs, entry point, licença, README, limites de ZIP, caminhos, symlinks, duplicados, SHA-256 e conteúdo UTF-8.
+- [x] Apenas Skills/Prompts Markdown e texto; plugins executáveis, permissões/capacidades e scripts de instalação são recusados; instalação permanece desativada por padrão.
+- [x] Instalação em staging com troca atômica e registro local em JSON; remoção bloqueada se registro indicar plugin ativo.
+- [x] 13 testes de plugin passaram, incluindo API HTTP, traversal, tipo executável, permissões e duplicidade.
+- [ ] Runtime seguro de plugins executáveis, permissões por capacidade, ativação real, sandbox e rollback.
 - [ ] Migrar as ferramentas e skills já existentes do Open WebUI para a interface nativa, preservando BrowserAgent e integrações atuais.
 - [ ] Code Studio com editor de linguagem completo, console, logs, testes, árvore de projeto e preview responsivo.
 - [ ] Integração de imagens no chat, anexos multimodais e análise visual.

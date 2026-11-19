@@ -49,8 +49,17 @@ Registry records source URL, pinned commit/tag, SHA-256, install/enabled state, 
 - whisper.cpp: https://github.com/ggml-org/whisper.cpp
 - Piper: https://github.com/rhasspy/piper
 
+## Current local API (stage A — declarative intake)
+- `GET /plugins`: list installed packages and their state.
+- `POST /plugins/validate`: validate a raw ZIP body (`Content-Type: application/zip`) without installing it.
+- `POST /plugins/install`: validate and install a raw ZIP body. The registry records SHA-256 and starts with `enabled=false`.
+- `DELETE /plugins/{plugin_id}`: remove all installed versions only while every version is disabled.
+- Current accepted package types are `skill` and `prompt`, with Markdown/text entry points. `myra.plugin.json`, `README.md`, and a licence file are required. No script, Python, JavaScript, native binary, requested permission, or capability is accepted.
+- Upload is streamed with a 20 MB compressed limit; extraction is bounded to 50 MB / 500 files, rejects traversal, backslashes, symlinks and duplicate paths, and stages files before an atomic directory move.
+- These endpoints do not yet load instructions into the chat or execute tools. The runtime and UI selector remain future stages; do not label an imported package active.
+
 ## Delivery stages
-- A: catalogue, free-form source field, manifest validator, local registry, disabled-by-default packages.
-- B: declarative Skills/Prompts and native Tool adapters.
+- A (partial, initial intake implemented): catalogue, ZIP validator, local registry, safe install/remove and disabled-by-default declarative packages. UI source picker and catalogue review still pending.
+- B: declarative Skills/Prompts integrated into chat and native Tool adapters.
 - C: restricted worker runtime, MCP connectors and per-capability permissions.
 - D: updates, rollback, audit and signed catalogue metadata.
