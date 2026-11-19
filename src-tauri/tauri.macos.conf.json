@@ -17,7 +17,6 @@
     "active": true,
     "targets": ["dmg"],
     "icon": ["icons/icon.icns"],
-    "resources": null,
     "macOS": { "minimumSystemVersion": "12.0" }
   }
 }

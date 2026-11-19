@@ -37,7 +37,7 @@ jobs:
         shell: pwsh
         run: |
           $tauri = Join-Path (npm prefix -g) "tauri.cmd"
-          & $tauri build --bundles nsis
+          & $tauri build --bundles nsis --config src-tauri/tauri.windows.conf.json
       - name: Package backend setup and checksums
         shell: pwsh
         run: |

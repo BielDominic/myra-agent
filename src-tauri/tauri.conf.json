@@ -65,17 +65,6 @@
     "icon": [
       "icons/icon.ico"
     ],
-    "resources": {
-      "../installer/backend": "backend",
-      "../installer/wheelhouse": "wheelhouse",
-      "../installer/wheelhouse-vision": "wheelhouse-vision",
-      "../installer/runtime": "runtime",
-      "../installer/playwright-browsers": "playwright-browsers",
-      "../setup_backend.ps1": "setup_backend.ps1",
-      "../setup_models.ps1": "setup_models.ps1",
-      "../start_myra.ps1": "start_myra.ps1",
-      "../INSTALL_WINDOWS.md": "INSTALL_WINDOWS.md"
-    },
     "windows": {
       "nsis": {
         "installMode": "currentUser",
