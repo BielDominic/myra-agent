@@ -5,11 +5,17 @@
   const PROJECT_KEY = "myra-projects-v1";
   const PREF_KEY = "myra-desktop-prefs-v1";
   const QUEUE_KEY = "myra-desktop-message-queue-v1";
+  const PLUGIN_REQUESTS_KEY = "myra-plugin-source-requests-v1";
+  let pluginRequests = load(PLUGIN_REQUESTS_KEY, []);
   const $ = id => document.getElementById(id);
   let conversations = load(STORAGE_KEY, []);
   let projects = load(PROJECT_KEY, []);
   let activeId = conversations[0]?.id || null;
   let busy = false, online = false, executionMode = false, selectedModel = "";
+  let historySelectionMode = false;
+  const selectedConversationIds = new Set();
+  const activeSkills = new Set();
+  let speechRecognition = null;
   let codeFiles = load(CODE_KEY, null) || {
     "index.html": {lang:"HTML",content:'<!doctype html>\n<html lang="pt-BR">\n<head>\n  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width,initial-scale=1">\n  <title>Meu projeto</title>\n</head>\n<body>\n  <main class="hero">\n    <span class="eyebrow">MYRA CODE STUDIO</span>\n    <h1>Olá, mundo.</h1>\n    <p>Seu próximo projeto começa aqui.</p>\n    <button onclick="document.querySelector(\'p\').textContent=\'Está funcionando!\'">Testar interação</button>\n  </main>\n</body>\n</html>'},
     "style.css": {lang:"CSS",content:'* { box-sizing: border-box; }\nbody { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: Inter, system-ui, sans-serif; background: #0d1020; color: #f5f3ff; }\n.hero { text-align: center; padding: 48px; }\n.eyebrow { color: #8b5cf6; letter-spacing: .18em; font-size: 11px; }\nh1 { font-size: clamp(36px, 8vw, 72px); margin: 16px 0; }\np { color: #a6a6bb; }\nbutton { border: 0; border-radius: 9px; padding: 12px 18px; background: #7c3aed; color: white; cursor: pointer; }'},
@@ -20,7 +26,25 @@
   function save(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { console.warn("[MYRA] storage",e); } }
   function activeConversation(){return conversations.find(x=>x.id===activeId)}
   function createConversation(render=true){const item={id:"chat-"+Date.now()+"-"+Math.random().toString(36).slice(2,7),title:"Nova conversa",messages:[],updatedAt:Date.now()};conversations.unshift(item);activeId=item.id;if(render){save(STORAGE_KEY,conversations.slice(0,60));renderSidebar();renderMessages()}return item.id}
-  function renderSidebar(){const list=$("conversation-list");list.replaceChildren();conversations.slice(0,25).forEach(item=>{const b=document.createElement("button");b.className="conversation-row"+(item.id===activeId?" active":"");b.innerHTML="<i>◈</i><span></span>";b.querySelector("span").textContent=item.title||"Nova conversa";b.addEventListener("click",()=>{activeId=item.id;renderSidebar();renderMessages();showView("chat")});list.appendChild(b)})}
+  function renderSidebar(){
+    const list=$("conversation-list");list.replaceChildren();
+    conversations.slice(0,60).forEach(item=>{
+      const row=document.createElement("div");row.className="conversation-row-wrap"+(item.id===activeId?" active":"");
+      if(historySelectionMode){const check=document.createElement("input");check.type="checkbox";check.className="conversation-select";check.checked=selectedConversationIds.has(item.id);check.setAttribute("aria-label","Selecionar "+(item.title||"conversa"));check.addEventListener("change",()=>{check.checked?selectedConversationIds.add(item.id):selectedConversationIds.delete(item.id);updateHistoryBulk()});row.append(check)}
+      const b=document.createElement("button");b.type="button";b.className="conversation-row"+(item.id===activeId?" active":"");b.innerHTML="<i>◈</i><span></span>";b.querySelector("span").textContent=item.title||"Nova conversa";
+      b.addEventListener("click",()=>{if(historySelectionMode){selectedConversationIds.has(item.id)?selectedConversationIds.delete(item.id):selectedConversationIds.add(item.id);renderSidebar();return}activeId=item.id;renderSidebar();renderMessages();showView("chat")});
+      row.append(b);
+      const del=document.createElement("button");del.type="button";del.className="conversation-delete";del.textContent="×";del.title="Excluir esta conversa";del.setAttribute("aria-label","Excluir conversa");del.addEventListener("click",e=>{e.stopPropagation();deleteConversations([item.id])});row.append(del);list.append(row);
+    });
+    $("select-history").setAttribute("aria-pressed",String(historySelectionMode));$("history-bulk").hidden=!historySelectionMode;updateHistoryBulk();
+  }
+  function updateHistoryBulk(){const count=selectedConversationIds.size;$("history-selected-count").textContent=count+" selecionada(s)";$("delete-selected-history").disabled=count===0;$("select-all-history").checked=conversations.length>0&&conversations.every(c=>selectedConversationIds.has(c.id))}
+  function deleteConversations(ids){
+    const targets=conversations.filter(c=>ids.includes(c.id));if(!targets.length)return;
+    const count=targets.length;showModal("Excluir conversas",count===1?"Esta conversa será removida deste dispositivo.":"As "+count+" conversas selecionadas serão removidas deste dispositivo.","delete-history");
+    $("modal-confirm").textContent=count===1?"Excluir conversa":"Excluir "+count+" conversas";
+    $("modal-confirm").onclick=()=>{conversations=conversations.filter(c=>!ids.includes(c.id));ids.forEach(id=>selectedConversationIds.delete(id));if(!conversations.some(c=>c.id===activeId))activeId=conversations[0]?.id||null;if(!conversations.length)createConversation(false);save(STORAGE_KEY,conversations.slice(0,60));closeModal();renderSidebar();renderMessages()};
+  }
   function renderMessages(){const c=activeConversation(),box=$("messages");box.replaceChildren();const empty=!c||!c.messages.length;$("welcome").hidden=!empty;if(!empty)c.messages.forEach(m=>appendMessage(m.role,m.content,false));$("chat-scroll").scrollTop=$("chat-scroll").scrollHeight}
   function appendMessage(role,content,scroll=true){
     const row=document.createElement("div");row.className="message "+(role==="user"?"user":"assistant");
@@ -35,9 +59,39 @@
       if(start>=0){for(const tag of closeTags){const pos=display.indexOf(tag,start+openTag.length);if(pos>=0&&(end<0||pos<end)){end=pos;closeTag=tag}}}
       if(start>=0&&end>start){try{questionnaire=JSON.parse(display.slice(start+openTag.length,end).trim());display=(display.slice(0,start)+display.slice(end+closeTag.length)).trim()}catch(e){console.warn("Questionnaire JSON inv?lido",e)}}
     }
-    text.textContent=display;body.append(label,text);row.append(avatar,body);$("messages").appendChild(row);
+    body.append(label);
+    if(role==="user"){text.textContent=display;body.append(text)}else{renderAssistantContent(body,display)}
+    row.append(avatar,body);$("messages").appendChild(row);
     if(questionnaire)renderQuestionnaire(body,questionnaire);
     if(scroll)$("chat-scroll").scrollTop=$("chat-scroll").scrollHeight;
+  }
+  function renderAssistantContent(parent,content){
+    const source=String(content||""),fence=String.fromCharCode(96).repeat(3),parts=source.split(fence),blocks=[];
+    let plain=parts[0]||"";
+    for(let i=1;i<parts.length;i+=2){
+      const raw=parts[i]||"",newline=raw.indexOf("\n");
+      if(newline<0){plain+=fence+raw;continue}
+      const lang=raw.slice(0,newline).trim().toLowerCase()||"text";
+      blocks.push({lang,code:raw.slice(newline+1).trimEnd()});
+      plain+=(parts[i+1]||"");
+    }
+    const prose=document.createElement("div");prose.className="assistant-prose";prose.textContent=plain.trim();if(plain.trim())parent.append(prose);if(!blocks.length)return;
+    const files=[];
+    blocks.forEach(block=>{
+      const ext=block.lang==="html"||block.lang==="htm"?"html":block.lang==="css"?"css":(["js","javascript","jsx","ts","typescript"].includes(block.lang)?"js":null);
+      if(ext)files.push({name:ext==="html"?"index.html":ext==="css"?"style.css":"script.js",lang:ext.toUpperCase(),content:block.code});
+      else{const pre=document.createElement("pre");pre.className="chat-code-block";const code=document.createElement("code");code.textContent=block.code;pre.append(code);parent.append(pre)}
+    });
+    if(!files.length)return;
+    files.forEach(file=>{codeFiles[file.name]=file});activeFile=files.some(f=>f.name==="index.html")?"index.html":files[0].name;save(CODE_KEY,codeFiles);renderFiles();loadActiveCode();
+    const artifact=document.createElement("section");artifact.className="chat-code-artifact";const head=document.createElement("div");head.className="chat-code-head";const title=document.createElement("strong");title.textContent="Projeto gerado pela MYRA";const actions=document.createElement("div");
+    const open=document.createElement("button");open.type="button";open.className="soft-button";open.textContent="Abrir no Code Studio";open.addEventListener("click",()=>{showView("code");renderFiles();loadActiveCode();renderPreview()});
+    const frame=document.createElement("iframe");frame.className="chat-artifact-preview";frame.title="Preview do projeto criado no chat";frame.setAttribute("sandbox","allow-scripts");frame.srcdoc=buildPreview();
+    const codePanel=document.createElement("pre");codePanel.className="chat-code-block chat-artifact-code";codePanel.hidden=true;const codeView=document.createElement("code");codeView.textContent=files.map(file=>"// "+file.name+"\n"+file.content).join("\n\n");codePanel.append(codeView);
+    const tabs=document.createElement("div");tabs.className="chat-code-tabs";const previewTab=document.createElement("button");previewTab.type="button";previewTab.className="active";previewTab.textContent="Pré-visualização";const codeTab=document.createElement("button");codeTab.type="button";codeTab.textContent="Código";
+    previewTab.addEventListener("click",()=>{frame.hidden=false;codePanel.hidden=true;previewTab.classList.add("active");codeTab.classList.remove("active")});codeTab.addEventListener("click",()=>{frame.hidden=true;codePanel.hidden=false;codeTab.classList.add("active");previewTab.classList.remove("active")});tabs.append(previewTab,codeTab);
+    const run=document.createElement("button");run.type="button";run.className="primary-button";run.textContent="Atualizar preview";run.addEventListener("click",()=>{frame.srcdoc=buildPreview()});actions.append(open,run);head.append(title,actions);artifact.append(head,tabs,frame,codePanel);
+    const filebar=document.createElement("div");filebar.className="chat-artifact-files";filebar.textContent="Arquivos: "+files.map(f=>f.name).join(" · ");artifact.append(filebar);parent.append(artifact);
   }
   function renderQuestionnaire(parent,data){
     const card=document.createElement("form");card.className="myra-questionnaire";
@@ -56,7 +110,44 @@
     card.addEventListener("submit",event=>{event.preventDefault();const answers=[];let valid=true;card.querySelectorAll("[data-question-id]").forEach(control=>{if(control.required&&!control.value.trim())valid=false;answers.push(control.dataset.questionLabel+": "+(control.value.trim()||"N?o informado"))});if(!valid){card.querySelector("[data-question-id]:invalid")?.focus();return}card.querySelectorAll("input,select,button").forEach(el=>el.disabled=true);sendMessage("Respostas ao question?rio da MYRA:"+String.fromCharCode(10)+answers.join(String.fromCharCode(10)));});
     parent.append(card);
   }
-  function showView(name){document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id==="view-"+name));document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===name));const names={chat:"Conversas",activity:"Atividades",tools:"Ferramentas",settings:"Configurações",projects:"Projetos",code:"Code Studio",preview:"Pré-visualização",integrations:"Integrações",models:"Modelos",widget:"Widget Studio"};$("top-context").textContent=names[name]||"MYRA";if(name==="code"||name==="preview")renderPreview();if(name==="projects")renderProjects();if(name==="models")refreshModels();if(name==="integrations"){refreshGitHub();refreshApiIntegrations()}}
+  function renderPlugins(){
+    const catalog=[
+      {id:"web-research",name:"Web Research",type:"Tool",category:"research",state:"Nativo",description:"Busca externa, leitura de páginas, comparação de fontes e citações.",url:"https://docs.openwebui.com/features/extensibility/plugin/tools/"},
+      {id:"browser-agent",name:"BrowserAgent",type:"Tool",category:"research",state:"Nativo",description:"Navegação, leitura e interação com páginas usando a bridge existente da MYRA.",url:"https://github.com/BielDominic/myra-agent"},
+      {id:"myra-local-pipe",name:"MYRA Local · Memória + Tarefas",type:"Agent",category:"memory",state:"Nativo",description:"Camada local de continuidade por conversa, separação entre intenção de chat e tarefas e integração com o executor.",url:"https://github.com/BielDominic/myra-agent"},
+      {id:"senior-code-review",name:"Senior Code Review",type:"Skill",category:"development",state:"Planejado",description:"Revisão de segurança, testes, desempenho, arquitetura e manutenção.",url:"https://github.com/continuedev/continue"},
+      {id:"frontend-design",name:"Frontend Design",type:"Skill",category:"design",state:"Planejado",description:"Design system, responsividade, acessibilidade e microinterações.",url:"https://github.com/All-Hands-AI/OpenHands"},
+      {id:"aider",name:"Aider Coding Agent",type:"Referência",category:"development",state:"Avaliar",description:"Referência de fluxo de engenharia com alterações de código e validação.",url:"https://github.com/Aider-AI/aider"},
+      {id:"openhands",name:"OpenHands",type:"Referência",category:"development",state:"Avaliar",description:"Referência de agente de engenharia de software e execução de tarefas.",url:"https://github.com/All-Hands-AI/OpenHands"},
+      {id:"whisper",name:"Whisper / whisper.cpp",type:"Provider STT",category:"voice",state:"Planejado",description:"Reconhecimento de voz local e transcrição de áudio.",url:"https://github.com/ggml-org/whisper.cpp"},
+      {id:"piper",name:"Piper TTS",type:"Provider TTS",category:"voice",state:"Planejado",description:"Síntese de voz neural local com modelos de voz selecionáveis.",url:"https://github.com/rhasspy/piper"},
+      {id:"context-memory",name:"Context Engine",type:"Filter",category:"memory",state:"Planejado",description:"Resumo de conversas longas, memória de projeto e recuperação contextual.",url:"https://docs.openwebui.com/features/extensibility/"}
+    ];
+    const host=$("plugin-grid");if(!host)return;host.replaceChildren();
+    const query=($("plugin-search").value||"").toLowerCase(),category=$("plugin-category").value;
+    catalog.filter(p=>(category==="all"||p.category===category)&&[p.name,p.description,p.type].join(" ").toLowerCase().includes(query)).forEach(p=>{
+      const card=document.createElement("article");card.className="plugin-card";
+      const top=document.createElement("div");top.className="plugin-card-top";const type=document.createElement("span");type.textContent=p.type;const state=document.createElement("span");state.className="plugin-state "+(p.state==="Nativo"?"native":"planned");state.textContent=p.state;top.append(type,state);
+      const name=document.createElement("h3");name.textContent=p.name;const desc=document.createElement("p");desc.textContent=p.description;
+      const actions=document.createElement("div");actions.className="plugin-card-actions";const link=document.createElement("a");link.href=p.url;link.target="_blank";link.rel="noreferrer";link.textContent="Ver fonte ↗";actions.append(link);
+      const request=document.createElement("button");request.type="button";request.className="soft-button";request.textContent="Solicitar avaliação";request.addEventListener("click",()=>{pluginRequests.push({id:p.id,name:p.name,url:p.url,createdAt:Date.now(),status:"pending-review"});save(PLUGIN_REQUESTS_KEY,pluginRequests);renderPluginRequests();$("plugin-source-status").textContent=p.name+" adicionado à fila de avaliação local.";});actions.append(request);
+      card.append(top,name,desc,actions);host.append(card);
+    });
+    renderPluginRequests();
+  }
+  function renderPluginRequests(){
+    const host=$("plugin-submitted-list");if(!host)return;host.replaceChildren();
+    pluginRequests.forEach((item,index)=>{const row=document.createElement("div");row.className="plugin-request-row";const label=document.createElement("span");label.textContent=(item.name||item.url)+" · Aguardando análise";const remove=document.createElement("button");remove.type="button";remove.textContent="Remover";remove.addEventListener("click",()=>{pluginRequests.splice(index,1);save(PLUGIN_REQUESTS_KEY,pluginRequests);renderPluginRequests()});row.append(label,remove);host.append(row)});
+  }
+  function addPluginSource(){
+    const input=$("plugin-source-url"),value=String(input.value||"").trim();if(!value)return;
+    let url;try{url=new URL(value)}catch(_){$("plugin-source-status").textContent="Informe uma URL HTTPS ou Git válida.";return}
+    if(url.protocol!=="https:"||!(/github\.com$|gitlab\.com$|codeberg\.org$/.test(url.hostname))){$("plugin-source-status").textContent="Por segurança, nesta etapa só aceitamos fontes Git HTTPS conhecidas (GitHub, GitLab ou Codeberg).";return}
+    if(pluginRequests.some(p=>p.url===url.href)){$("plugin-source-status").textContent="Essa fonte já está na fila de avaliação.";return}
+    pluginRequests.unshift({id:"custom-"+Date.now(),name:url.pathname.split("/").filter(Boolean).slice(0,2).join("/"),url:url.href,createdAt:Date.now(),status:"pending-review"});
+    save(PLUGIN_REQUESTS_KEY,pluginRequests);input.value="";$("plugin-source-status").textContent="Fonte adicionada à fila. A MYRA ainda não executou nem instalou esse código.";renderPluginRequests();
+  }
+  function showView(name){document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id==="view-"+name));document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.view===name));const names={chat:"Conversas",activity:"Atividades",tools:"Ferramentas",settings:"Configurações",projects:"Projetos",code:"Code Studio",preview:"Pré-visualização",integrations:"Integrações",plugins:"Biblioteca de plugins",models:"Modelos",widget:"Widget Studio"};$("top-context").textContent=names[name]||"MYRA";if(name==="code"||name==="preview")renderPreview();if(name==="projects")renderProjects();if(name==="models")refreshModels();if(name==="integrations"){refreshGitHub();refreshApiIntegrations()}if(name==="plugins")renderPlugins()}
   const PLATFORM_ICONS={
     github:'<path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 6v-3.9a3.4 3.4 0 0 0-.9-2.6c3-.3 6.1-1.5 6.1-6.7a5.2 5.2 0 0 0-1.4-3.6 4.8 4.8 0 0 0-.1-3.6s-1.1-.3-3.7 1.4a13 13 0 0 0-6.8 0C5.6.3 4.5.6 4.5.6a4.8 4.8 0 0 0-.1 3.6A5.2 5.2 0 0 0 3 7.8c0 5.2 3.1 6.4 6.1 6.7a3.4 3.4 0 0 0-.9 2.6V22"/>',
     tools:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4L15 12l-3-3z"/>',
@@ -102,13 +193,32 @@
       resume.textContent="Retomar fila";resume.addEventListener("click",()=>{queueNeedsResume=false;renderQueue();processQueue()});head.append(resume);
     }
     panel.append(head);
-    messageQueue.forEach((item,index)=>{const row=document.createElement("div");row.className="queue-item";const label=document.createElement("span");label.textContent=(index+1)+". "+item.content;const mode=document.createElement("small");mode.textContent=item.taskMode?"TAREFA":"CHAT";const remove=document.createElement("button");remove.type="button";remove.textContent="×";remove.title="Remover da fila";remove.addEventListener("click",()=>{messageQueue.splice(index,1);renderQueue()});row.append(label,mode,remove);panel.append(row)});
+    messageQueue.forEach((item,index)=>{const row=document.createElement("div");row.className="queue-item";const label=document.createElement("span");label.textContent=(index+1)+". "+(item.displayContent||item.content);const mode=document.createElement("small");mode.textContent=item.taskMode?"TAREFA":"CHAT";const remove=document.createElement("button");remove.type="button";remove.textContent="×";remove.title="Remover da fila";remove.addEventListener("click",()=>{messageQueue.splice(index,1);renderQueue()});row.append(label,mode,remove);panel.append(row)});
   }
   function sendMessage(raw){
-    const content=String(raw||"").trim();if(!content)return;
-    messageQueue.push({content,taskMode:executionMode,conversationId:activeId,createdAt:Date.now()});
+    const displayContent=String(raw||"").trim();if(!displayContent)return;let content=displayContent;
+    const instructions={code:"Atue como engenheira de software sênior. Planeje a solução, produza código completo e executável, valide acessibilidade, segurança, responsividade e testes. Não entregue apenas snippets quando o pedido exigir um projeto.",research:"Pesquise fontes externas atuais e confiáveis antes de responder. Compare fontes, cite links e separe fatos verificados de hipóteses.",design:"Atue como designer de produto e frontend sênior. Defina hierarquia visual, tipografia, espaçamento, responsividade, estados vazios e microinterações.",review:"Faça uma revisão crítica de nível sênior: procure bugs, riscos de segurança, acessibilidade, desempenho, casos extremos e testes ausentes."};
+    if(activeSkills.size){const guidance=[...activeSkills].map(key=>instructions[key]).filter(Boolean).join("\n\n");content="[MODO DE TRABALHO ATIVADO]\n"+guidance+"\n\n[PEDIDO]\n"+content}
+    activeSkills.clear();document.querySelectorAll(".skill-chip").forEach(b=>b.classList.remove("active"));
+    messageQueue.push({content,displayContent,taskMode:executionMode,conversationId:activeId,createdAt:Date.now()});
     $("message-input").value="";resizeInput();renderQueue();
     if(!busy&&!queueNeedsResume)processQueue();
+  }
+  function startVoiceInput(){
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){$("voice-input").title="Reconhecimento de voz não disponível neste Chromium.";return}
+    if(speechRecognition){speechRecognition.stop();speechRecognition=null;$("voice-input").classList.remove("recording");return}
+    speechRecognition=new SR();speechRecognition.lang="pt-BR";speechRecognition.continuous=false;speechRecognition.interimResults=true;
+    speechRecognition.onresult=e=>{let transcript="";for(let i=e.resultIndex;i<e.results.length;i++)transcript+=e.results[i][0].transcript;$("message-input").value=transcript;resizeInput()};
+    speechRecognition.onerror=e=>{$("voice-input").title="Falha no reconhecimento: "+e.error};
+    speechRecognition.onend=()=>{$("voice-input").classList.remove("recording");speechRecognition=null};
+    $("voice-input").classList.add("recording");speechRecognition.start();
+  }
+  function readLastAnswer(){
+    const c=activeConversation(),last=[...(c?.messages||[])].reverse().find(m=>m.role==="assistant");
+    if(!last){$("voice-read").title="Ainda não há resposta para ler.";return}
+    if(!("speechSynthesis" in window)){ $("voice-read").title="Síntese de voz não disponível neste Chromium.";return}
+    window.speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(String(last.content||"").replace(/\x60{3}[\s\S]*?\x60{3}/g,"bloco de código"));utterance.lang="pt-BR";window.speechSynthesis.speak(utterance);
   }
   async function waitForTaskCompletion(){
     const started=Date.now();
@@ -120,12 +230,12 @@
   }
   async function processQueue(){
     if(busy||queueNeedsResume||!messageQueue.length)return;
-    const queued=messageQueue.shift(),content=queued.content,taskMode=queued.taskMode;
+    const queued=messageQueue.shift(),content=queued.content,displayContent=queued.displayContent||queued.content,taskMode=queued.taskMode;
     renderQueue();
     let c=conversations.find(x=>x.id===queued.conversationId)||activeConversation();if(!c){createConversation();c=activeConversation()}
-    c.messages.push({role:"user",content});c.updatedAt=Date.now();
-    if(c.title==="Nova conversa")c.title=content.slice(0,38)+(content.length>38?".":"");
-    if(activeId===c.id){$("welcome").hidden=true;appendMessage("user",content)}setBusy(true);
+    c.messages.push({role:"user",content:displayContent});c.updatedAt=Date.now();
+    if(c.title==="Nova conversa")c.title=displayContent.slice(0,38)+(displayContent.length>38?".":"");
+    if(activeId===c.id){$("welcome").hidden=true;appendMessage("user",displayContent)}setBusy(true);
     save(STORAGE_KEY,conversations.slice(0,60));renderSidebar();
     try{
       await setChatActivity(true);let answer;
@@ -202,14 +312,14 @@
   async function selectModel(name){try{const r=await fetch(API+"/models/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:name})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.detail||"Não foi possível alterar o modelo");selectedModel=name;$("current-model").textContent=name;await refreshModels()}catch(e){showModal("Não foi possível trocar o modelo",e.message,"")}}
   function renderProjects(){const grid=$("project-grid");if(!grid)return;grid.replaceChildren();const q=($("project-search").value||"").toLowerCase();projects.filter(p=>p.name.toLowerCase().includes(q)).forEach(p=>{const card=document.createElement("article");card.className="project-card";card.innerHTML='<div class="project-icon">' + iconSvg("folder") + '</div><strong></strong><p></p><small></small>';card.querySelector("strong").textContent=p.name;card.querySelector("p").textContent=p.description||"Projeto local MYRA";card.querySelector("small").textContent="ATUALIZADO "+new Date(p.updatedAt).toLocaleDateString("pt-BR");card.addEventListener("click",()=>{showView("code")});grid.append(card)});if(!grid.children.length){const empty=document.createElement("div");empty.className="model-empty";empty.textContent="Nenhum projeto salvo ainda. Crie um projeto para começar.";grid.append(empty)}}
   function newProject(){const name=prompt("Nome do projeto:");if(!name||!name.trim())return;projects.unshift({id:"project-"+Date.now(),name:name.trim(),description:"Projeto criado no workspace MYRA",updatedAt:Date.now()});save(PROJECT_KEY,projects);renderProjects()}
-  function renderFiles(){const list=$("file-list");list.replaceChildren();Object.keys(codeFiles).forEach(name=>{const b=document.createElement("button");b.className="file-entry"+(name===activeFile?" active":"");const ext=name.split(".").pop();b.innerHTML="<span>"+(ext==="html"?"◇":ext==="css"?"#":"JS")+"</span>"+escapeText(name);b.addEventListener("click",()=>{storeActiveCode();activeFile=name;loadActiveCode();renderFiles()});list.append(b)})}
-  function storeActiveCode(){if(codeFiles[activeFile])codeFiles[activeFile].content=$("code-editor").value;save(CODE_KEY,codeFiles)}
-  function loadActiveCode(){$("editor-filename").textContent=activeFile;$("editor-lang").textContent=codeFiles[activeFile]?.lang||"TEXT";$("code-editor").value=codeFiles[activeFile]?.content||"";$("editor-status").textContent="Pronto"}
-  function buildPreview(){storeActiveCode();let html=codeFiles["index.html"]?.content||"<main><h1>MYRA Preview</h1></main>";const css=Object.entries(codeFiles).filter(([name])=>name.toLowerCase().endsWith(".css")).map(([,file])=>file.content).join("\n"),jsCode=Object.entries(codeFiles).filter(([name])=>name.toLowerCase().endsWith(".js")).map(([,file])=>file.content).join("\n");const style="<style>"+css.replace(/<\/style/gi,"<\\/style")+"</style>";const script="<script>"+jsCode.replace(/<\/script/gi,"<\\/script")+"<"+"/script>";if(/<\/head>/i.test(html))html=html.replace(/<\/head>/i,style+"</head>");else html=style+html;if(jsCode){if(/<\/body>/i.test(html))html=html.replace(/<\/body>/i,script+"</body>");else html+=script}return html}
+  function renderFiles(){const list=$("file-list");list.replaceChildren();Object.keys(codeFiles).forEach(name=>{const b=document.createElement("button");b.className="file-entry"+(name===activeFile?" active":"");const ext=name.split(".").pop().toLowerCase();const image=codeFiles[name]?.lang==="IMAGE";b.innerHTML="<span>"+(image?"▧":ext==="html"?"◇":ext==="css"?"#":"JS")+"</span>"+escapeText(name);b.addEventListener("click",()=>{storeActiveCode();activeFile=name;loadActiveCode();renderFiles()});list.append(b)})}
+  function storeActiveCode(){if(codeFiles[activeFile]&&codeFiles[activeFile].lang!=="IMAGE")codeFiles[activeFile].content=$("code-editor").value;save(CODE_KEY,codeFiles)}
+  function loadActiveCode(){const file=codeFiles[activeFile];$("editor-filename").textContent=activeFile;$("editor-lang").textContent=file?.lang||"TEXT";$("code-editor").value=file?.lang==="IMAGE"?"Imagem importada. Ela será disponibilizada no preview quando o HTML usar o nome "+activeFile+".":(file?.content||"");$("code-editor").readOnly=file?.lang==="IMAGE";$("editor-status").textContent=file?.lang==="IMAGE"?"Asset visual":"Pronto"}
+  function buildPreview(){storeActiveCode();let html=codeFiles["index.html"]?.content||"<main><h1>MYRA Preview</h1></main>";const css=Object.entries(codeFiles).filter(([name,file])=>name.toLowerCase().endsWith(".css")&&file.lang!=="IMAGE").map(([,file])=>file.content).join("\n"),jsCode=Object.entries(codeFiles).filter(([name,file])=>name.toLowerCase().endsWith(".js")&&file.lang!=="IMAGE").map(([,file])=>file.content).join("\n");const parser=new DOMParser(),doc=parser.parseFromString(html,"text/html");Object.entries(codeFiles).forEach(([name,file])=>{if(file.lang==="IMAGE"){doc.querySelectorAll("img").forEach(img=>{const src=img.getAttribute("src")||"";if(src===name||src.endsWith("/"+name))img.src=file.content})}});html="<!doctype html>"+doc.documentElement.outerHTML;const style="<style>"+css.replace(/<\/style/gi,"<\\/style")+"</style>";const script="<script>"+jsCode.replace(/<\/script/gi,"<\\/script")+"<"+"/script>";if(/<\/head>/i.test(html))html=html.replace(/<\/head>/i,style+"</head>");else html=style+html;if(jsCode){if(/<\/body>/i.test(html))html=html.replace(/<\/body>/i,script+"</body>");else html+=script}return html}
   function renderPreview(){const src=buildPreview();const a=$("preview-frame"),b=$("full-preview-frame");if(a)a.srcdoc=src;if(b)b.srcdoc=src}
   function addCodeFile(){const name=prompt("Nome do arquivo (ex.: app.js):");if(!name||!name.trim())return;const clean=name.trim().replace(/[^\w.-]/g,"-");if(codeFiles[clean])return;const ext=clean.split(".").pop().toLowerCase(),lang=ext==="html"?"HTML":ext==="css"?"CSS":ext==="js"?"JS":"TEXT";codeFiles[clean]={lang,content:""};storeActiveCode();activeFile=clean;renderFiles();loadActiveCode()}
-  function downloadCode(){storeActiveCode();const content=codeFiles[activeFile]?.content||"",blob=new Blob([content],{type:"text/plain;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=activeFile;a.click();URL.revokeObjectURL(url)}
-  function importCode(file){if(!file)return;const reader=new FileReader();reader.onload=()=>{const name=file.name,ext=name.split(".").pop().toLowerCase();codeFiles[name]={lang:ext==="html"?"HTML":ext==="css"?"CSS":ext==="js"?"JS":"TEXT",content:String(reader.result||"")};activeFile=name;save(CODE_KEY,codeFiles);renderFiles();loadActiveCode();renderPreview()};reader.readAsText(file)}
+  async function downloadCode(){storeActiveCode();const file=codeFiles[activeFile],content=file?.content||"",blob=file?.lang==="IMAGE"?await (await fetch(content)).blob():new Blob([content],{type:"text/plain;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=activeFile;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+  function importCode(file){if(!file)return;const name=file.name,ext=name.split(".").pop().toLowerCase(),isImage=["png","jpg","jpeg","webp","gif","svg"].includes(ext);if(isImage&&(file.size>3*1024*1024||Object.values(codeFiles).filter(f=>f.lang==="IMAGE").reduce((sum,f)=>sum+Math.floor((f.content||"").length*0.75),0)+file.size>3.5*1024*1024)){showModal("Limite de imagens","O limite total de imagens no Code Studio é 3,5 MB para preservar o armazenamento local.","");return}const reader=new FileReader();reader.onload=()=>{codeFiles[name]={lang:isImage?"IMAGE":ext==="html"?"HTML":ext==="css"?"CSS":ext==="js"?"JS":"TEXT",content:String(reader.result||"")};activeFile=name;save(CODE_KEY,codeFiles);renderFiles();loadActiveCode();renderPreview()};if(isImage)reader.readAsDataURL(file);else reader.readAsText(file)}
   function showModal(title,description,kind){
     $("modal-title").textContent=title;$("modal-description").textContent=description;$("modal-body").replaceChildren();
     const box=document.createElement("div");
@@ -359,11 +469,17 @@
   $("new-chat").addEventListener("click",()=>{createConversation();showView("chat");$("message-input").focus()});$("send-button").addEventListener("click",()=>sendMessage($("message-input").value));$("message-input").addEventListener("input",resizeInput);$("message-input").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage($("message-input").value)}});
   $("mode-toggle").addEventListener("click",()=>{executionMode=!executionMode;const b=$("mode-toggle");b.classList.toggle("is-execution",executionMode);b.setAttribute("aria-pressed",String(executionMode));b.innerHTML=executionMode?"<span>⚡</span> Executar tarefa":"<span>◈</span> Conversa";$("message-input").placeholder=executionMode?"Descreva o que a MYRA deve executar...":"O que vamos construir hoje?"});
   document.querySelectorAll("[data-view]").forEach(b=>b.addEventListener("click",()=>showView(b.dataset.view)));document.addEventListener("click",async e=>{const a=e.target.closest("a[href]");if(!a)return;const href=a.href;if(!(href.startsWith("http://")||href.startsWith("https://")))return;e.preventDefault();try{if(window.__TAURI__?.core?.invoke)await window.__TAURI__.core.invoke("open_external_url",{url:href});else window.open(href,"_blank","noopener,noreferrer")}catch(err){console.error("[EXTERNAL LINK]",err);alert("Não foi possível abrir o link: "+err)}});document.querySelectorAll("[data-prompt]").forEach(b=>b.addEventListener("click",()=>sendMessage(b.dataset.prompt)));$("settings-button").addEventListener("click",()=>showView("settings"));
-  $("clear-history").addEventListener("click",()=>{if(!confirm("Apagar o histórico de conversas salvo neste dispositivo?"))return;conversations=[];createConversation()});
+  $("select-history").addEventListener("click",()=>{historySelectionMode=!historySelectionMode;if(!historySelectionMode)selectedConversationIds.clear();renderSidebar()});
+  $("clear-history").addEventListener("click",()=>{historySelectionMode=true;renderSidebar()});
+  $("select-all-history").addEventListener("change",e=>{if(e.target.checked)conversations.forEach(c=>selectedConversationIds.add(c.id));else selectedConversationIds.clear();renderSidebar()});
+  $("delete-selected-history").addEventListener("click",()=>deleteConversations([...selectedConversationIds]));
+  $("voice-input").addEventListener("click",startVoiceInput);$("voice-read").addEventListener("click",readLastAnswer);
+  document.querySelectorAll(".skill-chip").forEach(button=>button.addEventListener("click",()=>{const key=button.dataset.skill;if(activeSkills.has(key)){activeSkills.delete(key);button.classList.remove("active")}else{activeSkills.add(key);button.classList.add("active")}}));
+  $("plugin-source-add").addEventListener("click",addPluginSource);$("plugin-search").addEventListener("input",renderPlugins);$("plugin-category").addEventListener("change",renderPlugins);
   $("github-refresh").addEventListener("click",refreshGitHub);$("github-fetch").addEventListener("click",()=>githubSync("fetch"));$("github-pull").addEventListener("click",()=>githubSync("pull"));$("github-push").addEventListener("click",()=>githubSync("push"));$("github-export").addEventListener("click",exportWorkspace);
-  $("new-project").addEventListener("click",newProject);$("project-search").addEventListener("input",renderProjects);$("code-editor").addEventListener("input",()=>{storeActiveCode();$("editor-status").textContent="Alterações locais";clearTimeout(previewTimer);previewTimer=setTimeout(renderPreview,220)});$("run-preview").addEventListener("click",()=>{renderPreview();$("editor-status").textContent="Preview atualizado"});$("refresh-preview").addEventListener("click",renderPreview);$("expand-preview").addEventListener("click",()=>showView("preview"));$("preview-to-code").addEventListener("click",()=>showView("code"));$("add-file").addEventListener("click",addCodeFile);$("download-code").addEventListener("click",downloadCode);$("import-code").addEventListener("click",()=>$("code-file").click());$("code-file").addEventListener("change",e=>importCode(e.target.files?.[0]));$("refresh-models").addEventListener("click",refreshModels);$("quick-model").addEventListener("change",e=>selectModel(e.target.value));$("settings-model").addEventListener("change",e=>selectModel(e.target.value));
+  $("new-project").addEventListener("click",newProject);$("project-search").addEventListener("input",renderProjects);$("code-editor").addEventListener("input",()=>{storeActiveCode();$("editor-status").textContent="Alterações locais";clearTimeout(previewTimer);previewTimer=setTimeout(renderPreview,220)});$("run-preview").addEventListener("click",()=>{renderPreview();$("editor-status").textContent="Preview atualizado"});$("refresh-preview").addEventListener("click",renderPreview);$("expand-preview").addEventListener("click",()=>showView("preview"));$("preview-to-code").addEventListener("click",()=>showView("code"));$("add-file").addEventListener("click",addCodeFile);$("download-code").addEventListener("click",downloadCode);$("import-code").addEventListener("click",()=>$("code-file").click());$("code-file").addEventListener("change",e=>{Array.from(e.target.files||[]).forEach(importCode);e.target.value=""});$("workbench").addEventListener("dragover",e=>{e.preventDefault();$("workbench").classList.add("is-dragging")});$("workbench").addEventListener("dragleave",e=>{if(!e.relatedTarget||!$("workbench").contains(e.relatedTarget))$("workbench").classList.remove("is-dragging")});$("workbench").addEventListener("drop",e=>{e.preventDefault();$("workbench").classList.remove("is-dragging");Array.from(e.dataTransfer?.files||[]).forEach(importCode)});$("refresh-models").addEventListener("click",refreshModels);$("quick-model").addEventListener("change",e=>selectModel(e.target.value));$("settings-model").addEventListener("change",e=>selectModel(e.target.value));
   document.querySelectorAll("[data-integration]").forEach(b=>b.addEventListener("click",()=>{const k=b.dataset.integration;showModal(k==="github"?"GitHub":k==="api"?"Adicionar API":"Arquitetura de plugins",k==="github"?"O repositório privado conectado usa a autenticação GitHub CLI desta máquina. Fetch, pull e push são executados pelo Git local.":k==="api"?"Cadastre um endpoint HTTPS público e teste uma chamada GET real. Tokens são temporários e não ficam armazenados.":"Expansão modular da MYRA.",k)}));
   $("modal-close").addEventListener("click",closeModal);$("modal-cancel").addEventListener("click",closeModal);$("modal-backdrop").addEventListener("click",e=>{if(e.target===$("modal-backdrop"))closeModal()});
   document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();createConversation();showView("chat");$("message-input").focus()}if(e.key==="Escape"&&!busy){closeModal();showView("chat")}});
-  renderPlatformIcons();setChatActivity(false);setBusy(false);if(!conversations.length)createConversation(false);renderSidebar();renderMessages();renderFiles();loadActiveCode();initSettings();renderProjects();checkBackend();refreshTaskStatus();refreshModels();renderPreview();refreshGitHub();refreshApiIntegrations();renderQueue();initWidgetStudio();setInterval(checkBackend,10000);setInterval(refreshTaskStatus,750);if(messageQueue.length){queueNeedsResume=true;renderQueue();}
+  renderPlatformIcons();setChatActivity(false);setBusy(false);if(!conversations.length)createConversation(false);renderSidebar();renderMessages();renderFiles();loadActiveCode();initSettings();renderProjects();checkBackend();refreshTaskStatus();refreshModels();renderPreview();refreshGitHub();refreshApiIntegrations();renderQueue();initWidgetStudio();renderPlugins();setInterval(checkBackend,10000);setInterval(refreshTaskStatus,750);if(messageQueue.length){queueNeedsResume=true;renderQueue();}
 })();

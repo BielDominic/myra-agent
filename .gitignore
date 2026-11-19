@@ -204,3 +204,41 @@ recovery-backups/**
 
 # Installer payload is generated from source during release builds
 installer/backend/
+
+# ============================================
+# LOCAL BUILD OUTPUTS / DIAGNOSTICS
+# ============================================
+src-tauri/target/
+src-tauri/target-*/
+logs/
+openapi-debug.json
+*.bak
+*.bak-*
+
+# Local Telegram/session state (never commit conversation memory)
+tasks/.telegram_chat_model
+tasks/.telegram_chat_memory.json
+tasks/.telegram_chat_first_messages.json
+
+# Local-only historical material (preserved on disk, not published)
+archive/backups/
+scripts/dev/legacy-patches/
+docs/context-history/
+docs/project-notes/
+
+# Preserve reorganised history that was already tracked before the move
+!archive/backups/
+!archive/backups/**
+!scripts/dev/
+!scripts/dev/legacy-patches/
+!scripts/dev/legacy-patches/**
+!docs/context-history/
+!docs/context-history/**
+!docs/project-notes/
+!docs/project-notes/**
+
+# Local-only archives are kept on disk, not published
+archive/backups/
+scripts/dev/legacy-patches/
+docs/context-history/
+docs/project-notes/

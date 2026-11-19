@@ -56,3 +56,10 @@ Os comandos expiram após 40 segundos se a extensão não responder. Teste em p�
 - A extensão não contorna login, MFA, CAPTCHA, bloqueios anti-automação ou permissões do site.
 - O service worker do Chrome pode ser suspenso pelo navegador. Se a ferramenta expirar, abra o popup e confirme que a integração está habilitada.
 - Este commit foi criado pelo GitHub API e não foi executado no seu PC. Faça teste manual após atualizar o checkout e recarregar a extensão.
+
+
+---
+
+## MYRA desktop workspace
+
+For the current Windows desktop installer, plugin architecture, and project roadmap, see the [main MYRA README](../README.md), [Windows install guide](../INSTALL_WINDOWS.md), and [plugin architecture](../docs/PLUGIN_ARCHITECTURE.md). The repository is private; release downloads require an authorised GitHub account.

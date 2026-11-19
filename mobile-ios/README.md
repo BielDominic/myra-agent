@@ -22,3 +22,10 @@ O projeto Xcode esta em `MyraMobile.xcodeproj`. Ele contem o app SwiftUI, integr
 ## Limites de validacao
 
 O build sem assinatura pode ser executado pelo workflow `.github/workflows/ios-mobile-build.yml` num runner macOS. Sem Mac/Xcode local, conta Apple Developer, iPhone autenticado no tailnet e credenciais APNs, nao e possivel afirmar que a instalacao fisica, o widget no dispositivo, a Siri ou notificacoes push foram validados ao vivo.
+
+
+---
+
+## MYRA desktop workspace
+
+For the current Windows desktop installer, plugin architecture, and project roadmap, see the [main MYRA README](../README.md), [Windows install guide](../INSTALL_WINDOWS.md), and [plugin architecture](../docs/PLUGIN_ARCHITECTURE.md). The repository is private; release downloads require an authorised GitHub account.

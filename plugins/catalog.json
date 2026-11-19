@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "catalogue": [
+    {"id":"myra.web-research","name":"Web Research","type":"tool","category":"research","status":"native","description":"Search external sources, compare evidence and cite URLs.","source":"MYRA native browser/search tools"},
+    {"id":"myra.browser-control","name":"Browser Control","type":"tool","category":"automation","status":"native","description":"Navigate pages, inspect content and interact with browser UI.","source":"MYRA browser automation"},
+    {"id":"myra.file-workspace","name":"File Workspace","type":"tool","category":"productivity","status":"native","description":"Read, create and organise project files in permitted workspaces.","source":"MYRA file tools"},
+    {"id":"myra.code-review","name":"Senior Code Review","type":"skill","category":"development","status":"planned","description":"Review correctness, security, tests, performance and maintainability.","source":"MYRA skill pack"},
+    {"id":"myra.frontend-design","name":"Frontend Design","type":"skill","category":"design","status":"planned","description":"Apply design systems, responsive layouts, accessibility and interaction states.","source":"MYRA skill pack"},
+    {"id":"myra.context-engine","name":"Context and Memory","type":"filter","category":"memory","status":"planned","description":"Summarise long conversations and retrieve relevant project context.","source":"MYRA context pipeline"},
+    {"id":"myra.whisper-stt","name":"Whisper Speech Recognition","type":"provider","category":"voice","status":"planned","description":"Local speech-to-text with Whisper or whisper.cpp.","source":"https://github.com/ggml-org/whisper.cpp"},
+    {"id":"myra.piper-tts","name":"Piper Voice","type":"provider","category":"voice","status":"planned","description":"Local neural text-to-speech with selectable voice models.","source":"https://github.com/rhasspy/piper"},
+    {"id":"myra.openwebui-compat","name":"Open WebUI Plugin Compatibility","type":"tool","category":"integration","status":"planned","description":"Import compatible packages after manifest conversion and security review.","source":"https://docs.openwebui.com/features/extensibility/"}
+  ]
+}

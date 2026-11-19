@@ -124,6 +124,29 @@
 
 ### Proximas fases
 
+### FASE 32 - MYRA Workspace Nativo, Plugins e Code Studio
+![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
+
+**Objetivo:** trazer para a interface própria as experiências centrais do Open WebUI e criar um ambiente de programação completo.
+
+- [x] Seleção individual e múltipla de conversas com exclusão por conversa e em massa; confirmação própria da interface.
+- [x] Respostas com blocos HTML/CSS/JS convertidos em projeto local e preview dentro do chat.
+- [x] Importação de imagens no Code Studio e suporte a arrastar/soltar assets para o preview.
+- [x] Skills rápidas no composer: Programar, Pesquisar, Design e Revisar.
+- [x] Ditado e leitura de respostas usando as APIs de voz disponíveis no WebView.
+- [x] Encerrar widget e overlay quando a janela principal é fechada.
+- [x] Instalador NSIS de arquivo único com setup automático do backend (Python 3.14).
+- [x] Primeira biblioteca de referências e fila local de fontes de plugins para avaliação.
+- [x] Contrato de arquitetura de plugins documentado em docs/PLUGIN_ARCHITECTURE.md.
+- [ ] Runtime seguro de plugins, validação de manifestos, permissões por capacidade, instalação, ativação e rollback.
+- [ ] Migrar as ferramentas e skills já existentes do Open WebUI para a interface nativa, preservando BrowserAgent e integrações atuais.
+- [ ] Code Studio com editor de linguagem completo, console, logs, testes, árvore de projeto e preview responsivo.
+- [ ] Integração de imagens no chat, anexos multimodais e análise visual.
+- [ ] STT/TTS locais com Whisper/whisper.cpp e Piper, seleção de modelos e transcrição de áudio.
+- [ ] Memória de projeto, sumarização contextual, busca semântica e controles de retenção.
+- [x] Reorganizar backups, notas de contexto, relatórios de fase e scripts de patch em pastas dedicadas, preservando os arquivos locais.
+
+
 #### FASE 26 - Ciclo Autonomo Completo
 ![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
 
@@ -663,6 +686,29 @@
 <a id="en-next"></a>
 
 ### Next phases
+
+### PHASE 32 - Native MYRA Workspace, Plugins and Code Studio
+![In progress](https://img.shields.io/badge/-IN_PROGRESS-yellow?style=flat-square)
+
+**Goal:** bring core Open WebUI experiences into MYRA's own interface and build a complete coding workspace.
+
+- [x] Individual and bulk conversation selection with per-chat and bulk deletion; native confirmation dialog.
+- [x] Convert HTML/CSS/JS answer blocks into a local project with an inline chat preview.
+- [x] Import images into Code Studio and drag/drop assets into the preview workspace.
+- [x] Composer skill toggles: Code, Research, Design and Review.
+- [x] Voice dictation and answer playback using WebView speech APIs.
+- [x] Close the widget and overlay when the main desktop window closes.
+- [x] Single-file NSIS installer with automatic backend setup (Python 3.14).
+- [x] Initial plugin reference library and local queue for source review.
+- [x] Plugin architecture contract documented in docs/PLUGIN_ARCHITECTURE.md.
+- [ ] Secure plugin runtime, manifest validation, capability permissions, install/enable and rollback.
+- [ ] Migrate existing Open WebUI tools and skills into the native interface while preserving BrowserAgent and current integrations.
+- [ ] Full language editor, console, logs, tests, project tree and responsive preview in Code Studio.
+- [ ] Chat image attachments, multimodal files and visual analysis.
+- [ ] Local Whisper/whisper.cpp STT and Piper TTS, model selection and audio transcription.
+- [ ] Project memory, contextual summarisation, semantic search and retention controls.
+- [x] Reorganise backups, context notes, phase reports and patch scripts into dedicated folders while preserving local files.
+
 
 #### PHASE 26 - Complete Autonomous Loop
 ![In progress](https://img.shields.io/badge/-IN_PROGRESS-yellow?style=flat-square)

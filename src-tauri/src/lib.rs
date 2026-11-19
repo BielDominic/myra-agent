@@ -267,6 +267,16 @@ fn focus_desktop_window(app: tauri::AppHandle) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_log::Builder::default().build())
+        .on_window_event(|window, event| {
+            // The desktop workspace is the application owner. Closing it must
+            // terminate the widget and overlay too, rather than leaving a
+            // floating MYRA process behind in the background.
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                if window.label() == "desktop" {
+                    window.app_handle().exit(0);
+                }
+            }
+        })
         .setup(|app| {
             if let Some(overlay) = app.get_webview_window("overlay") {
                 // Native click-through: the transparent window never blocks real clicks.

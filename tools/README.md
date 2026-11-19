@@ -56,3 +56,10 @@ Rodar:
 
 .\\tools\\upload\\upload\_tools.ps1
 
+
+
+---
+
+## MYRA desktop workspace
+
+For the current Windows desktop installer, plugin architecture, and project roadmap, see the [main MYRA README](../README.md), [Windows install guide](../INSTALL_WINDOWS.md), and [plugin architecture](../docs/PLUGIN_ARCHITECTURE.md). The repository is private; release downloads require an authorised GitHub account.

@@ -11,14 +11,28 @@
 
 **MYRA is a local-first personal AI agent designed to do more than answer questions: it can use tools to interact with a browser and desktop, work with files, handle email, assist with code, and carry out multi-step tasks.**
 
-The project combines a locally hosted language model with a FastAPI backend, browser automation, desktop controls, a vision service, and an Open WebUI-based chat interface. The goal is to build a practical computer-use agent whose capabilities can be inspected, developed, and run on a Windows machine.
+The project combines a locally hosted language model with a FastAPI backend, browser automation, desktop controls, a vision service, and MYRA's native desktop chat and workspace. Existing Open WebUI skills and tools are being migrated through a compatibility layer. The goal is to build a practical computer-use agent whose capabilities can be inspected, developed, and run on a Windows machine.
 
 > **Project status:** experimental and under active development. Capabilities, setup steps, and safety boundaries may change. This README describes the documented architecture; not every feature has the same level of testing or polish.
+
+## Download MYRA for Windows
+
+**Release v0.26.0**
+
+- [Download the Windows x64 installer](https://github.com/BielDominic/myra-agent/releases/download/v0.26.0/MYRA_0.26.0_x64-setup.exe)
+- [Download the backend setup package](https://github.com/BielDominic/myra-agent/releases/download/v0.26.0/MYRA_v0.26.0_Backend_Setup.zip)
+- [Verify SHA-256 checksums](https://github.com/BielDominic/myra-agent/releases/download/v0.26.0/SHA256SUMS.txt)
+- [All releases](https://github.com/BielDominic/myra-agent/releases)
+
+**One-click installer:** the EXE bundles the desktop shell and runs the backend setup automatically after copying its resources. Python 3.14 and internet access are required for the first dependency installation. The companion ZIP is optional recovery/manual setup only. The repository is private, so GitHub sign-in with repository access is required. See [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md).
 
 ## Contents
 
 - [Highlights](#highlights)
 - [Capabilities](#capabilities)
+- [Download MYRA for Windows](#download-myra-for-windows)
+- [Plugin architecture](docs/PLUGIN_ARCHITECTURE.md)
+- [Repository layout](docs/REPOSITORY_LAYOUT.md)
 - [Architecture](#architecture)
 - [Technology stack](#technology-stack)
 - [Services and local endpoints](#services-and-local-endpoints)
@@ -26,7 +40,6 @@ The project combines a locally hosted language model with a FastAPI backend, bro
 - [Getting started](#getting-started)
 - [Using the agent](#using-the-agent)
 - [Available tool groups](#available-tool-groups)
-- [Repository layout](#repository-layout)
 - [Roadmap](#roadmap)
 - [Security and privacy](#security-and-privacy)
 - [Development workflow](#development-workflow)
