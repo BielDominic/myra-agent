@@ -3,6 +3,8 @@ name: macOS DMG
 on:
   workflow_dispatch:
   push:
+    branches:
+      - "feature/fase26-vision-fixes"
     tags:
       - "v*"
 
