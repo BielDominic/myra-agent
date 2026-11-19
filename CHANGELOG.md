@@ -27,12 +27,13 @@ Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.
 
 ## [Unreleased]
 
-### Plugin manager — intake declarativo seguro (2026-11-19)
-- Adicionado `tasks/plugin_manager.py` com API local para validar, instalar, listar e remover pacotes (`/plugins`).
-- Importação limitada a Skills e Prompts declarativos em Markdown/texto; pacotes executáveis, permissões/capacidades, scripts e tipos não suportados são rejeitados.
-- Valida manifesto, SemVer, ID, entry point, README, licença, UTF-8, tamanho/quantidade de arquivos, caminhos ZIP, symlinks, duplicados e SHA-256.
-- Instalação atômica em diretório local, com registro persistente e estado `enabled=false` por padrão. Nenhum código de terceiros é executado.
-- 13 testes específicos aprovados. Runtime/sandbox e integração com seletor de ferramentas continuam pendentes.
+## [0.26.6] - 2026-11-19 — Native Plugin Hub UI and Code Studio event fix
+- Connected the native plugin library to the local API: import declarative ZIP packages, review manifest and SHA-256, confirm installation, list installed packages and remove disabled packages.
+- The UI clearly indicates that imported packages remain disabled and executable third-party plugin runtime is not available.
+- JavaScript syntax check passed; Chromium smoke test with a mocked API verified ZIP import, confirmation, disabled state, listing and removal.
+- Fixed the missing `id="workbench"` on the Code Studio container, which caused a TypeError and stopped later UI event listeners from registering. The page smoke test then completed without JavaScript errors.
+- Live smoke test against the installed backend remains pending until this release is installed.
+
 
 ### Robustez da retomada de tasks (2026-10-22)
 - `GET /task_pendentes` rejeita `limite` negativo com HTTP 422 e limita valores maiores que int64 ao maximo suportado pelo SQLite, evitando lista vazia por erro interno.

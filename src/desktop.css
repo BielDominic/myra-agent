@@ -311,3 +311,16 @@ body[data-theme="light"] .plugin-source-row input,body[data-theme="light"] .plug
 .pending-image-list button{position:absolute;right:-5px;top:-5px;border:0;border-radius:50%;width:20px;height:20px;background:#7c3aed;color:#fff;cursor:pointer}
 .chat-image-attachment{display:block;max-width:min(100%,560px);max-height:460px;object-fit:contain;border-radius:12px;margin-top:10px;border:1px solid var(--line,#2b2d3a)}
 .generated-image{width:auto}
+
+.plugin-installed-panel{margin:14px 0;padding:14px}
+.plugin-installed-panel .surface-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.plugin-installed-list{display:flex;flex-direction:column;gap:8px;padding-top:12px}
+.plugin-installed-row{display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--line);border-radius:8px;background:#ffffff04}
+.plugin-installed-info{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px}
+.plugin-installed-info strong{font-size:11px;color:var(--text)}
+.plugin-installed-info small{font-size:8px;color:var(--muted);overflow-wrap:anywhere}
+.plugin-installed-info .plugin-installed-hash{font-family:var(--mono);opacity:.75}
+.plugin-installed-row>.soft-button{height:28px;padding:0 10px;font-size:9px}
+.plugin-installed-row>.soft-button:disabled{opacity:.45;cursor:not-allowed}
+body[data-theme="light"] .plugin-installed-row{background:#fff;border-color:#dce3ec}
+@media(max-width:650px){.plugin-installed-row{align-items:flex-start;flex-wrap:wrap}.plugin-installed-row>.plugin-state{margin-left:auto}.plugin-installed-row>.soft-button{margin-left:auto}}

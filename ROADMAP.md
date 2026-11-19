@@ -143,6 +143,9 @@
 - [x] Apenas Skills/Prompts Markdown e texto; plugins executáveis, permissões/capacidades e scripts de instalação são recusados; instalação permanece desativada por padrão.
 - [x] Instalação em staging com troca atômica e registro local em JSON; remoção bloqueada se registro indicar plugin ativo.
 - [x] 13 testes de plugin passaram, incluindo API HTTP, traversal, tipo executável, permissões e duplicidade.
+- [x] UI nativa de plugins conectada à API: importar ZIP, revisar manifesto/hash, confirmar, listar e remover pacotes desativados; smoke test Chromium com API simulada aprovado.
+- [x] Corrigido `id="workbench"` ausente no Code Studio, que interrompia o registro de listeners no carregamento; smoke test sem erros JavaScript passou.
+- [ ] Smoke test da interface contra o backend instalado após a próxima release; runtime de plugins ainda não existe.
 - [ ] Runtime seguro de plugins executáveis, permissões por capacidade, ativação real, sandbox e rollback.
 - [ ] Migrar as ferramentas e skills já existentes do Open WebUI para a interface nativa, preservando BrowserAgent e integrações atuais.
 - [ ] Code Studio com editor de linguagem completo, console, logs, testes, árvore de projeto e preview responsivo.

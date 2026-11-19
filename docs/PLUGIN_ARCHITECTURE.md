@@ -56,10 +56,11 @@ Registry records source URL, pinned commit/tag, SHA-256, install/enabled state, 
 - `DELETE /plugins/{plugin_id}`: remove all installed versions only while every version is disabled.
 - Current accepted package types are `skill` and `prompt`, with Markdown/text entry points. `myra.plugin.json`, `README.md`, and a licence file are required. No script, Python, JavaScript, native binary, requested permission, or capability is accepted.
 - Upload is streamed with a 20 MB compressed limit; extraction is bounded to 50 MB / 500 files, rejects traversal, backslashes, symlinks and duplicate paths, and stages files before an atomic directory move.
+- The native desktop plugin view can select a local ZIP, show the validation summary and SHA-256, ask for confirmation, install, list installed packages and remove disabled packages. A Git URL is still only queued for review; it is not fetched or installed.
 - These endpoints do not yet load instructions into the chat or execute tools. The runtime and UI selector remain future stages; do not label an imported package active.
 
 ## Delivery stages
-- A (partial, initial intake implemented): catalogue, ZIP validator, local registry, safe install/remove and disabled-by-default declarative packages. UI source picker and catalogue review still pending.
+- A (partial, initial intake implemented): catalogue, ZIP validator, local registry, safe install/remove and disabled-by-default declarative packages. Native local ZIP import/list/remove UI is wired; Git source fetching and review remain pending.
 - B: declarative Skills/Prompts integrated into chat and native Tool adapters.
 - C: restricted worker runtime, MCP connectors and per-capability permissions.
 - D: updates, rollback, audit and signed catalogue metadata.

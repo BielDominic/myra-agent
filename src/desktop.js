@@ -136,10 +136,62 @@
       card.append(top,name,desc,actions);host.append(card);
     });
     renderPluginRequests();
+    const installedHost=$("plugin-installed-list");if(installedHost&&installedHost.dataset.loaded!=="true")refreshInstalledPlugins();
   }
   function renderPluginRequests(){
     const host=$("plugin-submitted-list");if(!host)return;host.replaceChildren();
     pluginRequests.forEach((item,index)=>{const row=document.createElement("div");row.className="plugin-request-row";const label=document.createElement("span");label.textContent=(item.name||item.url)+" · Aguardando análise";const remove=document.createElement("button");remove.type="button";remove.textContent="Remover";remove.addEventListener("click",()=>{pluginRequests.splice(index,1);save(PLUGIN_REQUESTS_KEY,pluginRequests);renderPluginRequests()});row.append(label,remove);host.append(row)});
+  }
+  async function refreshInstalledPlugins(){
+    const host=$("plugin-installed-list");if(!host||host.dataset.loading==="true")return;
+    host.dataset.loading="true";
+    try{
+      const response=await fetch(API+"/plugins",{cache:"no-store",signal:AbortSignal.timeout(5000)});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.detail||"Não foi possível consultar os plugins instalados.");
+      const plugins=Array.isArray(data.plugins)?data.plugins:[];
+      host.replaceChildren();
+      if(!plugins.length){const empty=document.createElement("p");empty.className="muted-note";empty.textContent="Nenhum plugin declarativo instalado neste dispositivo.";host.append(empty);return}
+      plugins.sort((a,b)=>(a.name||a.id).localeCompare(b.name||b.id));
+      plugins.forEach(plugin=>{
+        const row=document.createElement("div");row.className="plugin-installed-row";
+        const info=document.createElement("div");info.className="plugin-installed-info";
+        const title=document.createElement("strong");title.textContent=plugin.name||plugin.id;
+        const meta=document.createElement("small");meta.textContent=(plugin.id||"") +" · v"+(plugin.version||"?")+" · "+(plugin.type||"plugin");
+        const hash=document.createElement("small");hash.className="plugin-installed-hash";hash.textContent="SHA-256: "+String(plugin.sha256||"").slice(0,16)+"…";hash.title=plugin.sha256||"";
+        info.append(title,meta,hash);
+        const state=document.createElement("span");state.className="plugin-state planned";state.textContent=plugin.enabled?"Ativo":"Instalado · desativado";
+        const remove=document.createElement("button");remove.type="button";remove.className="soft-button";remove.textContent="Remover";remove.disabled=Boolean(plugin.enabled);
+        remove.addEventListener("click",async()=>{
+          if(!window.confirm("Remover todas as versões de "+(plugin.name||plugin.id)+" deste dispositivo?"))return;
+          remove.disabled=true;
+          try{const result=await fetch(API+"/plugins/"+encodeURIComponent(plugin.id),{method:"DELETE",signal:AbortSignal.timeout(10000)});const body=await result.json().catch(()=>({}));if(!result.ok)throw new Error(body.detail||"Falha ao remover plugin.");$("plugin-source-status").textContent="Plugin removido: "+(plugin.name||plugin.id);await refreshInstalledPlugins()}
+          catch(error){$("plugin-source-status").textContent=error.message;remove.disabled=false}
+        });
+        row.append(info,state,remove);host.append(row);
+      });
+    }catch(error){host.replaceChildren();const message=document.createElement("p");message.className="muted-note";message.textContent="Registro local indisponível: "+error.message;host.append(message)}
+    finally{host.dataset.loading="false";host.dataset.loaded="true"}
+  }
+  async function importPluginPackage(file){
+    if(!file)return;
+    const status=$("plugin-source-status");
+    if(file.size>20*1024*1024){status.textContent="O ZIP excede o limite de 20 MB.";return}
+    status.textContent="Validando manifesto, arquivos, permissões e integridade do pacote…";
+    try{
+      const validationResponse=await fetch(API+"/plugins/validate",{method:"POST",headers:{"Content-Type":"application/zip"},body:file,signal:AbortSignal.timeout(30000)});
+      const validation=await validationResponse.json().catch(()=>({}));
+      if(!validationResponse.ok)throw new Error(validation.detail||"Pacote rejeitado pela validação.");
+      const summary="Pacote validado: "+validation.name+" ("+validation.id+" v"+validation.version+").\n\nTipo: "+validation.type+"\nArquivos: "+validation.files+"\nSHA-256: "+validation.sha256+"\n\nNenhum código executável será executado. Instalar agora, mantendo-o desativado?";
+      if(!window.confirm(summary)){status.textContent="Importação cancelada. Nenhum arquivo foi instalado.";return}
+      status.textContent="Instalando pacote validado…";
+      const installResponse=await fetch(API+"/plugins/install",{method:"POST",headers:{"Content-Type":"application/zip"},body:file,signal:AbortSignal.timeout(30000)});
+      const installed=await installResponse.json().catch(()=>({}));
+      if(!installResponse.ok)throw new Error(installed.detail||"Falha ao instalar o pacote.");
+      status.textContent="Instalado com segurança: "+installed.name+" v"+installed.version+". Permanece desativado.";
+      await refreshInstalledPlugins();
+    }catch(error){status.textContent="Não foi possível importar o pacote: "+error.message}
+    finally{$("plugin-package").value=""}
   }
   function addPluginSource(){
     const input=$("plugin-source-url"),value=String(input.value||"").trim();if(!value)return;
@@ -563,7 +615,7 @@
   $("chat-image-files").addEventListener("change",e=>{attachImages([...e.target.files]);e.target.value=""});
   $("generate-image").addEventListener("click",generateImage);$("voice-read").addEventListener("click",readLastAnswer);$("improve-prompt").addEventListener("click",improvePrompt);
   document.querySelectorAll(".skill-chip").forEach(button=>button.addEventListener("click",()=>{const key=button.dataset.skill;if(activeSkills.has(key)){activeSkills.delete(key);button.classList.remove("active")}else{activeSkills.add(key);button.classList.add("active")}}));
-  $("plugin-source-add").addEventListener("click",addPluginSource);$("plugin-search").addEventListener("input",renderPlugins);$("plugin-category").addEventListener("change",renderPlugins);
+  $("plugin-source-add").addEventListener("click",addPluginSource);$("plugin-search").addEventListener("input",renderPlugins);$("plugin-category").addEventListener("change",renderPlugins);$("plugin-package-select").addEventListener("click",()=>$("plugin-package").click());$("plugin-package").addEventListener("change",e=>importPluginPackage(e.target.files?.[0]));$("plugin-refresh").addEventListener("click",()=>{$("plugin-installed-list").dataset.loaded="false";refreshInstalledPlugins()});
   $("github-refresh").addEventListener("click",refreshGitHub);$("github-fetch").addEventListener("click",()=>githubSync("fetch"));$("github-pull").addEventListener("click",()=>githubSync("pull"));$("github-push").addEventListener("click",()=>githubSync("push"));$("github-export").addEventListener("click",exportWorkspace);
   $("new-project").addEventListener("click",newProject);$("project-search").addEventListener("input",renderProjects);$("code-editor").addEventListener("input",()=>{storeActiveCode();$("editor-status").textContent="Alterações locais";clearTimeout(previewTimer);previewTimer=setTimeout(renderPreview,220)});$("run-preview").addEventListener("click",()=>{renderPreview();$("editor-status").textContent="Preview atualizado"});$("refresh-preview").addEventListener("click",renderPreview);$("expand-preview").addEventListener("click",()=>showView("preview"));$("preview-to-code").addEventListener("click",()=>showView("code"));$("add-file").addEventListener("click",addCodeFile);$("download-code").addEventListener("click",downloadCode);$("import-code").addEventListener("click",()=>$("code-file").click());$("code-file").addEventListener("change",e=>{Array.from(e.target.files||[]).forEach(importCode);e.target.value=""});$("workbench").addEventListener("dragover",e=>{e.preventDefault();$("workbench").classList.add("is-dragging")});$("workbench").addEventListener("dragleave",e=>{if(!e.relatedTarget||!$("workbench").contains(e.relatedTarget))$("workbench").classList.remove("is-dragging")});$("workbench").addEventListener("drop",e=>{e.preventDefault();$("workbench").classList.remove("is-dragging");Array.from(e.dataTransfer?.files||[]).forEach(importCode)});$("refresh-models").addEventListener("click",refreshModels);$("quick-model").addEventListener("change",e=>selectModel(e.target.value));$("settings-model").addEventListener("change",e=>selectModel(e.target.value));
   document.querySelectorAll("[data-integration]").forEach(b=>b.addEventListener("click",()=>{const k=b.dataset.integration;showModal(k==="github"?"GitHub":k==="api"?"Adicionar API":"Arquitetura de plugins",k==="github"?"O repositório privado conectado usa a autenticação GitHub CLI desta máquina. Fetch, pull e push são executados pelo Git local.":k==="api"?"Cadastre um endpoint HTTPS público e teste uma chamada GET real. Tokens são temporários e não ficam armazenados.":"Expansão modular da MYRA.",k)}));
