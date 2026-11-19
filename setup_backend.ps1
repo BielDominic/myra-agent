@@ -13,7 +13,17 @@ $logs = Join-Path $installRoot "logs"
 $workspace = Join-Path $installRoot "workspace"
 $profile = Join-Path $installRoot "chrome_profile"
 $screenshots = Join-Path $installRoot "screenshots"
-New-Item -ItemType Directory -Force -Path $backend,$logs,$workspace,$profile,$screenshots | Out-Null
+$config = Join-Path $installRoot "config"
+$projects = Join-Path $workspace "projects"
+$downloads = Join-Path $workspace "downloads"
+$artifacts = Join-Path $workspace "artifacts"
+$memory = Join-Path $workspace "memory"
+New-Item -ItemType Directory -Force -Path $backend,$logs,$workspace,$projects,$downloads,$artifacts,$memory,$profile,$screenshots,$config | Out-Null
+$profileFile = Join-Path $config "user_profile.json"
+if (-not (Test-Path $profileFile)) {
+    $profileJson = @{ profile_id = [guid]::NewGuid().ToString(); created_at = (Get-Date).ToUniversalTime().ToString("o"); workspace = $workspace; projects = $projects } | ConvertTo-Json
+    [IO.File]::WriteAllText($profileFile, $profileJson, (New-Object System.Text.UTF8Encoding($false)))
+}
 Write-Host "Instalando arquivos locais da MYRA em $backend"
 foreach ($name in @("agent.py","tasks","computer","browser-extension","tools","requirements.txt","requirements-core.txt","requirements-core.lock","requirements-vision.txt","README.md")) {
     $from = Join-Path $source $name
@@ -76,6 +86,14 @@ Write-Host "Instalando dependencias principais a partir do pacote offline inclui
 & $venvPython -m pip install --no-index --find-links $wheelhouse -r (Join-Path $backend "requirements-core.txt")
 if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar dependencias offline do MYRA." }
 
+$visionWheelhouse = Join-Path $PSScriptRoot "wheelhouse-vision"
+if (-not (Test-Path $visionWheelhouse)) { throw "Pacotes de visao/ML nao encontrados: $visionWheelhouse" }
+Write-Host "Instalando PyTorch CPU, OpenCV, ONNX Runtime, RapidOCR e Ultralytics offline..."
+& $venvPython -m pip install --no-index --find-links $visionWheelhouse -r (Join-Path $backend "requirements-vision.txt")
+if ($LASTEXITCODE -ne 0) { throw "Falha ao instalar o pacote de visao/ML offline." }
+& $venvPython -m pip check
+if ($LASTEXITCODE -ne 0) { throw "O ambiente Python possui dependencias inconsistentes." }
+
 $installedBrowsers = Join-Path $installRoot "playwright-browsers"
 if (Test-Path $installedBrowsers) { Remove-Item $installedBrowsers -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $installedBrowsers | Out-Null
@@ -87,6 +105,7 @@ if ($env:MYRA_SKIP_GIT_CLONE -ne "1" -and -not (Test-Path (Join-Path $repo ".git
     try { & git clone --depth 1 --branch feature/fase26-vision-fixes https://github.com/BielDominic/myra-agent.git $repo; if ($LASTEXITCODE -ne 0) { Write-Warning "GitHub clone unavailable; GitHub sync remains disabled until a repository is connected." } } catch { Write-Warning "Could not clone repository: $_" }
 }
 Copy-Item (Join-Path $PSScriptRoot "start_myra.ps1") (Join-Path $installRoot "start_myra.ps1") -Force
+Copy-Item (Join-Path $PSScriptRoot "setup_models.ps1") (Join-Path $installRoot "setup_models.ps1") -Force
 $startMenu = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\MYRA"
 New-Item -ItemType Directory -Force -Path $startMenu | Out-Null
 $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $startMenu "MYRA.lnk"))
@@ -94,5 +113,11 @@ $shortcut.TargetPath = "powershell.exe"
 $shortcut.Arguments = ('-NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $installRoot "start_myra.ps1") + '"')
 $shortcut.WorkingDirectory = $installRoot
 $shortcut.Save()
-Write-Host "MYRA instalada. Dependencias Python principais instaladas sem baixar pacotes do PyPI."
+Write-Host "MYRA instalada com dependencias core e ML/visao offline."
+Write-Host "Cada conta do Windows possui seu proprio workspace em $workspace."
 Write-Host "Abra MYRA pelo menu Iniciar para iniciar backend e interface."
+$modelsSetup = Join-Path $installRoot "setup_models.ps1"
+if ($env:MYRA_SKIP_MODEL_WIZARD -ne "1" -and (Test-Path $modelsSetup)) {
+    Write-Host "Abrindo configuracao opcional do Ollama e modelo local..."
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $modelsSetup
+}

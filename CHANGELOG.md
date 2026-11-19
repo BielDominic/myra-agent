@@ -106,3 +106,17 @@ Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.
 - `e7a5875` — `feat(widget): bloco A (passos, tema, compacto, trava, pausa UI) + cancelamento real de tasks`
 - `7103b03` — `feat(bridge): browser_search_google_visivel + fix polling serializado`
 - `67f47ac` — `fix(offscreen): polling serializado com setTimeout recursivo + guarda pollRunning`
+
+## [0.26.2] - 2026-11-19
+
+### Windows installer
+- Bundled the default CPU vision/ML stack offline: PyTorch, TorchVision, OpenCV, ONNX Runtime, RapidOCR and Ultralytics.
+- Expanded installer smoke tests to import the complete vision stack and run Playwright Chromium.
+- Added first-run Ollama setup with selectable local models and a skip/defer option.
+- Aligned chat, code generation and task planner model defaults with the selected installed model.
+- Created per-Windows-user profile metadata and isolated workspace folders for projects, downloads, artifacts and memory.
+
+### macOS
+- Added native Tauri DMG build workflows for Apple Silicon and Intel.
+- Added macOS URL opening, Chrome activation and local task-status/cancel IPC support in the desktop shell.
+- Documented the macOS build as early access; backend desktop automation parity remains incomplete.

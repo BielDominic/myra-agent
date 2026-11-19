@@ -2,8 +2,8 @@
 #
 # Instalar:  venv\Scripts\python.exe -m pip install -r requirements.txt
 # Nota: as versoes abaixo sao as verificadas no ambiente atual.
-# torch/ultralytics/opencv sao pesados: instale o grupo "visao" apenas se usar
-# as ferramentas de visao/OCR (llm-eyes + vision_locate + YOLO).
+# Windows one-click installer bundles the CPU vision/ML stack by default.
+# CUDA-enabled PyTorch is a separate, hardware-specific option and is not bundled.
 
 # --- Core (backend, planner, bridge, emails) ---
 fastapi==0.141.1

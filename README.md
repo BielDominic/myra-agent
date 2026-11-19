@@ -5,7 +5,7 @@
 [![Ollama](https://img.shields.io/badge/LLM-Ollama-111111?style=flat-square&logo=ollama&logoColor=white)](https://ollama.com/)
 [![Chrome](https://img.shields.io/badge/Browser-Chrome%20MV3-4285F4?style=flat-square&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/)
 [![Docker](https://img.shields.io/badge/UI-Open%20WebUI-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docs.openwebui.com/)
-[![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?style=flat-square&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-0078D4?style=flat-square&logo=apple&logoColor=white)](https://github.com/BielDominic/myra-agent/releases)
 [![Status](https://img.shields.io/badge/Status-Active%20development-orange?style=flat-square)]()
 [![Repository](https://img.shields.io/badge/Repository-Private-lightgrey?style=flat-square)]()
 
@@ -15,22 +15,28 @@ The project combines a locally hosted language model with a FastAPI backend, bro
 
 > **Project status:** experimental and under active development. Capabilities, setup steps, and safety boundaries may change. This README describes the documented architecture; not every feature has the same level of testing or polish.
 
-## Download MYRA for Windows
+## Download MYRA
 
-**Release v0.26.1**
+**Latest release: v0.26.2**
 
-- [Download the Windows x64 installer](https://github.com/BielDominic/myra-agent/releases/download/v0.26.1/MYRA_0.26.1_x64-setup.exe)
-- [Download the complete offline backend package](https://github.com/BielDominic/myra-agent/releases/download/v0.26.1/MYRA_v0.26.1_Backend_Setup.zip)
-- [Verify SHA-256 checksums](https://github.com/BielDominic/myra-agent/releases/download/v0.26.1/SHA256SUMS.txt)
+- [Windows x64 installer](https://github.com/BielDominic/myra-agent/releases/download/v0.26.2/MYRA_0.26.2_x64-setup.exe)
+- [Complete Windows offline setup package](https://github.com/BielDominic/myra-agent/releases/download/v0.26.2/MYRA_v0.26.2_Backend_Setup.zip)
+- [Windows SHA-256 checksums](https://github.com/BielDominic/myra-agent/releases/download/v0.26.2/SHA256SUMS.txt)
+- [macOS Apple Silicon DMG (arm64)](https://github.com/BielDominic/myra-agent/releases/download/v0.26.2/MYRA_v0.26.2_arm64.dmg)
+- [macOS Intel DMG (x64)](https://github.com/BielDominic/myra-agent/releases/download/v0.26.2/MYRA_v0.26.2_x64.dmg)
 - [All releases](https://github.com/BielDominic/myra-agent/releases)
 
-**One-click installer:** the Windows x64 EXE bundles the official Python 3.14.10 runtime, all pinned core Python wheels, and the Playwright Chromium browser. Core backend dependencies are installed offline from the included wheelhouse; no Python installation or PyPI package download is required. Ollama, model weights, and the optional computer-vision/ML stack are separate components. See [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md).
+**Windows one-click installer:** bundles Python 3.14.10, pinned core wheels, the complete CPU vision/ML wheelhouse (PyTorch, OpenCV, ONNX Runtime, RapidOCR and Ultralytics), and Playwright Chromium. Core and vision dependencies install offline; no Python installation or PyPI download is required. After setup, a wizard lets each user install Ollama and choose a model to download. Model weights are not embedded in the installer.
+
+**macOS:** the DMG is an early-access native desktop shell for Apple Silicon and Intel. Full backend/desktop-automation parity is not yet available; see [INSTALL_MACOS.md](INSTALL_MACOS.md).
 
 ## Contents
 
 - [Highlights](#highlights)
 - [Capabilities](#capabilities)
-- [Download MYRA for Windows](#download-myra-for-windows)
+- [Download MYRA](#download-myra)
+- [macOS installation status](INSTALL_MACOS.md)
+- [Windows installation guide](INSTALL_WINDOWS.md)
 - [Plugin architecture](docs/PLUGIN_ARCHITECTURE.md)
 - [Repository layout](docs/REPOSITORY_LAYOUT.md)
 - [Architecture](#architecture)

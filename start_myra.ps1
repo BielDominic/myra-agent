@@ -4,6 +4,17 @@ $backend = Join-Path $root "backend"
 $python = Join-Path $backend "venv\Scripts\python.exe"
 $logs = Join-Path $root "logs"
 $env:MYRA_DATA_DIR = $root
+$modelConfig = Join-Path $root "config\model.json"
+if (Test-Path $modelConfig) {
+    try {
+        $selectedModel = (Get-Content $modelConfig -Raw | ConvertFrom-Json).model
+        if ($selectedModel) {
+            $env:MYRA_CHAT_MODEL = [string]$selectedModel
+            $env:MYRA_CODE_MODEL = [string]$selectedModel
+            $env:MYRA_PLANNER_MODEL = [string]$selectedModel
+        }
+    } catch { Write-Warning "Não foi possível ler a configuração do modelo local: $_" }
+}
 $env:MYRA_WORKSPACE = Join-Path $root "workspace"
 $env:MYRA_CHROME_PROFILE = Join-Path $root "chrome_profile"
 $env:MYRA_SCREENSHOTS = Join-Path $root "screenshots"

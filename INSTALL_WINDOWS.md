@@ -1,39 +1,47 @@
-# MYRA - Instalacao com um clique (Windows)
+# MYRA - Instalação com um clique (Windows)
 
 ## Requisitos
 - Windows 10/11 x64.
-- Internet apenas para integrações externas, sincronização GitHub e recursos online; o runtime Python e as dependências principais já vêm no instalador.
-- Ollama instalado para inferência local (pode ser instalado depois).
+- Internet é necessária para integrações externas e para o download opcional do Ollama/modelo. O runtime Python, dependências core, ML/visão e Chromium já vêm no instalador.
+- Espaço livre recomendado: 8 GB para o aplicativo e ambiente; mais espaço para modelos locais.
 
-## Instalacao
-1. Entre na pagina [MYRA Releases](https://github.com/BielDominic/myra-agent/releases).
-2. Baixe MYRA_0.26.1_x64-setup.exe.
-3. Execute o instalador e conclua as etapas.
-4. O instalador instala o runtime oficial Python 3.14.10 se necessário, cria o ambiente virtual, instala os pacotes a partir do wheelhouse offline e copia o Chromium do Playwright.
+## Instalação
+1. Abra [MYRA Releases](https://github.com/BielDominic/myra-agent/releases).
+2. Baixe `MYRA_0.26.2_x64-setup.exe`.
+3. Execute o instalador. Ele instala o aplicativo e prepara o backend do seu usuário.
+4. O assistente final pergunta se deseja instalar o Ollama e baixar um modelo local. A opção vem marcada por padrão, mas pode ser desmarcada ou adiada.
 5. Abra MYRA pelo menu Iniciar.
 
-Nao e necessario instalar Python, baixar pacotes do PyPI ou executar PowerShell manualmente. O ZIP complementar contém o mesmo payload completo para recuperação/instalação manual.
+## Componentes incluídos
+- Python oficial 3.14.10 x64.
+- Wheels offline fixadas do backend: FastAPI, Uvicorn, Pydantic, Playwright, Requests, Pillow, psutil, PyYAML, Jinja2, yt-dlp, YouTube Transcript API, PyAutoGUI, PyGetWindow, pywinauto, MSS, keyboard e pywebview.
+- Stack CPU de ML/visão: NumPy, OpenCV, ONNX Runtime, RapidOCR, PyTorch CPU, TorchVision, Ultralytics e dependências transitivas.
+- Chromium compatível com Playwright.
+- Backend, ferramentas, tarefas, extensão Chrome e scripts de inicialização.
+- O instalador prepara os ambientes Python offline, sem PyPI.
 
-## Conteudo incluído no instalador
-- Runtime oficial Python 3.14.10 x64 (SHA-256 validado durante a preparação do release).
-- Dependências principais do backend como wheels offline: FastAPI, Uvicorn, Pydantic, Playwright, Requests, Pillow, psutil, PyYAML, Jinja2, yt-dlp, YouTube Transcript API, PyAutoGUI, PyGetWindow, pywinauto, mss, keyboard e pywebview, incluindo dependências transitivas.
-- Navegador Chromium compatível com a versão de Playwright empacotada.
-- Backend MYRA, tarefas, módulos de computador, ferramentas e extensão do navegador.
-- Scripts de instalação e inicialização.
+## Ollama e modelo local (escolha do usuário)
+O assistente oferece instalar o Ollama via Windows Package Manager e baixar um modelo inicial. O modelo padrão é `qwen2.5:3b`; também é possível escolher `qwen2.5:7b`, `llama3.2:3b` ou `qwen2.5:1.5b`. O download do modelo requer internet e pode consumir de cerca de 1 GB a vários GB, dependendo da escolha. O usuário pode pular e configurar depois.
 
-## Componentes que não fazem parte do pacote base
-- Ollama e os pesos dos modelos LLM (downloads independentes, conforme o modelo escolhido).
-- Grupo opcional de visão computacional/ML: NumPy, OpenCV, ONNX Runtime, RapidOCR, PyTorch e Ultralytics. Esses pacotes são grandes e devem ser instalados pelo complemento de visão quando necessário.
-- Git/GitHub CLI e credenciais de acesso ao repositório privado.
-- Chaves de APIs e integrações externas.
+Os pesos do modelo **não estão dentro do EXE**: são baixados pelo Ollama para evitar duplicar vários gigabytes em cada cópia do instalador. O PyTorch incluído é CPU-only para funcionar em computadores com diferentes GPUs; aceleração CUDA é uma opção futura separada.
 
-## Extensao do Chrome
-Abra chrome://extensions, ative o Modo do desenvolvedor e carregue a pasta browser-extension instalada em %LOCALAPPDATA%\MYRA\backend\browser-extension.
+## Espaço de trabalho por usuário
+Cada conta do Windows tem seus próprios dados em `%LOCALAPPDATA%\MYRA`, incluindo:
+- `workspace\projects`
+- `workspace\downloads`
+- `workspace\artifacts`
+- `workspace\memory`
+- `chrome_profile`
+- `config\user_profile.json`
+- `config\model.json` (quando um modelo é configurado)
 
-## Dados e privacidade
-O processamento principal do agente e local. Conectores, APIs e sites externos so recebem dados quando uma acao os utiliza. Nao distribua arquivos .env, tokens ou perfis do navegador.
+Os dados não são compartilhados entre contas Windows diferentes. O instalador não conecta o usuário ao computador do desenvolvedor nem envia o workspace ao GitHub.
 
-## Diagnostico
+## Extensão Chrome
+Abra `chrome://extensions`, ative o Modo do desenvolvedor e carregue a pasta `browser-extension` em `%LOCALAPPDATA%\MYRA\backend\browser-extension`.
+
+## Diagnóstico
 - Backend: http://127.0.0.1:8000
-- Logs: %LOCALAPPDATA%\MYRA\logs
-- Se o setup automatico falhar, execute %LOCALAPPDATA%\MYRA\setup_backend.ps1 novamente e consulte os logs de instalacao.
+- Logs: `%LOCALAPPDATA%\MYRA\logs`
+- Reexecute `%LOCALAPPDATA%\MYRA\setup_backend.ps1` para reparar o ambiente.
+- Para configurar o Ollama/modelo depois: `%LOCALAPPDATA%\MYRA\setup_models.ps1`.

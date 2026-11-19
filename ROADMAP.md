@@ -698,7 +698,10 @@
 - [x] Composer skill toggles: Code, Research, Design and Review.
 - [x] Voice dictation and answer playback using WebView speech APIs.
 - [x] Close the widget and overlay when the main desktop window closes.
-- [x] NSIS installer bundles Python 3.14, offline core wheels and Playwright Chromium; backend setup installs core dependencies without PyPI downloads.
+- [x] Windows NSIS installer bundles Python 3.14.10, 50 core wheels, 47 CPU vision/ML wheels (PyTorch, TorchVision, OpenCV, ONNX Runtime, RapidOCR, Ultralytics) and Playwright Chromium; installs without PyPI.
+- [x] First-run Ollama/model choice wizard with Qwen2.5 3B default, alternative model sizes, and skip/defer option.
+- [x] Per-Windows-account profile/workspace directories for projects, downloads, artifacts and memory.
+- [ ] macOS DMG builds for Apple Silicon and Intel; desktop shell only until native backend/automation port is complete.
 - [x] Initial plugin reference library and local queue for source review.
 - [x] Plugin architecture contract documented in docs/PLUGIN_ARCHITECTURE.md.
 - [ ] Secure plugin runtime, manifest validation, capability permissions, install/enable and rollback.

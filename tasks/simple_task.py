@@ -7,6 +7,7 @@ Cada iteracao: LLM decide 1 passo -> executa -> observa -> verifica -> repete.
 Integrado com o widget: notifica passo_atual, passo_num, historico.
 """
 import json
+import os
 from tasks.cancel_state import esta_cancelada, esta_pausada, resetar, resetar_pausa
 from tasks import autonomy, task_store
 import re
@@ -16,7 +17,7 @@ import urllib.request
 import urllib.parse
 
 OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
-MODELO_PLANNER = "qwen2.5:3b-instruct-q5_K_M"
+MODELO_PLANNER = os.environ.get("MYRA_PLANNER_MODEL", os.environ.get("MYRA_CHAT_MODEL", "qwen2.5:3b"))
 
 FERRAMENTAS_DISPONIVEIS = {}
 FERRAMENTAS_DESCRICOES = {}

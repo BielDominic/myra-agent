@@ -23,7 +23,7 @@ import requests
 
 DEFAULT_AGENT_URL = "http://127.0.0.1:8000"
 DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
-DEFAULT_CHAT_MODEL = "qwen2.5:3b-instruct-q5_K_M"
+DEFAULT_CHAT_MODEL = os.environ.get("MYRA_TELEGRAM_CHAT_MODEL", os.environ.get("MYRA_CHAT_MODEL", "qwen2.5:3b"))
 DEFAULT_OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
 CHAT_MODEL_STATE_FILE = Path(__file__).with_name(".telegram_chat_model")
 CHAT_MEMORY_FILE = Path(__file__).with_name(".telegram_chat_memory.json")
@@ -31,7 +31,7 @@ CHAT_FIRST_MESSAGE_FILE = Path(__file__).with_name(".telegram_chat_first_message
 MAX_MESSAGE_LENGTH = 3900
 MAX_CHAT_HISTORY_TURNS = 12
 MAX_TASK_LENGTH = 1200
-FAST_CHAT_MODEL = "qwen2.5:3b-instruct-q5_K_M"
+FAST_CHAT_MODEL = os.environ.get("MYRA_TELEGRAM_CHAT_MODEL", os.environ.get("MYRA_CHAT_MODEL", "qwen2.5:3b"))
 MAX_CHAT_TOKENS = 350
 
 

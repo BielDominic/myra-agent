@@ -248,3 +248,4 @@ installer/wheelhouse/
 installer/runtime/
 installer/playwright-browsers/
 installer/.playwright-build-venv/
+installer/wheelhouse-vision/

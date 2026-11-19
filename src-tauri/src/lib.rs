@@ -161,24 +161,13 @@ fn set_overlay_visible(app: tauri::AppHandle, visible: bool) -> Result<(), Strin
 #[tauri::command]
 async fn get_task_status() -> Result<serde_json::Value, String> {
     let url = "http://127.0.0.1:8000/task_status";
-    let response = std::thread::spawn(move || {
-        std::process::Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                &format!(
-                    "(Invoke-WebRequest -Uri '{}' -UseBasicParsing -TimeoutSec 3).Content",
-                    url
-                ),
-            ])
-            .output()
-            .ok()
-            .filter(|o| o.status.success())
-            .and_then(|o| String::from_utf8(o.stdout).ok())
-    })
-    .join()
-    .map_err(|_| "thread panic".to_string())?
-    .ok_or_else(|| "agent offline".to_string())?;
+    let response = std::process::Command::new("curl")
+        .args(["--fail", "--silent", "--show-error", "--max-time", "3", url])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .ok_or_else(|| "agent offline".to_string())?;
 
     serde_json::from_str(&response).map_err(|e| e.to_string())
 }
@@ -190,24 +179,13 @@ async fn get_task_status() -> Result<serde_json::Value, String> {
 #[tauri::command]
 async fn cancel_task() -> Result<serde_json::Value, String> {
     let url = "http://127.0.0.1:8000/task_cancel";
-    let response = std::thread::spawn(move || {
-        std::process::Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                &format!(
-                    "(Invoke-WebRequest -Uri '{}' -Method POST -UseBasicParsing -TimeoutSec 3).Content",
-                    url
-                ),
-            ])
-            .output()
-            .ok()
-            .filter(|o| o.status.success())
-            .and_then(|o| String::from_utf8(o.stdout).ok())
-    })
-    .join()
-    .map_err(|_| "thread panic".to_string())?
-    .ok_or_else(|| "agent offline".to_string())?;
+    let response = std::process::Command::new("curl")
+        .args(["--fail", "--silent", "--show-error", "--max-time", "3", "-X", "POST", url])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .ok_or_else(|| "agent offline".to_string())?;
 
     serde_json::from_str(&response).map_err(|e| e.to_string())
 }
@@ -216,6 +194,21 @@ async fn cancel_task() -> Result<serde_json::Value, String> {
 // IPC: focus the existing Chrome window for human takeover
 #[tauri::command]
 fn focus_chrome_window() -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let output = std::process::Command::new("osascript")
+            .args(["-e", "tell application \"Google Chrome\" to activate"])
+            .output().map_err(|e| e.to_string())?;
+        if !output.status.success() { return Err(String::from_utf8_lossy(&output.stderr).to_string()); }
+        return Ok(serde_json::json!({"ok": true, "platform": "macos"}));
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let output = std::process::Command::new("wmctrl").args(["-a", "Google Chrome"]).output().map_err(|e| e.to_string())?;
+        return Ok(serde_json::json!({"ok": output.status.success(), "platform": "linux"}));
+    }
+    #[cfg(target_os = "windows")]
+    {
     let script = r#"
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class MyraForeground { [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd); [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow); }'
 $p = Get-Process chrome -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
@@ -229,6 +222,7 @@ $ok = [MyraForeground]::SetForegroundWindow($p.MainWindowHandle)
         .output().map_err(|e| e.to_string())?;
     if !output.status.success() { return Err(String::from_utf8_lossy(&output.stderr).to_string()); }
     serde_json::from_slice(&output.stdout).map_err(|_| String::from_utf8_lossy(&output.stdout).to_string())
+    }
 }
 // RUN
 // ============================================================
@@ -246,7 +240,13 @@ fn open_external_url(url: String) -> Result<(), String> {
             .spawn().map_err(|e| e.to_string())?;
         return Ok(());
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(parsed.as_str()).spawn().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(target_os = "linux")]
     {
         std::process::Command::new("xdg-open")
             .arg(parsed.as_str()).spawn().map_err(|e| e.to_string())?;

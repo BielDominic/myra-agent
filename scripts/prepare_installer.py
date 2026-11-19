@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DEST = ROOT / "installer" / "backend"
 WHEELHOUSE = ROOT / "installer" / "wheelhouse"
+VISION_WHEELHOUSE = ROOT / "installer" / "wheelhouse-vision"
 RUNTIME = ROOT / "installer" / "runtime"
 BROWSERS = ROOT / "installer" / "playwright-browsers"
 PYTHON_URL = "https://www.python.org/ftp/python/3.14.10/python-3.14.10-amd64.exe"
@@ -59,6 +60,26 @@ def build_offline_wheelhouse() -> None:
     print(f"Prepared {len(wheels)} offline wheels ({sum(p.stat().st_size for p in wheels):,} bytes)", flush=True)
 
 
+def build_offline_vision_wheelhouse() -> None:
+    if VISION_WHEELHOUSE.exists():
+        shutil.rmtree(VISION_WHEELHOUSE)
+    VISION_WHEELHOUSE.mkdir(parents=True)
+    requirements = ROOT / "installer" / "requirements-vision.txt"
+    command = [
+        sys.executable, "-m", "pip", "wheel", "--only-binary=:all:",
+        "--index-url", "https://download.pytorch.org/whl/cpu",
+        "--extra-index-url", "https://pypi.org/simple",
+        "--wheel-dir", str(VISION_WHEELHOUSE), "-r", str(requirements),
+    ]
+    print("Building offline CPU vision/ML wheelhouse (PyTorch, OpenCV, ONNX, Ultralytics)...", flush=True)
+    subprocess.run(command, cwd=ROOT, check=True)
+    wheels = list(VISION_WHEELHOUSE.glob("*.whl"))
+    non_wheels = [p.name for p in VISION_WHEELHOUSE.iterdir() if p.is_file() and p.suffix != ".whl"]
+    if not wheels or non_wheels:
+        raise RuntimeError(f"Vision wheelhouse must contain wheels only. Non-wheel files: {non_wheels}")
+    print(f"Prepared {len(wheels)} offline vision wheels ({sum(p.stat().st_size for p in wheels):,} bytes)", flush=True)
+
+
 def install_playwright_browser() -> None:
     if BROWSERS.exists():
         shutil.rmtree(BROWSERS)
@@ -71,6 +92,10 @@ def install_playwright_browser() -> None:
     subprocess.run([
         str(build_python), "-m", "pip", "install", "--no-index",
         "--find-links", str(WHEELHOUSE), "-r", str(ROOT / "installer" / "requirements-core.lock")
+    ], check=True)
+    subprocess.run([
+        str(build_python), "-m", "pip", "install", "--no-index",
+        "--find-links", str(VISION_WHEELHOUSE), "-r", str(ROOT / "installer" / "requirements-vision.txt")
     ], check=True)
     env = os.environ.copy()
     env["PLAYWRIGHT_BROWSERS_PATH"] = str(BROWSERS)
@@ -111,6 +136,7 @@ def main() -> None:
     shutil.copy2(ROOT / "README.md", DEST / "README.md")
     ensure_python_runtime()
     build_offline_wheelhouse()
+    build_offline_vision_wheelhouse()
     install_playwright_browser()
     files = [p for p in DEST.rglob("*") if p.is_file()]
     forbidden = (".telegram", ".env", "backup", ".bak", "__pycache__")

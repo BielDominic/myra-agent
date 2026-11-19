@@ -1,4 +1,4 @@
-# Optional vision/OCR add-on. Large ML wheels are not bundled in the base installer.
+# Default Windows installer vision/ML stack. PyTorch CPU wheels are resolved from the official CPU index.
 numpy==2.5.4
 opencv-python==5.0.0.93
 onnxruntime==1.31.0

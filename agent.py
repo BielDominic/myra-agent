@@ -2942,8 +2942,8 @@ def pc_rename_chat(data: ChatRename):
     return {"status": "ok", "result": f"Chat renomeado para {data.novo_titulo!r}"}
 
 
-CODE_MODEL_PRIMARY = "R4C3R/qwen2.5-coder-3b-heretic:latest"
-CODE_MODEL_FALLBACK = "qwen2.5-coder:7b"
+CODE_MODEL_PRIMARY = os.environ.get("MYRA_CODE_MODEL", os.environ.get("MYRA_CHAT_MODEL", "qwen2.5:3b"))
+CODE_MODEL_FALLBACK = os.environ.get("MYRA_CODE_MODEL_FALLBACK", CODE_MODEL_PRIMARY)
 CODE_WORKSPACE = os.path.join(WORKSPACE_DIR, "code")
 OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
 
@@ -4259,7 +4259,7 @@ async def openai_chat_completions(request: Request):
 _MYRA_CHAT_MEMORY_PATH = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "MYRA" / "myra_openwebui_chat_memory.json"
 _MYRA_CHAT_MEMORY_LOCK = threading.RLock()
 _MYRA_CHAT_MAX_TURNS = 12
-_MYRA_CHAT_MODEL = os.environ.get("MYRA_CHAT_MODEL", "qwen2.5:3b-instruct-q5_K_M")
+_MYRA_CHAT_MODEL = os.environ.get("MYRA_CHAT_MODEL", "qwen2.5:3b")
 
 _MYRA_DESKTOP_SETTINGS_PATH = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "MYRA" / "desktop_settings.json"
 try:
