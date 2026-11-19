@@ -1226,8 +1226,8 @@ class TelegramBot:
 
         # Geração de imagem em linguagem natural, além dos comandos /image e /imagine.
         image_patterns = (
-            r"^\s*(?:por favor,?\s*)?(?:myra\s*[,!:]?\s*)?(?:gere|gera|gerar|crie|criar|fa[cç]a|fazer|desenhe|desenhar|produza|produzir)\s+(?:uma?\s+)?(?:imagem|ilustra[cç][aã]o|desenho)\s*(?:(?:de|do|da|dos|das|sobre|com)\s+)?(.+?)\s*$",
-            r"^\s*quero\s+(?:que\s+voc[eê]\s+)?(?:gere|crie|fa[cç]a)\s+(?:uma?\s+)?(?:imagem|ilustra[cç][aã]o|desenho)\s*(?:(?:de|do|da|dos|das|sobre|com)\s+)?(.+?)\s*$",
+            r"^\s*(?:por favor,?\s*)?(?:myra\s*[,!:]?\s*)?(?:gere|gera|gerar|crie|criar|fa[cç]a|fazer|desenhe|desenhar|produza|produzir)\s+(?:(?:uma?|a|o|as|os)\s+)?(?:imagem|ilustra[cç][aã]o|desenho)\s*(?:(?:de|do|da|dos|das|sobre|com)\s+)?(.+?)\s*$",
+            r"^\s*quero\s+(?:que\s+voc[eê]\s+)?(?:gere|crie|fa[cç]a)\s+(?:(?:uma?|a|o|as|os)\s+)?(?:imagem|ilustra[cç][aã]o|desenho)\s*(?:(?:de|do|da|dos|das|sobre|com)\s+)?(.+?)\s*$",
             r"^\s*(?:please\s+)?(?:generate|create|draw)\s+(?:an?\s+)?(?:image|illustration|drawing)\s*(?:(?:of|about|with)\s+)?(.+?)\s*$",
         )
         image_prompt = None

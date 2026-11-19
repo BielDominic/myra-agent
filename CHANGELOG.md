@@ -1,3 +1,7 @@
+## [Unreleased]
+
+- Fixed Telegram natural-language image routing to accept definite articles (`a imagem`, `o desenho`, `as imagens`) as well as indefinite articles. Added regression coverage for the exact request “Gere a imagem de um gato com um Vídeo game”. The installed backend copy was patched and restarted; Telegram/ComfyUI health checks are green.
+
 ## [0.26.5] - 2026-11-19 — Declarative plugin intake, updater cadence and security hardening
 
 - Added secure local plugin APIs for validating, installing, listing and removing declarative Skills/Prompts. Executable packages, requested permissions and capabilities are rejected; packages remain disabled by default.

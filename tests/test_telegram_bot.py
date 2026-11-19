@@ -1228,6 +1228,27 @@ def test_telegram_natural_language_image_request_queues_generation(monkeypatch):
     assert not any("11434/api/generate" in call[1] for call in http.calls)
 
 
+def test_telegram_exact_user_request_with_definite_article_routes_to_image_generation(monkeypatch):
+    import tasks.telegram_bot as module
+    started = []
+
+    class CapturedThread:
+        def __init__(self, target, args, kwargs=None, name=None, daemon=None):
+            self.target, self.args = target, args
+        def start(self):
+            started.append((self.target, self.args))
+
+    monkeypatch.setattr(module.threading, "Thread", CapturedThread)
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    bot._route_text_message("123", "Gere a imagem de um gato com um Vídeo game")
+
+    assert len(started) == 1
+    assert started[0][0].__name__ == "_generate_image_for_chat"
+    assert started[0][1] == ("123", "um gato com um Vídeo game")
+    assert any("/sendMessage" in call[1] and "Estou gerando a imagem localmente" in call[2]["text"] for call in http.calls)
+
+
 def test_telegram_image_generation_serializes_jobs_for_low_vram():
     import threading
 
