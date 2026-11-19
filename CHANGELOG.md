@@ -122,7 +122,9 @@ Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.
 - Documented the macOS build as early access; backend desktop automation parity remains incomplete.
 
 
-## 2026-11-19 — Welcome Setup and prompt refinement
+## [0.26.3] - 2026-11-19
+
+### Welcome Setup and prompt refinement
 - Added a first-run Welcome Setup inside the MYRA desktop workspace, with a persistent **Primeiros passos** navigation tab for later changes.
 - Changed Windows setup to install only core dependencies automatically. Vision/ML wheels remain bundled offline but are installed only after explicit opt-in.
 - Added local setup status, optional offline vision installation, opt-in Ollama installation through winget, and selectable local model download.
