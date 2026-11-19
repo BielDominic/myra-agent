@@ -135,7 +135,7 @@
 - [x] Skills rápidas no composer: Programar, Pesquisar, Design e Revisar.
 - [x] Ditado e leitura de respostas usando as APIs de voz disponíveis no WebView.
 - [x] Encerrar widget e overlay quando a janela principal é fechada.
-- [x] Instalador NSIS de arquivo único com setup automático do backend (Python 3.14).
+- [x] Instalador NSIS com Python 3.14.10, 50 wheels principais offline e Chromium do Playwright incluídos; setup do backend sem downloads do PyPI.
 - [x] Primeira biblioteca de referências e fila local de fontes de plugins para avaliação.
 - [x] Contrato de arquitetura de plugins documentado em docs/PLUGIN_ARCHITECTURE.md.
 - [ ] Runtime seguro de plugins, validação de manifestos, permissões por capacidade, instalação, ativação e rollback.
