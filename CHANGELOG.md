@@ -33,6 +33,7 @@ Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.
 - JavaScript syntax check passed; Chromium smoke test with a mocked API verified ZIP import, confirmation, disabled state, listing and removal.
 - Fixed the missing `id="workbench"` on the Code Studio container, which caused a TypeError and stopped later UI event listeners from registering. The page smoke test then completed without JavaScript errors.
 - Live smoke test against the installed backend remains pending until this release is installed.
+- Recalculated the Portuguese roadmap checklist: 139 of 297 items complete (47%); corrected active phase, phase count and update date.
 
 
 ### Robustez da retomada de tasks (2026-10-22)

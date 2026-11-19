@@ -1,9 +1,9 @@
 # MYRA - Roadmap
 
-[![Progress](https://img.shields.io/badge/Progress-33%25-orange?style=flat-square)]()
-[![Active Phase](https://img.shields.io/badge/Active_Phase-30-blue?style=flat-square)]()
-[![Phases](https://img.shields.io/badge/Phases-31-purple?style=flat-square)]()
-[![Updated](https://img.shields.io/badge/Updated-2026-10-26-lightgrey?style=flat-square)]()
+[![Progress](https://img.shields.io/badge/Progress-47%25-orange?style=flat-square)]()
+[![Active Phase](https://img.shields.io/badge/Active_Phase-32-blue?style=flat-square)]()
+[![Phases](https://img.shields.io/badge/Phases-32-purple?style=flat-square)]()
+[![Updated](https://img.shields.io/badge/Updated-2026-11-19-lightgrey?style=flat-square)]()
 [![Language](https://img.shields.io/badge/Language-PT--BR_%7C_EN-green?style=flat-square)]()
 
 **Documentacao disponivel em:** [Portugues](#portugues) | [English](#english)
