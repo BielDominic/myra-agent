@@ -12,7 +12,7 @@
 1. Na pagina Releases do GitHub, baixe os dois arquivos: `MYRA_0.25.0_x64-setup.exe` e `MYRA_v0.25.0_Backend_Setup.zip`.
 2. Execute `MYRA_0.25.0_x64-setup.exe` e conclua a instalacao da interface desktop.
 3. Extraia o ZIP `MYRA_v0.25.0_Backend_Setup.zip` para uma pasta. A pasta `backend` deve permanecer ao lado de `setup_backend.ps1`.
-4. Abra o PowerShell nessa pasta extraida e execute `./setup_backend.ps1`. O script copia o backend para `%LOCALAPPDATA%\MYRA\backend`, cria o ambiente virtual Python, instala as dependencias e cria o atalho no menu Iniciar.
+4. Abra o PowerShell nessa pasta extraida e execute `.\setup_backend.ps1`. O script copia o backend para `%LOCALAPPDATA%\MYRA\backend`, cria o ambiente virtual Python, instala as dependencias e cria o atalho no menu Iniciar.
 5. Abra MYRA pelo menu Iniciar.
 6. Para ativar a extensao do Chrome, abra `chrome://extensions`, ative o Modo do desenvolvedor, selecione Carregar sem compactacao e escolha `%LOCALAPPDATA%\MYRA\backend\browser-extension`.
 
