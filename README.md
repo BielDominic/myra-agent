@@ -4,14 +4,14 @@
 [![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Ollama](https://img.shields.io/badge/LLM-Ollama-111111?style=flat-square&logo=ollama&logoColor=white)](https://ollama.com/)
 [![Chrome](https://img.shields.io/badge/Browser-Chrome%20MV3-4285F4?style=flat-square&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/)
-[![Docker](https://img.shields.io/badge/UI-Open%20WebUI-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docs.openwebui.com/)
+[![UI](https://img.shields.io/badge/UI-Native%20Tauri-7C3AED?style=flat-square&logo=tauri&logoColor=white)](https://tauri.app/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-0078D4?style=flat-square&logo=apple&logoColor=white)](https://github.com/BielDominic/myra-agent/releases)
 [![Status](https://img.shields.io/badge/Status-Active%20development-orange?style=flat-square)]()
 [![Repository](https://img.shields.io/badge/Repository-Private-lightgrey?style=flat-square)]()
 
 **MYRA is a local-first personal AI agent designed to do more than answer questions: it can use tools to interact with a browser and desktop, work with files, handle email, assist with code, and carry out multi-step tasks.**
 
-The project combines a locally hosted language model with a FastAPI backend, browser automation, desktop controls, a vision service, and MYRA's native desktop chat and workspace. Existing Open WebUI skills and tools are being migrated through a compatibility layer. The goal is to build a practical computer-use agent whose capabilities can be inspected, developed, and run on a Windows machine.
+The project combines a locally hosted language model with a FastAPI backend, a native Tauri desktop chat/workspace, browser automation, desktop controls, vision, Telegram remote control, and local image generation through ComfyUI. The native MYRA interface is the primary product; Docker and Open WebUI are not required to install or run it. A small set of legacy OpenAI-compatible and Open-WebUI-specific endpoints remains for backward compatibility and is being isolated for removal.
 
 > **Project status:** experimental and under active development. Capabilities, setup steps, and safety boundaries may change. This README describes the documented architecture; not every feature has the same level of testing or polish.
 
@@ -30,6 +30,8 @@ The project combines a locally hosted language model with a FastAPI backend, bro
 
 **macOS:** the DMG is an early-access native desktop shell for Apple Silicon and Intel. Full backend/desktop-automation parity is not yet available; see [INSTALL_MACOS.md](INSTALL_MACOS.md).
 
+**Open WebUI independence:** the current installer and native launcher do not require Docker/Open WebUI. The FastAPI `/v1/chat/completions` route is MYRA-owned and used by the native client. Legacy `/pc_get_chats`/chat-delete compatibility routes, old docs, and environment names still reference Open WebUI; these are not evidence of a runtime dependency for the native desktop. See [ARCHITECTURE.md](ARCHITECTURE.md) for the remaining migration boundary.
+
 ## Contents
 
 - [Highlights](#highlights)
@@ -38,6 +40,7 @@ The project combines a locally hosted language model with a FastAPI backend, bro
 - [macOS installation status](INSTALL_MACOS.md)
 - [Windows installation guide](INSTALL_WINDOWS.md)
 - [Plugin architecture](docs/PLUGIN_ARCHITECTURE.md)
+- [Local image generation and vision](docs/IMAGE_GENERATION.md)
 - [Repository layout](docs/REPOSITORY_LAYOUT.md)
 - [Architecture](#architecture)
 - [Technology stack](#technology-stack)

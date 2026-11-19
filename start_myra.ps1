@@ -1,5 +1,24 @@
 $ErrorActionPreference = "Stop"
 $root = Join-Path $env:LOCALAPPDATA "MYRA"
+
+# Load per-user secrets and integration settings before starting the backend.
+# Never echo these values to the console or logs.
+$environmentNames = @(
+    "MYRA_BROWSER_BRIDGE_TOKEN",
+    "MYRA_REA_ALLOWED_ROOTS",
+    "MYRA_REMOTE_API_TOKEN",
+    "MYRA_TELEGRAM_ALLOWED_CHAT_IDS",
+    "MYRA_TELEGRAM_BOT_TOKEN",
+    "MYRA_CORS_ORIGINS",
+    "OLLAMA_HOST",
+    "OLLAMA_LLM_LIBRARY",
+    "OPENWEBUI_API_KEY"
+)
+foreach ($name in $environmentNames) {
+    $value = [Environment]::GetEnvironmentVariable($name, "User")
+    [Environment]::SetEnvironmentVariable($name, $value, "Process")
+}
+
 $backend = Join-Path $root "backend"
 $python = Join-Path $backend "venv\Scripts\python.exe"
 $logs = Join-Path $root "logs"

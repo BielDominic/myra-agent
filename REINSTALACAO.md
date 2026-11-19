@@ -1,3 +1,5 @@
+> **LEGACY / LEGADO:** este guia descreve a arquitetura antiga baseada em Open WebUI/Docker. Para instala??o e uso atuais, consulte [README.md](README.md), [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md) e [ARCHITECTURE.md](ARCHITECTURE.md). Docker/Open WebUI n?o s?o necess?rios para a interface nativa da MYRA.
+
 \# 🔧 MYRA — Guia de Reinstalação Completa
 
 

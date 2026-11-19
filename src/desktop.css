@@ -300,3 +300,14 @@ body[data-theme="light"] .plugin-source-row input,body[data-theme="light"] .plug
 .chat-code-tabs button{border:1px solid transparent;border-radius:5px;background:transparent;color:var(--muted);padding:5px 9px;font-size:9px;cursor:pointer}
 .chat-code-tabs button.active{border-color:#8b5cf655;background:#8b5cf61a;color:#c9b7ff}
 .chat-artifact-code{height:330px;margin:0;border:0;border-radius:0;white-space:pre;overflow:auto}
+
+
+/* Per-conversation agents and multimodal chat attachments */
+.chat-agent-select{max-width:180px;min-width:130px;height:34px;border:1px solid var(--line,#2b2d3a);border-radius:9px;background:var(--surface,#11131d);color:var(--text,#f5f5fb);padding:0 9px;font:inherit;font-size:12px}
+.attachment-tools{display:flex;gap:6px;align-items:center}
+.pending-image-list{display:flex;flex-wrap:wrap;gap:8px;padding:8px 2px}
+.pending-image-list span{position:relative;display:inline-flex}
+.pending-image-list img{width:64px;height:64px;object-fit:cover;border-radius:9px;border:1px solid var(--line,#2b2d3a)}
+.pending-image-list button{position:absolute;right:-5px;top:-5px;border:0;border-radius:50%;width:20px;height:20px;background:#7c3aed;color:#fff;cursor:pointer}
+.chat-image-attachment{display:block;max-width:min(100%,560px);max-height:460px;object-fit:contain;border-radius:12px;margin-top:10px;border:1px solid var(--line,#2b2d3a)}
+.generated-image{width:auto}

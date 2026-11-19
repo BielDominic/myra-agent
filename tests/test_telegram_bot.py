@@ -1120,3 +1120,146 @@ def test_jan8_stf_filter_accepts_official_specific_criminal_decision():
 
     assert "acórdão da Ação Penal" in filtered
     assert "portal.stf.jus.br" in filtered
+
+
+
+def test_telegram_image_generation_sends_local_png_and_records_turn():
+    import base64
+
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    png = b"\x89PNG\r\n\x1a\n" + b"test-image"
+    def fake_agent_request(method, route, payload=None, timeout=20):
+        if route == "/images/status":
+            return {"available": True}
+        return {
+            "data_url": "data:image/png;base64," + base64.b64encode(png).decode("ascii"),
+            "filename": "myra.png",
+        }
+    bot._agent_request = fake_agent_request
+
+    bot._generate_image_for_chat("123", "A cinematic lighthouse")
+
+    photo_calls = [call for call in http.calls if "/sendPhoto" in call[1]]
+    assert len(photo_calls) == 1
+    assert photo_calls[0][4]["photo"][1] == png
+    assert photo_calls[0][4]["photo"][2] == "image/png"
+    assert "image_generation" not in (bot._last_error or "")
+
+
+def test_telegram_photo_sender_detects_jpeg_and_rejects_unknown_bytes():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+
+    assert bot._send_photo_bytes("123", b"\xff\xd8\xffjpeg", "photo.jpg")
+    photo = [call for call in http.calls if "/sendPhoto" in call[1]][0][4]["photo"]
+    assert photo[2] == "image/jpeg"
+    assert not bot._send_photo_bytes("123", b"not-an-image", "bad.png")
+
+
+
+def test_telegram_image_generation_reports_local_provider_setup_when_offline():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    bot._agent_request = lambda *args, **kwargs: {
+        "available": False,
+        "message": "ComfyUI local esta offline.",
+        "setup": "Inicie ComfyUI em 127.0.0.1:8188.",
+    }
+
+    bot._generate_image_for_chat("123", "A cinematic lighthouse")
+
+    sent = [call for call in http.calls if "/sendMessage" in call[1]]
+    assert "ComfyUI local esta offline." in sent[-1][2]["text"]
+    assert "127.0.0.1:8188" in sent[-1][2]["text"]
+
+
+
+def test_telegram_image_command_queues_background_generation(monkeypatch):
+    import tasks.telegram_bot as module
+    started = []
+
+    class CapturedThread:
+        def __init__(self, target, args, kwargs=None, name=None, daemon=None):
+            self.target, self.args, self.name = target, args, name
+        def start(self):
+            started.append((self.target, self.args, self.name))
+
+    monkeypatch.setattr(module.threading, "Thread", CapturedThread)
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    bot.handle_update(update(123, "/imagine A cinematic lighthouse"))
+
+    assert len(started) == 1
+    assert started[0][0].__name__ == "_generate_image_for_chat"
+    assert started[0][1] == ("123", "A cinematic lighthouse")
+    assert any("voce pode continuar conversando" in call[2]["text"] for call in http.calls if "/sendMessage" in call[1])
+
+
+def test_telegram_image_status_command_reports_provider_state():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    bot._agent_request = lambda *args, **kwargs: {"available": False, "message": "ComfyUI offline.", "setup": "Start local server."}
+    bot.handle_update(update(123, "/image_status"))
+    sent = [call for call in http.calls if "/sendMessage" in call[1]]
+    assert "ComfyUI offline." in sent[-1][2]["text"]
+    assert "Start local server." in sent[-1][2]["text"]
+
+
+
+def test_telegram_natural_language_image_request_queues_generation(monkeypatch):
+    import tasks.telegram_bot as module
+    started = []
+
+    class CapturedThread:
+        def __init__(self, target, args, kwargs=None, name=None, daemon=None):
+            self.target, self.args = target, args
+        def start(self):
+            started.append((self.target, self.args))
+
+    monkeypatch.setattr(module.threading, "Thread", CapturedThread)
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    bot._route_text_message("123", "Gere uma imagem de um farol cinematogr?fico")
+
+    assert len(started) == 1
+    assert started[0][0].__name__ == "_generate_image_for_chat"
+    assert started[0][1] == ("123", "um farol cinematogr?fico")
+    assert not any("11434/api/generate" in call[1] for call in http.calls)
+
+
+def test_telegram_image_generation_serializes_jobs_for_low_vram():
+    import threading
+
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    bot._image_generation_lock.acquire()
+    queued = threading.Event()
+    routes = []
+
+    def fake_send_message(chat_id, message):
+        if "entrou na fila" in message:
+            queued.set()
+        return True
+
+    def fake_agent_request(method, route, payload=None, timeout=20):
+        routes.append(route)
+        return {"available": False, "message": "ComfyUI offline."}
+
+    bot._send_message = fake_send_message
+    bot._agent_request = fake_agent_request
+    worker = threading.Thread(
+        target=bot._generate_image_for_chat,
+        args=("123", "A lighthouse"),
+        daemon=True,
+    )
+    worker.start()
+
+    assert queued.wait(1)
+    assert routes == []
+    bot._image_generation_lock.release()
+    worker.join(timeout=2)
+
+    assert not worker.is_alive()
+    assert routes == ["/images/status"]
+    assert not bot._image_generation_lock.locked()

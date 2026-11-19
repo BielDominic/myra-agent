@@ -1,126 +1,82 @@
-# MYRA — Architecture
+# MYRA ? Architecture (native desktop baseline)
 
-## High-level diagram
+## Product boundary
+
+The supported product entry point is the native Tauri desktop application (`src/desktop.html`, `src/desktop.js`) backed by the local FastAPI service (`agent.py`). Docker and Open WebUI are not required for installation, startup, chat, or the local workspace. `start.ps1` now delegates to the native desktop launcher.
+
+A legacy compatibility boundary remains: `/v1/chat/completions` keeps an OpenAI-compatible request/response shape but is implemented by MYRA; old Open-WebUI-specific chat-history routes (`/pc_get_chats`, `/pc_remove_chat`, `/pc_remove_chats_by_search`, `/pc_remove_all_chats`, `/pc_rename_chat`) and `_owui_request` still call an optional Open WebUI instance. The native desktop does not use those routes. Legacy docs and environment names are being retired separately; do not configure Docker just to use MYRA.
+
+## High-level architecture
 
 ```text
-                         User
-                          |
-                          v
-       +--------------------------------------+
-       | Frontend                             |
-       | Open WebUI / local proxy             |
-       | Tauri widget                         |
-       | Chrome MV3 extension                 |
-       +------------------+-------------------+
-                          |
-             chat / tool calls / task events
-                          |
-                          v
-       +--------------------------------------+
-       | Backend: FastAPI (agent.py) :8000    |
-       |                                      |
-       | Routes, confirmation, task state     |
-       | /task_simple  /task_status           |
-       | /task_cancel  /task_events            |
-       | /v1/chat/completions                 |
-       +------------------+-------------------+
-                          |
-             +------------+-------------+
-             |                          |
-             v                          v
- +---------------------------+  +---------------------------+
- | tasks/                    |  | computer/                 |
- | simple_task.py            |  | controller.py             |
- | structured_tools.py       |  | screen.py                 |
- | browser_bridge.py         |  | windows.py                |
- | cancel_state.py           |  | vision_locate.py          |
- +-------------+-------------+  +-------------+-------------+
-               |                              |
-               | bridge commands              | screenshots,
-               v                              | mouse/keyboard
- +---------------------------+                v
- | SQLite: browser bridge    |       +-------------------------+
- | command queue + results   |       | Windows desktop/apps    |
- +-------------+-------------+       +-------------------------+
-               |
-       HTTP polling / completion
-               |
-               v
- +---------------------------+
- | Chrome MV3 extension      |
- | active tab / navigation   |
- | click / type / scroll     |
- +---------------------------+
-
-  agent.py ---- HTTP :11434 ----> Ollama (local LLM)
-  computer/vision tools -- HTTP :8081 --> llm-eyes / llama-server
-  Open WebUI -- Docker network / local proxy :8082 --> FastAPI :8000
-  Open WebUI ---- SQLite volume ----> Open WebUI database
-
-  Optional:
-  Tauri widget <---- task state / SSE events ----> FastAPI
+MYRA Desktop (Tauri) ??????? Telegram Bot (allowlisted chats)
+          ?                         ?
+          ???????????????????????????
+                     ?
+          FastAPI / Orchestrator (127.0.0.1:8000)
+          ??? Chat + per-chat agent profiles/memory
+          ??? Task planner, queue, pause/resume, audit
+          ??? Application/window/UI Automation
+          ??? Browser Bridge + Playwright tools
+          ??? Files, code, email, plugins, integrations
+          ??? Image/vision routing
+               ?           ?              ?
+               ?           ?              ?
+            Ollama     ComfyUI local    Chrome extension
+          (11434)      (8188 optional)  (authenticated bridge)
 ```
 
-## Components
+## Main modules
 
-| Component | Responsibility |
+| Module | Responsibility |
 |---|---|
-| Open WebUI | Chat interface and tool integration, usually in Docker. |
-| Tauri widget | Desktop mascot/widget and task status UI; optional local build. |
-| Chrome extension (Manifest V3) | Executes browser commands in the user's active authenticated browser context. |
-| `agent.py` | FastAPI application, API routes, tool registration, task endpoints and OpenAI-compatible chat endpoint. |
-| `tasks/simple_task.py` | Adaptive planner/executor loop and tool selection; observe → act → verify → recover cycle with pause/resume support. |
-| `tasks/autonomy.py` | Goal verification (`verificar`) and failure recovery (`recuperar`) with blocked-action signatures and explicit limits. |
-| `tasks/task_store.py` | Task persistence in SQLite: goal, current step, history, state, timestamps and audit events; enables resume after pause or crash. |
-| `tasks/structured_tools.py` | Structured web and YouTube discovery helpers. |
-| `tasks/browser_bridge.py` | Token-protected command queue and routes for the Chrome extension; commands/results persist in SQLite. |
-| `tasks/cancel_state.py` | Shared cancellation state for tasks. |
-| `computer/controller.py` | Desktop mouse/keyboard actions. |
-| `computer/screen.py` | Screen capture. |
-| `computer/windows.py` | Window listing and focus. |
-| `computer/vision_locate.py` | Locates screen elements from descriptions and exposes locate/click/type operations. |
-| Ollama | Runs the configured local language model. |
-| llm-eyes | Separate local vision inference service. |
-| Docker | Runs Open WebUI and supports its local networking/volume persistence. |
+| `src/desktop.html`, `src/desktop.js` | Native chat, workspace, per-conversation agent selector, image attachments and local image generation action. |
+| `agent.py` | FastAPI routes, local chat routing, task state, tool registration and compatibility APIs. |
+| `tasks/simple_task.py` | Planner/executor loop, tool selection, observation, verification and recovery. |
+| `tasks/telegram_bot.py` | Allowlisted Telegram polling, task commands, per-chat agent profiles, photo input and generated-image delivery. |
+| `tasks/browser_bridge.py` | Authenticated browser command queue and Chrome extension bridge. |
+| `tasks/system_tools.py` | Planner-facing system, application, window and UIA tools. |
+| `computer/applications.py` | Safe application inventory and launching. |
+| `computer/ui_automation.py` | Enumerate controls and interact with windows; minimize, maximize, restore and close. |
+| `computer/image_generation.py` | Local ComfyUI workflow submission, polling and generated image retrieval. |
+| `computer/vision_locate.py`, `computer/observer.py` | Visual targeting and action outcome observation. |
+| `src-tauri/` | Desktop shell, window lifecycle and native commands. |
 
-## Default local ports
+## Local services
 
-| Port | Service | Connection |
+| Port | Service | Required? |
 |---:|---|---|
-| 8000 | MYRA FastAPI | Local backend API; Docker clients may use `host.docker.internal:8000`. |
-| 8081 | llm-eyes / vision server | Local vision inference endpoint, when enabled. |
-| 11434 | Ollama | Local LLM inference endpoint. |
-| 8082 | Open WebUI / local proxy | Documented local chat entry point; actual Docker port mapping can vary. |
+| 8000 | MYRA FastAPI | Yes |
+| 11434 | Ollama | Yes for local LLM chat |
+| 8081 | llm-eyes / vision service | Optional; legacy visual pipeline |
+| 8188 | ComfyUI | Optional; local image generation |
 
-These are documented defaults, not a guarantee that every service is running or mapped to these ports. Check local environment variables, Docker port mappings and launch scripts.
+## Agent isolation
 
-## Request flow
+The desktop stores an `agentId` on each conversation and sends it in request metadata. Backend memory keys are namespaced by both conversation and agent, preventing the same chat's general, developer, browser, research, vision and computer contexts from being merged. Telegram stores an agent selection per Telegram chat via `/agent`. Tools remain shared capabilities, but each agent receives a distinct system profile.
 
-1. The user sends a message through Open WebUI or another configured MYRA interface.
-2. Open WebUI calls the FastAPI-compatible endpoint or invokes registered tools.
-3. `agent.py` passes a task to `tasks/simple_task.py`, which selects a tool and parses its result.
-4. Planner browser actions keep the published browser_* tool names but execute through Playwright wrappers in agent.py, isolated from the user's real Chrome session.
-5. The separate Browser Bridge routes remain available to clients that explicitly use them; in that flow, the Chrome extension polls the bridge, executes the allowed action in Chrome, and posts the result.
-6. For visual interaction, `computer/vision_locate.py` captures/analyses the screen using its OCR/fuzzy-match/LLM pipeline, returns coordinates, and can invoke click/type actions.
-7. For local reasoning, the configured LLM is called through Ollama on port 11434. Vision inference is served separately through llm-eyes on port 8081.
-8. The planner uses the tool result to decide the next step until it finishes, fails, or reaches the step limit. Task state/events can update the widget.
-9. After each state-changing action, `computer/observer.py` judges the outcome and `tasks/autonomy.py` verifies the goal; failures produce a recovery directive, blocked actions, or an explicit failure reason. Progress is persisted by `tasks/task_store.py`, so a task can be paused (`/task_pause`) and resumed (`/task_resume`) without losing context — including after a crash.
+## Multimodal input and image generation
 
-### OpenAI-compatible chat routing
+Image attachments are resized in the native client and passed as OpenAI-compatible `image_url` parts. The backend converts supported data URLs to Ollama `images` input and uses `MYRA_VISION_MODEL` (default `qwen2.5vl:3b`). This model must be installed locally.
 
-POST /v1/chat/completions is the single chat entry point for the myra-agent model; the Open WebUI Pipe is not required. Ordinary questions use the configured local Ollama chat model, while explicit computer actions go through the existing POST /task_simple route so task state, cancellation, persistence, and widget events remain centralized. The planner keeps the existing browser_* tool names, but their registered implementations use the isolated Playwright browser; the Chrome extension/Browser Bridge remains available through its own routes and is not invoked by planner browser actions. Task status/control and current-time requests reuse existing backend routes. A short local chat history is stored per stable user_id/chat_id under %LOCALAPPDATA%\MYRA\myra_openwebui_chat_memory.json; explicit IDs are read from request metadata/body or headers `X-OpenWebUI-Chat-Id` / `X-OpenWebUI-User-Id`. If the provider omits IDs, MYRA falls back to a fingerprint of the first user message in the supplied history. When the client sends a full conversation, that incoming history takes precedence. Important limitation: if the provider sends only the latest message and omits all conversation IDs, reliable per-chat persistence is impossible; callers should forward a stable chat ID rather than using shared per-user history, which could mix conversations.
+Image generation is local-first through ComfyUI at `http://127.0.0.1:8188`. MYRA submits a text-to-image workflow using a checkpoint already installed in ComfyUI, then returns the generated image to the chat or Telegram. No hosted generation API key is bundled. Image quantity is not capped by MYRA; available disk, memory, GPU and ComfyUI resources remain practical limits. See `docs/IMAGE_GENERATION.md`.
 
-## Databases and persistence
+## Security boundaries
 
-- **Browser bridge SQLite:** stores queued browser commands and completion results. Default location is under `%LOCALAPPDATA%\MYRA\browser_bridge.sqlite3` (or `~/.myra/browser_bridge.sqlite3` when `LOCALAPPDATA` is unavailable); `MYRA_BROWSER_BRIDGE_DB` can override it.
-- **Task store SQLite:** stores task goal, current step, history, state, timestamps and audit events for pause/resume and crash recovery. Default location is `%LOCALAPPDATA%\MYRA\myra_tasks.sqlite3` (or `~/.myra/myra_tasks.sqlite3`); `MYRA_TASK_DB` can override it (used by the tests).
-- **Open WebUI SQLite:** Open WebUI persists its own application data in its configured Docker volume/database. The precise path depends on the container configuration; inspect Docker volumes rather than assuming a fixed host path.
-- **Other state:** some features use JSON files or local workspace files, depending on the module.
+- The backend launcher binds to loopback (`127.0.0.1`); do not expose it to a LAN or the public internet without authentication and firewall review.
+- Browser CORS is restricted to the native Tauri origins and local development origins. An Origin guard rejects untrusted browser origins even for simple requests; add a trusted browser-extension origin explicitly through `MYRA_CORS_ORIGINS` when required.
+- Telegram commands are restricted to `allowed_chat_ids`; never enable an empty or broad allowlist.
+- Browser Bridge uses a bearer token. Keep it private and rotate it if exposed.
+- App/window actions target a unique window and verify the resulting state. Closing windows can discard unsaved work and must be explicitly confirmed.
+- Treat webpage contents, files, images and model outputs as untrusted input.
+- Image models and ComfyUI workflows run locally; only use checkpoints and custom nodes from trusted sources.
+- API credentials belong in local environment/config files, never in Git.
 
-## Security and operational notes
+## Known gaps (not yet full parity)
 
-- Keep the browser bridge token private and configure it consistently for the backend and extension.
-- Use local-only networking unless access controls and firewall rules have been reviewed.
-- Authenticated browser sessions can perform real actions. Supervise sensitive operations.
-- Do not commit credentials, cookies, tokens, or personal data.
-- Local model inference does not mean every feature is offline: web search, browsing, YouTube and email need network access.
+- Windows has the deepest desktop automation support. macOS native packaging exists, but full app/window/UI Automation parity is not yet complete.
+- Playwright and Chrome extension control are separate execution contexts; the planner must identify which browser session is being controlled.
+- Not every app exposes accessible UI Automation controls; visual fallback and per-app adapters remain necessary.
+- Native chat history is currently local to the desktop profile; multi-device sync and robust large-attachment storage are not yet complete.
+- Open WebUI-specific history compatibility routes and legacy manuals still need retirement.
+- Security needs a complete permission model, per-tool approvals, secret vault, rate limits, and structured audit UI.

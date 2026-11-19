@@ -28,6 +28,7 @@ DEFAULT_OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
 CHAT_MODEL_STATE_FILE = Path(__file__).with_name(".telegram_chat_model")
 CHAT_MEMORY_FILE = Path(__file__).with_name(".telegram_chat_memory.json")
 CHAT_FIRST_MESSAGE_FILE = Path(__file__).with_name(".telegram_chat_first_messages.json")
+CHAT_AGENT_FILE = Path(__file__).with_name(".telegram_chat_agents.json")
 MAX_MESSAGE_LENGTH = 3900
 MAX_CHAT_HISTORY_TURNS = 12
 MAX_TASK_LENGTH = 1200
@@ -55,11 +56,14 @@ class TelegramBot:
         self._offset = 0
         self._task_lock = threading.Lock()
         self._task_running = False
+        # Serializa o uso da VRAM local: somente uma geração de imagem por vez.
+        self._image_generation_lock = threading.Lock()
         self._last_error: str | None = None
         # Histórico curto por chat para permitir conversas com contexto sem misturar usuários.
         self._chat_history_lock = threading.RLock()
         self._chat_history: dict[str, list[dict[str, str]]] = self._load_persistent_chat_history()
         self._first_user_message: dict[str, str] = self._load_first_user_messages()
+        self._chat_agents: dict[str, str] = self._load_chat_agents()
         # Seletor exclusivo do Telegram: nunca altera o modelo padrão do Ollama,
         # do planner ou da interface principal da MYRA.
         self.chat_model = self._load_chat_model()
@@ -86,6 +90,23 @@ class TelegramBot:
             if valid:
                 restored[str(chat_id)] = valid
         return restored
+
+    def _load_chat_agents(self) -> dict[str, str]:
+        try:
+            payload = json.loads(CHAT_AGENT_FILE.read_text(encoding="utf-8"))
+            allowed = {"general", "developer", "browser", "research", "vision", "computer"}
+            return {str(k): str(v) for k, v in payload.items() if str(v) in allowed} if isinstance(payload, dict) else {}
+        except (OSError, json.JSONDecodeError):
+            return {}
+
+    def _save_chat_agents(self) -> None:
+        try:
+            CHAT_AGENT_FILE.write_text(json.dumps(self._chat_agents, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError as exc:
+            self._last_error = f"chat_agent_persist: {type(exc).__name__}"
+
+    def _chat_agent(self, chat_id: str | int) -> str:
+        return self._chat_agents.get(str(chat_id), "general")
 
     def _load_first_user_messages(self) -> dict[str, str]:
         """Carrega o primeiro texto de usuário de cada conversa, sem o limite do histórico curto."""
@@ -509,6 +530,15 @@ class TelegramBot:
                 "Trate temas políticos e sensíveis com neutralidade. Não confunda neutralidade com confiar automaticamente em fontes oficiais, veículos conhecidos, especialistas ou fontes alternativas. Avalie cada afirmação pelas evidências verificáveis, contexto, lógica, independência e possíveis conflitos de interesse; reputação e alinhamento político não provam nem refutam uma alegação. Procure contraevidências e explicações alternativas, diferencie fato, alegação, inferência e opinião, e calibre a conclusão à força das evidências. Não invente fatos, não revele raciocínio interno "
                 "privado e não afirme que executou ações no computador sem confirmação real."
             )
+            agent_profiles = {
+                "general": "Generalista: responda e resolva tarefas com as ferramentas autorizadas.",
+                "developer": "Programadora s?nior: arquitetura, c?digo completo, testes, seguran?a, desempenho e valida??o real.",
+                "browser": "Especialista em navegador: navegue, leia, interaja e verifique resultados web.",
+                "research": "Pesquisadora: consulte fontes atuais, compare evid?ncias e cite fontes.",
+                "vision": "Especialista visual: analise imagens e capturas sem inventar detalhes.",
+                "computer": "Especialista em desktop: controle aplicativos e janelas com verifica??o e cuidado com dados n?o salvos.",
+            }
+            system_prompt = "AGENTE ATIVO: " + agent_profiles.get(self._chat_agent(key), agent_profiles["general"]) + "\n\n" + system_prompt
             try:
                 answer = self._ollama_generate(
                     prompt,
@@ -567,7 +597,8 @@ class TelegramBot:
             r"pesquise no google|pesquisa no google|pesquisar no google|"
             r"pesquise na web|pesquisa na web|pesquisar na web|"
             r"procure no google|procura no google|procure na internet|"
-            r"busque na web|busca na web)\b",
+            r"busque na web|busca na web|minimize|minimizar|minimiza|maximize|maximizar|maximiza|"
+            r"restaure|restaurar|feche|fechar|encerre|encerrar|focar janela|liste janelas|listar janelas)\b",
             r"^(please\s+)?(open|launch|visit|go to|navigate to|click|type into|"
             r"search google for|search the web for|look this up online)\b",
             # Permite comandos contextualizados por aplicativo: "No Notepad, clique...".
@@ -1193,6 +1224,29 @@ class TelegramBot:
             self._remember_chat_turn(chat_id, "assistant", "Captura da tela enviada pelo Telegram.")
             return
 
+        # Geração de imagem em linguagem natural, além dos comandos /image e /imagine.
+        image_patterns = (
+            r"^\s*(?:por favor,?\s*)?(?:myra\s*[,!:]?\s*)?(?:gere|gera|gerar|crie|criar|fa[cç]a|fazer|desenhe|desenhar|produza|produzir)\s+(?:uma?\s+)?(?:imagem|ilustra[cç][aã]o|desenho)\s*(?:(?:de|do|da|dos|das|sobre|com)\s+)?(.+?)\s*$",
+            r"^\s*quero\s+(?:que\s+voc[eê]\s+)?(?:gere|crie|fa[cç]a)\s+(?:uma?\s+)?(?:imagem|ilustra[cç][aã]o|desenho)\s*(?:(?:de|do|da|dos|das|sobre|com)\s+)?(.+?)\s*$",
+            r"^\s*(?:please\s+)?(?:generate|create|draw)\s+(?:an?\s+)?(?:image|illustration|drawing)\s*(?:(?:of|about|with)\s+)?(.+?)\s*$",
+        )
+        image_prompt = None
+        for pattern in image_patterns:
+            image_match = re.match(pattern, user_text, re.IGNORECASE)
+            if image_match:
+                image_prompt = image_match.group(1).strip(" .!?")
+                break
+        if image_prompt:
+            self._remember_chat_turn(chat_id, "user", user_text)
+            self._send_message(chat_id, "Pedido recebido. Estou gerando a imagem localmente; voce pode continuar conversando enquanto isso.")
+            threading.Thread(
+                target=self._generate_image_for_chat,
+                args=(chat_id, image_prompt[:4000]),
+                name="myra-telegram-image-generation",
+                daemon=True,
+            ).start()
+            return
+
         # Pedido comum de VPN é informativo e deve receber uma opção concreta, não uma recusa.
         lower_text = user_text.casefold()
         if (
@@ -1474,6 +1528,116 @@ class TelegramBot:
             daemon=True,
         ).start()
 
+    def _send_photo_bytes(self, chat_id: str, content: bytes, filename: str = "myra.png", caption: str = "") -> bool:
+        """Send image bytes using their actual MIME type, not an assumed PNG header."""
+        try:
+            if content.startswith(b"\x89PNG\r\n\x1a\n"):
+                mime = "image/png"
+                extension = ".png"
+            elif content.startswith(b"\xff\xd8\xff"):
+                mime = "image/jpeg"
+                extension = ".jpg"
+            elif content[:6] in {b"GIF87a", b"GIF89a"}:
+                mime = "image/gif"
+                extension = ".gif"
+            elif content.startswith(b"RIFF") and content[8:12] == b"WEBP":
+                mime = "image/webp"
+                extension = ".webp"
+            else:
+                self._last_error = "sendPhoto: unsupported_image_format"
+                return False
+            safe_name = Path(filename).name or ("myra" + extension)
+            suffix = Path(safe_name).suffix.lower()
+            if suffix != extension and not (extension == ".jpg" and suffix == ".jpeg"):
+                safe_name = Path(safe_name).stem + extension
+            self._telegram("sendPhoto", data={"chat_id": str(chat_id), "caption": caption[:900]},
+                           files={"photo": (safe_name, content, mime)}, timeout=90)
+            return True
+        except Exception as exc:
+            self._last_error = f"sendPhoto: {type(exc).__name__}"
+            return False
+
+    def _generate_image_for_chat(self, chat_id: str, prompt: str) -> None:
+        """Generate locally and deliver the resulting image without blocking Telegram polling."""
+        queued = not self._image_generation_lock.acquire(blocking=False)
+        if queued:
+            self._send_message(chat_id, "Sua imagem entrou na fila. O motor local processa uma imagem por vez para proteger a VRAM.")
+            self._image_generation_lock.acquire()
+        try:
+            try:
+                availability = self._agent_request("GET", "/images/status", timeout=10)
+                if not availability.get("available"):
+                    detail = str(availability.get("message") or "O gerador local esta offline.")
+                    setup = str(availability.get("setup") or "")
+                    self._send_message(chat_id, detail + ("\n" + setup if setup else ""))
+                    return
+                result = self._agent_request(
+                    "POST", "/images/generate",
+                    {"prompt": prompt[:4000], "provider": "comfyui"},
+                    timeout=900,
+                )
+                data_url = str(result.get("data_url") or "")
+                header, separator, encoded = data_url.partition(",")
+                if not separator or not header.startswith("data:image/") or not encoded:
+                    raise ValueError("O backend nao retornou uma imagem valida.")
+                import base64
+                import binascii
+                try:
+                    raw = base64.b64decode(encoded, validate=True)
+                except (binascii.Error, ValueError) as exc:
+                    raise ValueError("A imagem retornada estava corrompida.") from exc
+                if not raw or len(raw) > 24 * 1024 * 1024:
+                    raise ValueError("A imagem esta vazia ou excede 24 MB.")
+                filename = str(result.get("filename") or "myra.png")
+                if not self._send_photo_bytes(chat_id, raw, filename, "Imagem gerada localmente pela MYRA"):
+                    raise RuntimeError("O Telegram nao confirmou o envio da imagem.")
+                self._remember_chat_turn(chat_id, "user", "[Geracao de imagem] " + prompt[:1000])
+                self._remember_chat_turn(chat_id, "assistant", "[Imagem gerada] " + filename)
+            except Exception as exc:
+                self._last_error = f"image_generation: {type(exc).__name__}"
+                message = str(exc).strip() or "Falha desconhecida."
+                self._send_message(chat_id, "Nao consegui gerar/enviar a imagem: " + message[:700])
+        finally:
+            self._image_generation_lock.release()
+
+    def _handle_incoming_photo(self, chat_id: str, message: dict) -> None:
+        """Download a Telegram photo and route it through the configured local vision model."""
+        try:
+            photos = message.get("photo") or []
+            if not photos:
+                return
+            file_id = str(max(photos, key=lambda item: int(item.get("file_size") or 0)).get("file_id") or "")
+            if not file_id:
+                self._send_message(chat_id, "N?o consegui identificar o arquivo da imagem.")
+                return
+            info = self._telegram("getFile", params={"file_id": file_id}).get("result", {})
+            file_path = str(info.get("file_path") or "")
+            if not file_path or ".." in file_path:
+                self._send_message(chat_id, "O Telegram retornou um caminho de imagem inv?lido.")
+                return
+            response = self.http.get(f"{self.api_base}/file/bot{self.token}/{file_path}", timeout=60)
+            response.raise_for_status()
+            if len(response.content) > 12 * 1024 * 1024:
+                self._send_message(chat_id, "A imagem excede 12 MB. Envie uma vers?o menor.")
+                return
+            import base64
+            encoded = base64.b64encode(response.content).decode("ascii")
+            question = str(message.get("caption") or "Descreva e analise esta imagem.")[:3000]
+            payload = {"model": "myra-agent", "stream": False,
+                       "metadata": {"chat_id": f"telegram:{chat_id}", "user_id": f"telegram:{chat_id}", "agent_id": "vision"},
+                       "messages": [{"role": "user", "content": [
+                           {"type": "text", "text": question},
+                           {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + encoded}},
+                       ]}]}
+            result = self._agent_request("POST", "/v1/chat/completions", payload, timeout=180)
+            answer = str(((result.get("choices") or [{}])[0].get("message") or {}).get("content") or "N?o recebi uma an?lise da imagem.")
+            self._remember_chat_turn(chat_id, "user", "[Imagem recebida] " + question)
+            self._remember_chat_turn(chat_id, "assistant", answer)
+            self._send_message(chat_id, answer)
+        except Exception as exc:
+            self._last_error = f"incoming_photo: {type(exc).__name__}"
+            self._send_message(chat_id, "N?o consegui analisar a imagem. Verifique se o modelo visual Ollama est? instalado e tente novamente.")
+
     def handle_update(self, update: dict) -> None:
         callback = update.get("callback_query")
         if isinstance(callback, dict):
@@ -1505,6 +1669,10 @@ class TelegramBot:
         if not chat_id or chat_id not in self.allowed_chat_ids:
             return
         text = str(message.get("text") or "").strip()
+        if message.get("photo"):
+            threading.Thread(target=self._handle_incoming_photo, args=(chat_id, message),
+                             name="myra-telegram-image", daemon=True).start()
+            return
         if not text:
             return
         if not text.startswith("/"):
@@ -1540,6 +1708,14 @@ class TelegramBot:
                 "/resume <task_id> — retomar uma tarefa persistida\n"
                 "/screenshot — enviar captura da tela\n"
                 "/see [pergunta] — analisar visualmente a tela\n"
+                "/windows ? listar janelas abertas\n"
+                "/window <minimize|maximize|restore|close> <t?tulo> ? controlar janela\n"
+                "/apps ? listar aplicativos instalados\n"
+                "/open <aplicativo> ? abrir aplicativo\n"
+                "/image <prompt> ou /imagine <prompt> — gerar imagem localmente e receber a foto aqui\n"
+                "/image_status — verificar ComfyUI e modelos locais disponíveis\n"
+                "Envie uma foto com legenda ou pergunta para a MYRA analis?-la.\n"
+                "/agent [general|developer|browser|research|vision|computer] ? selecionar agente deste chat\n"
                 "/ping — testar conexão com o backend local\n"
                 "/models — listar modelos instalados no Ollama\n"
                 "/model — ver o modelo de chat atual\n"
@@ -1588,6 +1764,71 @@ class TelegramBot:
             else:
                 ok, message = self._set_chat_model(argument)
                 self._send_message(chat_id, message)
+        elif command == "agent":
+            available = {"general", "developer", "browser", "research", "vision", "computer"}
+            if not argument:
+                self._send_message(chat_id, "Agente ativo neste chat: " + self._chat_agent(chat_id) + "\nOp??es: general, developer, browser, research, vision, computer\nUse /agent <nome> para trocar.")
+            elif argument.lower() not in available:
+                self._send_message(chat_id, "Agente inv?lido. Op??es: general, developer, browser, research, vision, computer.")
+            else:
+                self._chat_agents[chat_id] = argument.lower()
+                self._save_chat_agents()
+                self._send_message(chat_id, "Agente deste chat alterado para: " + argument.lower() + ". O restante dos chats n?o ser? alterado.")
+        elif command == "windows":
+            try:
+                result = self._agent_request("POST", "/pc_get_windows", {}, timeout=15)
+                items = result.get("result", [])
+                self._send_message(chat_id, "Janelas abertas:\n" + ("\n".join(f"? {x}" for x in items[:50]) if isinstance(items, list) and items else "Nenhuma janela identificada."))
+            except Exception as exc:
+                self._send_message(chat_id, f"Falha ao listar janelas: {type(exc).__name__}.")
+        elif command == "window":
+            parts = argument.split(maxsplit=2)
+            if len(parts) < 2 or parts[0].lower() not in {"minimize", "maximize", "restore", "close"}:
+                self._send_message(chat_id, "Use /window minimize|maximize|restore|close <t?tulo>. Para fechar, use /window close --confirm <t?tulo>.")
+                return
+            action = parts[0].lower()
+            confirmed_close = action == "close" and len(parts) == 3 and parts[1] == "--confirm"
+            title = parts[2].strip() if confirmed_close else " ".join(parts[1:]).strip()
+            if action == "close" and not confirmed_close:
+                self._send_message(chat_id, "Fechar uma janela pode descartar trabalho n?o salvo. Se tiver certeza, envie: /window close --confirm " + title)
+                return
+            result = self._agent_request("POST", "/pc_window_action", {"titulo": title, "acao": action}, timeout=20)
+            self._send_message(chat_id, self._short_result(result, "A??o de janela enviada."))
+        elif command == "apps":
+            try:
+                result = self._agent_request("POST", "/pc_list_applications", {}, timeout=30)
+                apps = result.get("result", [])
+                names = [str(item.get("nome") or "") for item in apps if isinstance(item, dict)] if isinstance(apps, list) else []
+                self._send_message(chat_id, "Aplicativos encontrados:\n" + ("\n".join(f"? {name}" for name in names[:60]) if names else "Nenhum aplicativo listado."))
+            except Exception as exc:
+                self._send_message(chat_id, f"Falha ao listar aplicativos: {type(exc).__name__}.")
+        elif command == "open":
+            if not argument:
+                self._send_message(chat_id, "Use /open <nome do aplicativo>.")
+                return
+            result = self._agent_request("POST", "/pc_open_application", {"nome": argument[:160]}, timeout=30)
+            self._send_message(chat_id, self._short_result(result, "Pedido de abertura enviado."))
+        elif command in {"image_status", "images"}:
+            try:
+                image_status = self._agent_request("GET", "/images/status", timeout=10)
+                if image_status.get("available"):
+                    checkpoints = image_status.get("checkpoints") or []
+                    self._send_message(chat_id, "Gerador local: online\nModelos: " + (", ".join(map(str, checkpoints)) if checkpoints else "nenhum checkpoint encontrado"))
+                else:
+                    self._send_message(chat_id, str(image_status.get("message") or "ComfyUI offline.") + "\n" + str(image_status.get("setup") or ""))
+            except Exception as exc:
+                self._send_message(chat_id, f"Falha ao verificar o gerador de imagens: {type(exc).__name__}.")
+        elif command in {"image", "imagine", "gerar"}:
+            if not argument:
+                self._send_message(chat_id, "Use /image <descricao>. Requer ComfyUI ativo e um checkpoint local.")
+                return
+            self._send_message(chat_id, "Pedido recebido. Estou gerando a imagem no computador local; voce pode continuar conversando enquanto isso.")
+            threading.Thread(
+                target=self._generate_image_for_chat,
+                args=(chat_id, argument[:4000]),
+                name="myra-telegram-image-generation",
+                daemon=True,
+            ).start()
         elif command == "ping":
             try:
                 status = self._agent_request("GET", "/task_status", timeout=5)

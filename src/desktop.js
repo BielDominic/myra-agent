@@ -16,6 +16,8 @@
   const selectedConversationIds = new Set();
   const activeSkills = new Set();
   let speechRecognition = null;
+  let pendingImages = [];
+  const CHAT_AGENTS={general:"Voc? ? MYRA, assistente local generalista. Use ferramentas autorizadas quando a pessoa pedir a??es.",developer:"Voc? ? a agente programadora s?nior da MYRA. Planeje, implemente c?digo completo, escreva testes, execute valida??es, revise seguran?a, desempenho, acessibilidade e documente decis?es. N?o invente resultados de testes.",browser:"Voc? ? a agente especialista em navegador. Use Browser Bridge/Playwright para navegar, ler, clicar, preencher, baixar e validar p?ginas. Nunca afirme que uma a??o web foi conclu?da sem evid?ncia.",research:"Voc? ? a agente pesquisadora. Pesquise fontes externas atuais, compare evid?ncias, cite URLs e diferencie fatos de infer?ncias.",vision:"Voc? ? a agente visual. Analise imagens anexadas e capturas com aten??o a detalhes vis?veis. N?o invente o que n?o est? na imagem.",computer:"Voc? ? a agente de controle do computador. Use invent?rio de aplicativos, janelas, UI Automation e ferramentas locais. Pe?a confirma??o para a??es destrutivas ou com risco de perda de dados."};
   let codeFiles = load(CODE_KEY, null) || {
     "index.html": {lang:"HTML",content:'<!doctype html>\n<html lang="pt-BR">\n<head>\n  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width,initial-scale=1">\n  <title>Meu projeto</title>\n</head>\n<body>\n  <main class="hero">\n    <span class="eyebrow">MYRA CODE STUDIO</span>\n    <h1>Olá, mundo.</h1>\n    <p>Seu próximo projeto começa aqui.</p>\n    <button onclick="document.querySelector(\'p\').textContent=\'Está funcionando!\'">Testar interação</button>\n  </main>\n</body>\n</html>'},
     "style.css": {lang:"CSS",content:'* { box-sizing: border-box; }\nbody { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: Inter, system-ui, sans-serif; background: #0d1020; color: #f5f3ff; }\n.hero { text-align: center; padding: 48px; }\n.eyebrow { color: #8b5cf6; letter-spacing: .18em; font-size: 11px; }\nh1 { font-size: clamp(36px, 8vw, 72px); margin: 16px 0; }\np { color: #a6a6bb; }\nbutton { border: 0; border-radius: 9px; padding: 12px 18px; background: #7c3aed; color: white; cursor: pointer; }'},
@@ -25,7 +27,7 @@
   function load(key, fallback) { try { const v = JSON.parse(localStorage.getItem(key)); return v ?? fallback; } catch (_) { return fallback; } }
   function save(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { console.warn("[MYRA] storage",e); } }
   function activeConversation(){return conversations.find(x=>x.id===activeId)}
-  function createConversation(render=true){const item={id:"chat-"+Date.now()+"-"+Math.random().toString(36).slice(2,7),title:"Nova conversa",messages:[],updatedAt:Date.now()};conversations.unshift(item);activeId=item.id;if(render){save(STORAGE_KEY,conversations.slice(0,60));renderSidebar();renderMessages()}return item.id}
+  function createConversation(render=true){const item={id:"chat-"+Date.now()+"-"+Math.random().toString(36).slice(2,7),title:"Nova conversa",messages:[],agentId:$("chat-agent")?.value||"general",updatedAt:Date.now()};conversations.unshift(item);activeId=item.id;if(render){save(STORAGE_KEY,conversations.slice(0,60));renderSidebar();renderMessages()}return item.id}
   function renderSidebar(){
     const list=$("conversation-list");list.replaceChildren();
     conversations.slice(0,60).forEach(item=>{
@@ -45,7 +47,7 @@
     $("modal-confirm").textContent=count===1?"Excluir conversa":"Excluir "+count+" conversas";
     $("modal-confirm").onclick=()=>{conversations=conversations.filter(c=>!ids.includes(c.id));ids.forEach(id=>selectedConversationIds.delete(id));if(!conversations.some(c=>c.id===activeId))activeId=conversations[0]?.id||null;if(!conversations.length)createConversation(false);save(STORAGE_KEY,conversations.slice(0,60));closeModal();renderSidebar();renderMessages()};
   }
-  function renderMessages(){const c=activeConversation(),box=$("messages");box.replaceChildren();const empty=!c||!c.messages.length;$("welcome").hidden=!empty;if(!empty)c.messages.forEach(m=>appendMessage(m.role,m.content,false));$("chat-scroll").scrollTop=$("chat-scroll").scrollHeight}
+  function renderMessages(){const c=activeConversation(),box=$("messages");box.replaceChildren();const empty=!c||!c.messages.length;$("welcome").hidden=!empty;if(c&&$("chat-agent"))$("chat-agent").value=c.agentId||"general";if(!empty)c.messages.forEach(m=>{appendMessage(m.role,m.content,false);if(m.image){const img=document.createElement("img");img.className="chat-image-attachment generated-image";img.alt="Imagem gerada pela MYRA";img.src=m.image;box.lastElementChild?.querySelector(".message-content")?.append(img)}});$("chat-scroll").scrollTop=$("chat-scroll").scrollHeight}
   function appendMessage(role,content,scroll=true){
     const row=document.createElement("div");row.className="message "+(role==="user"?"user":"assistant");
     const avatar=document.createElement("div");avatar.className="message-avatar";avatar.textContent=role==="user"?"M":"MY";
@@ -60,7 +62,7 @@
       if(start>=0&&end>start){try{questionnaire=JSON.parse(display.slice(start+openTag.length,end).trim());display=(display.slice(0,start)+display.slice(end+closeTag.length)).trim()}catch(e){console.warn("Questionnaire JSON inv?lido",e)}}
     }
     body.append(label);
-    if(role==="user"){text.textContent=display;body.append(text)}else{renderAssistantContent(body,display)}
+    if(role==="user"){if(Array.isArray(content)){const t=content.find(x=>x&&x.type==="text")?.text||"";text.textContent=t;body.append(text);content.filter(x=>x&&x.type==="image_url"&&x.image_url?.url).forEach(x=>{const img=document.createElement("img");img.className="chat-image-attachment";img.alt="Imagem anexada";img.src=x.image_url.url;img.loading="lazy";body.append(img)})}else{text.textContent=display;body.append(text)}}else{renderAssistantContent(body,display)}
     row.append(avatar,body);$("messages").appendChild(row);
     if(questionnaire)renderQuestionnaire(body,questionnaire);
     if(scroll)$("chat-scroll").scrollTop=$("chat-scroll").scrollHeight;
@@ -276,10 +278,16 @@
     const instructions={code:"Atue como engenheira de software sênior. Planeje a solução, produza código completo e executável, valide acessibilidade, segurança, responsividade e testes. Não entregue apenas snippets quando o pedido exigir um projeto.",research:"Pesquise fontes externas atuais e confiáveis antes de responder. Compare fontes, cite links e separe fatos verificados de hipóteses.",design:"Atue como designer de produto e frontend sênior. Defina hierarquia visual, tipografia, espaçamento, responsividade, estados vazios e microinterações.",review:"Faça uma revisão crítica de nível sênior: procure bugs, riscos de segurança, acessibilidade, desempenho, casos extremos e testes ausentes."};
     if(activeSkills.size){const guidance=[...activeSkills].map(key=>instructions[key]).filter(Boolean).join("\n\n");content="[MODO DE TRABALHO ATIVADO]\n"+guidance+"\n\n[PEDIDO]\n"+content}
     activeSkills.clear();document.querySelectorAll(".skill-chip").forEach(b=>b.classList.remove("active"));
-    messageQueue.push({content,displayContent,taskMode:executionMode,conversationId:activeId,createdAt:Date.now()});
+    const images=pendingImages.splice(0);const apiContent=images.length?[{type:"text",text:content},...images.map(url=>({type:"image_url",image_url:{url}}))]:content;messageQueue.push({content:apiContent,displayContent,taskMode:executionMode&&!images.length,conversationId:activeId,agentId:activeConversation()?.agentId||$("chat-agent")?.value||"general",createdAt:Date.now()});
     $("message-input").value="";resizeInput();renderQueue();
     if(!busy&&!queueNeedsResume)processQueue();
   }
+
+  function readImageFile(file){return new Promise((resolve,reject)=>{if(!file.type.startsWith("image/")){reject(new Error("Formato de imagem inv?lido."));return}const reader=new FileReader();reader.onerror=()=>reject(new Error("Falha ao ler imagem."));reader.onload=()=>{const img=new Image();img.onload=()=>{const max=1800,scale=Math.min(1,max/Math.max(img.width,img.height)),canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);resolve(canvas.toDataURL("image/jpeg",0.84))};img.onerror=()=>reject(new Error("Imagem inv?lida."));img.src=reader.result};reader.readAsDataURL(file)})}
+  async function attachImages(files){for(const file of files){try{pendingImages.push(await readImageFile(file))}catch(e){setupLog(e.message)}}renderPendingImages()}
+  function renderPendingImages(){let host=$("pending-image-list");if(!host){host=document.createElement("div");host.id="pending-image-list";host.className="pending-image-list";$("message-input").parentElement.insertBefore(host,$("message-input"))}host.replaceChildren();pendingImages.forEach((url,index)=>{const wrap=document.createElement("span"),img=document.createElement("img"),remove=document.createElement("button");img.src=url;img.alt="Imagem a enviar";remove.type="button";remove.textContent="?";remove.title="Remover imagem";remove.addEventListener("click",()=>{pendingImages.splice(index,1);renderPendingImages()});wrap.append(img,remove);host.append(wrap)})}
+  async function generateImage(){const prompt=$("message-input").value.trim();if(!prompt){$("message-input").focus();setupLog("Descreva a imagem que deseja gerar.");return}const button=$("generate-image");button.disabled=true;button.textContent="Gerando?";try{const r=await fetch(API+"/images/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,provider:"comfyui",include_data_url:false}),signal:AbortSignal.timeout(900000)});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.detail||data.message||"Gerador local indispon?vel.");const c=activeConversation();const msg={role:"assistant",content:"Imagem gerada localmente: "+(data.filename||"imagem"),image:data.image_url||data.data_url};c.messages.push(msg);c.updatedAt=Date.now();if(activeId===c.id){appendMessage("assistant",msg.content);const img=document.createElement("img");img.className="chat-image-attachment generated-image";img.alt="Imagem gerada pela MYRA";img.src=msg.image;$("messages").lastElementChild.querySelector(".message-content").append(img)}save(STORAGE_KEY,conversations.slice(0,60));$("message-input").value="";resizeInput()}catch(e){setupLog("Gera??o de imagem: "+e.message)}finally{button.disabled=false;button.textContent="? Gerar imagem"}}
+
   function startVoiceInput(){
     const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!SR){$("voice-input").title="Reconhecimento de voz não disponível neste Chromium.";return}
@@ -309,9 +317,9 @@
     const queued=messageQueue.shift(),content=queued.content,displayContent=queued.displayContent||queued.content,taskMode=queued.taskMode;
     renderQueue();
     let c=conversations.find(x=>x.id===queued.conversationId)||activeConversation();if(!c){createConversation();c=activeConversation()}
-    c.messages.push({role:"user",content:displayContent});c.updatedAt=Date.now();
+    c.messages.push({role:"user",content:content});c.updatedAt=Date.now();
     if(c.title==="Nova conversa")c.title=displayContent.slice(0,38)+(displayContent.length>38?".":"");
-    if(activeId===c.id){$("welcome").hidden=true;appendMessage("user",displayContent)}setBusy(true);
+    if(activeId===c.id){$("welcome").hidden=true;appendMessage("user",content)}setBusy(true);
     save(STORAGE_KEY,conversations.slice(0,60));renderSidebar();
     try{
       await setChatActivity(true);let answer;
@@ -325,7 +333,7 @@
         answer=final.state==="done"?(final.resultado||"Tarefa conclu?da."):final.state==="error"?(final.erro||"A tarefa falhou."):final.state==="timeout"?final.resultado:final.state==="idle"?"A tarefa foi encerrada.":("Estado da tarefa: "+final.state);
         showView("activity");
       }else{
-        const res=await fetch(API+"/v1/chat/completions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"myra-agent",stream:false,metadata:{chat_id:c.id,user_id:"local-user"},messages:c.messages.map(m=>({role:m.role,content:m.content}))}),signal:AbortSignal.timeout(120000)});
+        const res=await fetch(API+"/v1/chat/completions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"myra-agent",stream:false,metadata:{chat_id:c.id,user_id:"local-user",agent_id:queued.agentId||c.agentId||"general"},messages:c.messages.map(m=>({role:m.role,content:m.content}))}),signal:AbortSignal.timeout(120000)});
         if(!res.ok)throw new Error("Backend HTTP "+res.status+": "+(await res.text()).slice(0,160));
         const data=await res.json();answer=data?.choices?.[0]?.message?.content;
         if(typeof answer!=="string"||!answer.trim())throw new Error("A MYRA retornou uma resposta vazia.");
@@ -549,7 +557,11 @@
   $("clear-history").addEventListener("click",()=>{historySelectionMode=true;renderSidebar()});
   $("select-all-history").addEventListener("change",e=>{if(e.target.checked)conversations.forEach(c=>selectedConversationIds.add(c.id));else selectedConversationIds.clear();renderSidebar()});
   $("delete-selected-history").addEventListener("click",()=>deleteConversations([...selectedConversationIds]));
-  $("voice-input").addEventListener("click",startVoiceInput);$("voice-read").addEventListener("click",readLastAnswer);$("improve-prompt").addEventListener("click",improvePrompt);
+  $("voice-input").addEventListener("click",startVoiceInput);
+  $("chat-agent").addEventListener("change",()=>{const c=activeConversation();if(c){c.agentId=$("chat-agent").value;save(STORAGE_KEY,conversations.slice(0,60))}});
+  $("attach-image").addEventListener("click",()=>$("chat-image-files").click());
+  $("chat-image-files").addEventListener("change",e=>{attachImages([...e.target.files]);e.target.value=""});
+  $("generate-image").addEventListener("click",generateImage);$("voice-read").addEventListener("click",readLastAnswer);$("improve-prompt").addEventListener("click",improvePrompt);
   document.querySelectorAll(".skill-chip").forEach(button=>button.addEventListener("click",()=>{const key=button.dataset.skill;if(activeSkills.has(key)){activeSkills.delete(key);button.classList.remove("active")}else{activeSkills.add(key);button.classList.add("active")}}));
   $("plugin-source-add").addEventListener("click",addPluginSource);$("plugin-search").addEventListener("input",renderPlugins);$("plugin-category").addEventListener("change",renderPlugins);
   $("github-refresh").addEventListener("click",refreshGitHub);$("github-fetch").addEventListener("click",()=>githubSync("fetch"));$("github-pull").addEventListener("click",()=>githubSync("pull"));$("github-push").addEventListener("click",()=>githubSync("push"));$("github-export").addEventListener("click",exportWorkspace);

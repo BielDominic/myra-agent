@@ -41,7 +41,13 @@ jobs:
       - name: Package backend setup and checksums
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $tag = "${{ github.ref_name }}"
+          } else {
+            $versionLine = Select-String -Path src-tauri/Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1
+            if (-not $versionLine) { throw "Could not read MYRA version from Cargo.toml." }
+            $tag = "v" + $versionLine.Matches[0].Groups[1].Value
+          }
           $package = "MYRA_${tag}_Backend_Setup"
           New-Item -ItemType Directory -Force -Path $package | Out-Null
           Copy-Item installer/backend,installer/wheelhouse,installer/wheelhouse-vision,installer/runtime,installer/playwright-browsers,setup_backend.ps1,start_myra.ps1,INSTALL_WINDOWS.md $package -Recurse -Force

@@ -1,3 +1,19 @@
+## [0.26.4] - 2026-11-19 — Telegram image generation, local image storage, Windows updater and security hardening
+
+- Added per-conversation agent profiles in the native chat (general, senior developer, browser, research, vision and computer control), with agent-specific backend memory namespaces.
+- Added image attachments in native chat and Ollama multimodal routing through `MYRA_VISION_MODEL` (default `qwen2.5vl:3b`).
+- Added local ComfyUI image generation API and chat action; Telegram supports `/image`, `/imagine`, `/gerar`, `/image_status`, and natural-language image requests, with background generation, provider preflight, image validation and correct photo MIME types. No hosted inference key is bundled.
+- Telegram serializes image-generation jobs to protect the 4 GB GPU and queues later requests without blocking chat polling.
+- Generated images are validated and stored locally; desktop chat history now keeps a small image URL instead of repeatedly embedding multi-megabyte Base64 payloads, while Telegram still receives the photo bytes.
+- Native desktop image requests now opt out of Base64 responses and load the persisted image by local URL; Telegram retains the Base64 response required for its photo upload.
+- Added a Windows self-updater watcher launched from the current-user Startup folder; it checks at logon and every six hours, verifies release SHA-256, and defers installation while MYRA is running.
+- Restricted local API CORS to trusted Tauri/localhost origins and added an Origin guard against cross-site browser requests; added regression coverage.
+- The installed launcher now reloads per-user Telegram, browser-bridge, remote API and CORS settings before backend startup without printing secrets.
+- Added hidden ComfyUI launcher/stopper scripts with low-VRAM and CPU-VAE settings for 4 GB GPUs; documented optional local engine installation and startup.
+- Added Telegram photo analysis, `/agent`, `/windows`, `/window`, `/apps` and `/open` commands, with explicit confirmation before closing windows.
+- Updated the legacy `start.ps1` to launch the native MYRA desktop without requiring Docker/Open WebUI.
+- Documented the remaining Open WebUI compatibility boundary and image-generation setup.
+
 # Changelog
 
 Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Datas em ISO 8601. O histórico abaixo resume mudanças identificáveis nos commits recentes do repositório; não pretende substituir o histórico Git completo.

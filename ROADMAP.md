@@ -1206,3 +1206,23 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 - [x] Endpoints de setup restritos a loopback e modelos limitados a uma allowlist.
 - [ ] Validar o novo fluxo completo em instalação limpa do Windows (core, opt-in ML, Ollama e primeiro modelo).
 - [ ] Validar instalação e setup equivalentes no macOS; os endpoints de Ollama/winget são específicos do Windows nesta etapa.
+
+## 2026-11-19 — Telegram image flow, Windows updater and plugin status clarity
+
+- [x] Telegram accepts `/image`, `/imagine`, `/gerar`, `/image_status` and natural-language image requests; generation runs in a background worker so polling/chat can continue.
+- [x] Telegram checks local ComfyUI availability before generation and reports setup instructions rather than silently failing.
+- [x] Telegram image jobs are serialized through a single VRAM-safe worker lock; later requests wait in the background queue while polling and chat remain responsive.
+- [x] Added Windows current-user update watcher at logon and every six hours; it verifies the SHA-256 of the matching x64 NSIS release asset and defers while the desktop/backend is running.
+- [x] Removed the misleading generic “Em expansão” plugin badge from Integrations; it now links to the actual library and states clearly that third-party installation/isolation is still in development.
+- [x] Restricted local API CORS to Tauri and localhost development origins, and added an Origin guard that blocks untrusted browser requests before they can trigger local actions; added regression tests.
+- [x] Added optional hidden ComfyUI start/stop scripts, low-VRAM/CPU-VAE launch settings for the 4 GB RTX A2000, startup registration and setup documentation.
+- [x] Persisted validated generated images to the MYRA data directory; desktop image requests now omit Base64 responses and store only local image URLs, while Telegram retains photo bytes; added API regression tests.
+- [x] Fixed the Windows release workflow so manual builds derive the version from Cargo.toml instead of using a branch name in artifact filenames.
+- [x] Fixed the installed Windows launcher to reload Telegram, browser-bridge, remote API and CORS settings from the user's Windows environment before starting the backend; secrets are never printed.
+- [x] Frontend JavaScript syntax, updater/ComfyUI PowerShell parsing, release-workflow YAML and `git diff --check` passed; latest full Python suite: 1,237 passed, 9 skipped, 12 xfailed, 3,250 subtests passed.
+- [ ] Publish a stable GitHub Release with the matching x64 NSIS installer and `SHA256SUMS.txt`; automatic updates cannot discover unpublished builds.
+- [x] Installed MYRA 0.26.4 into the normal per-user path `%LOCALAPPDATA%\Programs\MYRA`, verified packaged updater/ComfyUI resources, launched the installed app, and confirmed the installed backend reports Telegram connected and ComfyUI online.
+- [x] Exercised the installed image API end-to-end: it generated a PNG, returned a persistent local URL without Base64, served the image file, and rejected an untrusted browser Origin with HTTP 403.
+- [x] Installed official ComfyUI portable v0.46.0 and DreamShaper 8, verified both SHA-256 hashes, confirmed CUDA 13.0 detects the RTX A2000, and generated a real 512×512 PNG locally in 37 seconds; `/images/status` now reports the checkpoint online.
+- [ ] Verify one real Telegram `sendPhoto` delivery from a live chat; command routing, background queue, MIME handling and image upload are covered by automated tests, but a live Telegram delivery has not yet been sent as a test.
+- [ ] Implement the real plugin manager lifecycle: signed manifests, permissions, provenance/hash verification, install/enable/disable/uninstall, isolated execution, logs and rollback. The current plugin library is a catalogue/request queue, not an executable plugin manager.
