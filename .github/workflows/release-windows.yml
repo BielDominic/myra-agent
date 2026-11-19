@@ -41,7 +41,7 @@ jobs:
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
-          $package = "MYRA_$tag_Backend_Setup"
+          $package = "MYRA_${tag}_Backend_Setup"
           New-Item -ItemType Directory -Force -Path $package | Out-Null
           Copy-Item installer/backend,setup_backend.ps1,start_myra.ps1,INSTALL_WINDOWS.md $package -Recurse -Force
           Compress-Archive -Path $package -DestinationPath "$package.zip" -Force
