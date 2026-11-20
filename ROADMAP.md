@@ -712,7 +712,8 @@
 - [ ] macOS DMG builds for Apple Silicon and Intel; desktop shell only until native backend/automation port is complete.
 - [x] Initial plugin reference library and local queue for source review.
 - [x] Plugin architecture contract documented in docs/PLUGIN_ARCHITECTURE.md.
-- [ ] Secure plugin runtime, manifest validation, capability permissions, install/enable and rollback.
+- [x] Declarative plugin lifecycle: manifest validation, ZIP safety checks, local install, enable/disable, uninstall, SHA-256 inventory, and bounded skill context in chat.
+- [ ] Sandboxed executable plugin runtime, granular capability permissions, signature/trust policy, and rollback.
 - [ ] Migrate existing Open WebUI tools and skills into the native interface while preserving BrowserAgent and current integrations.
 - [ ] Full language editor, console, logs, tests, project tree and responsive preview in Code Studio.
 - [ ] Chat image attachments, multimodal files and visual analysis.

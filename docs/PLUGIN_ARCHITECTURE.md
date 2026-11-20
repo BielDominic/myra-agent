@@ -25,7 +25,7 @@ Registry records source URL, pinned commit/tag, SHA-256, install/enabled state, 
 3. Validate manifest, package size, paths, symlinks, duplicate IDs and supported version.
 4. Review source and requested capabilities.
 5. Install to the user plugin directory; pin exact version and hash. Never run install scripts automatically.
-6. Enable only through a restricted worker with explicit permissions, timeouts and structured JSON I/O.
+6. Enable declarative Skills/Prompts only as bounded, untrusted chat reference context. Executable plugins remain disabled until a restricted worker exists.
 7. Update, rollback or remove with diffs, permission-change review and audit records.
 
 ## Security
@@ -50,17 +50,19 @@ Registry records source URL, pinned commit/tag, SHA-256, install/enabled state, 
 - Piper: https://github.com/rhasspy/piper
 
 ## Current local API (stage A — declarative intake)
+- `GET /plugins/catalog`: return the reviewed local catalogue joined with installed/enabled state.
 - `GET /plugins`: list installed packages and their state.
+- `POST /plugins/{plugin_id}/enable` and `/disable`: change declarative library state; activation does not grant tools or execute code.
 - `POST /plugins/validate`: validate a raw ZIP body (`Content-Type: application/zip`) without installing it.
 - `POST /plugins/install`: validate and install a raw ZIP body. The registry records SHA-256 and starts with `enabled=false`.
 - `DELETE /plugins/{plugin_id}`: remove all installed versions only while every version is disabled.
 - Current accepted package types are `skill` and `prompt`, with Markdown/text entry points. `myra.plugin.json`, `README.md`, and a licence file are required. No script, Python, JavaScript, native binary, requested permission, or capability is accepted.
 - Upload is streamed with a 20 MB compressed limit; extraction is bounded to 50 MB / 500 files, rejects traversal, backslashes, symlinks and duplicate paths, and stages files before an atomic directory move.
-- The native desktop plugin view can select a local ZIP, show the validation summary and SHA-256, ask for confirmation, install, list installed packages and remove disabled packages. A Git URL is still only queued for review; it is not fetched or installed.
-- These endpoints do not yet load instructions into the chat or execute tools. The runtime and UI selector remain future stages; do not label an imported package active.
+- The native desktop plugin view loads the real API catalogue, filters/searches entries, imports local ZIPs after validation/confirmation, lists installed packages, enables/disables declarative content and removes disabled packages. A Git URL is only queued for manual review; it is not fetched or installed.
+- Enabled Skill/Prompt entry points are loaded into normal local chat as bounded (32 KiB total), explicitly untrusted reference context. This does not expose tool capabilities and does not execute package code.
 
 ## Delivery stages
-- A (partial, initial intake implemented): catalogue, ZIP validator, local registry, safe install/remove and disabled-by-default declarative packages. Native local ZIP import/list/remove UI is wired; Git source fetching and review remain pending.
-- B: declarative Skills/Prompts integrated into chat and native Tool adapters.
+- A (declarative lifecycle implemented): live catalogue, ZIP validator, local registry, safe install/enable/disable/remove and bounded active Skill/Prompt context in chat. Native local ZIP import/list/manage UI is wired; Git source fetching and manual review remain pending.
+- B: native Tool adapters and explicit capability grants.
 - C: restricted worker runtime, MCP connectors and per-capability permissions.
 - D: updates, rollback, audit and signed catalogue metadata.

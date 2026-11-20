@@ -508,3 +508,21 @@ def test_local_task_start_queues_background_execution(monkeypatch):
     assert len(background.tasks) == 1
     assert background.tasks[0].func is agent._run_remote_task
     monkeypatch.setattr(agent, "_remote_task_scheduled", False)
+
+
+def test_enabled_declarative_skill_is_added_to_local_chat_system_context(monkeypatch, tmp_path):
+    import asyncio
+    monkeypatch.setattr(agent, "_MYRA_CHAT_MODEL", "qwen2.5:3b")
+    monkeypatch.setattr(agent, "_MYRA_CHAT_MEMORY_PATH", tmp_path / "memory.json")
+    monkeypatch.setattr(agent.plugin_manager, "get_enabled_instructions", lambda: [{"id": "example.review", "name": "Review Skill", "content": "Check edge cases and add regression tests."}])
+    captured = {}
+    def fake_ollama_call(request):
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return {"message": {"role": "assistant", "content": "Reviewed."}}
+    monkeypatch.setattr(agent, "_myra_ollama_call", fake_ollama_call)
+    answer = asyncio.run(agent._myra_route_message({"metadata": {"chat_id": "plugin-chat", "user_id": "local-user"}}, [{"role": "user", "content": "Review this"}], "Review this", "myra-agent"))
+    assert answer == "Reviewed."
+    system = captured["payload"]["messages"][0]["content"]
+    assert "example.review" in system
+    assert "Check edge cases and add regression tests." in system
+    assert "untrusted reference content" in system

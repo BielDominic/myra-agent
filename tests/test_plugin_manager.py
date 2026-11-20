@@ -158,3 +158,56 @@ def test_plugin_http_api_validate_install_list_and_remove(monkeypatch, tmp_path)
             headers={"content-type": "text/plain"},
         )
         assert unsupported.status_code == 415
+
+
+def test_enable_disable_declarative_plugin_without_execution(monkeypatch, tmp_path):
+    monkeypatch.setenv("MYRA_PLUGIN_DIR", str(tmp_path / "plugins"))
+    pm.install_archive(make_package(plugin_id="example.toggle-skill"))
+    enabled = pm.set_plugin_enabled("example.toggle-skill", True)
+    assert enabled == {"id": "example.toggle-skill", "enabled": True, "versions": 1, "executable_code": False}
+    assert pm.list_plugins()["plugins"][0]["enabled"] is True
+    disabled = pm.set_plugin_enabled("example.toggle-skill", False)
+    assert disabled["enabled"] is False
+    assert pm.list_plugins()["plugins"][0]["enabled"] is False
+
+
+def test_catalog_marks_installed_state_without_claiming_native_install(monkeypatch, tmp_path):
+    monkeypatch.setenv("MYRA_PLUGIN_DIR", str(tmp_path / "plugins"))
+    catalog = pm.get_catalog()
+    assert catalog["plugins"]
+    assert all("installed" in item and "enabled" in item for item in catalog["plugins"])
+    assert all(item["installed"] is False for item in catalog["plugins"])
+
+
+def test_plugin_http_api_catalog_enable_disable(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+    import agent
+
+    monkeypatch.setenv("MYRA_PLUGIN_DIR", str(tmp_path / "api-plugins"))
+    monkeypatch.setattr(agent, "_telegram_startup", lambda: None)
+    monkeypatch.setattr(agent, "_telegram_shutdown", lambda: None)
+    with TestClient(agent.app) as client:
+        catalog = client.get("/plugins/catalog")
+        assert catalog.status_code == 200
+        assert catalog.json()["plugins"]
+        installed = client.post("/plugins/install", content=make_package(plugin_id="api.toggle-skill"), headers={"content-type": "application/zip"})
+        assert installed.status_code == 200
+        enabled = client.post("/plugins/api.toggle-skill/enable")
+        assert enabled.status_code == 200 and enabled.json()["enabled"] is True
+        assert client.delete("/plugins/api.toggle-skill").status_code == 409
+        disabled = client.post("/plugins/api.toggle-skill/disable")
+        assert disabled.status_code == 200 and disabled.json()["enabled"] is False
+        assert client.delete("/plugins/api.toggle-skill").status_code == 200
+
+
+def test_enabled_skill_content_is_available_as_bounded_local_context(monkeypatch, tmp_path):
+    monkeypatch.setenv("MYRA_PLUGIN_DIR", str(tmp_path / "plugins"))
+    payload = make_package(plugin_id="example.context-skill")
+    pm.install_archive(payload)
+    assert pm.get_enabled_instructions() == []
+    pm.set_plugin_enabled("example.context-skill", True)
+    active = pm.get_enabled_instructions()
+    assert len(active) == 1
+    assert active[0]["id"] == "example.context-skill"
+    assert "Only declarative text" in active[0]["content"]
+    assert pm.get_enabled_instructions(max_total_bytes=4) == [{"id": "example.context-skill", "name": "Safe Skill", "content": "# In"}]

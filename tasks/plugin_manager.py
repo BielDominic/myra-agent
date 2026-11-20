@@ -233,6 +233,87 @@ async def _read_archive_body(request: Request) -> bytes:
     return bytes(chunks)
 
 
+def _catalog_path() -> Path:
+    return Path(__file__).resolve().parent.parent / "plugins" / "catalog.json"
+
+
+def get_catalog() -> dict[str, Any]:
+    """Return the reviewed, local catalog plus installation state."""
+    path = _catalog_path()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        raise HTTPException(500, "Catalogo local de plugins indisponivel.") from None
+    entries = data.get("catalogue") if isinstance(data, dict) else None
+    if not isinstance(entries, list):
+        raise HTTPException(500, "Formato do catalogo de plugins invalido.")
+    installed = _read_registry()["plugins"]
+    latest = {}
+    for item in installed:
+        if isinstance(item, dict):
+            current = latest.get(item.get("id"))
+            if current is None or str(item.get("installed_at", "")) > str(current.get("installed_at", "")):
+                latest[item.get("id")] = item
+    result = []
+    for raw in entries:
+        if not isinstance(raw, dict) or not isinstance(raw.get("id"), str):
+            continue
+        item = dict(raw)
+        local = latest.get(item["id"])
+        item["installed"] = bool(local)
+        item["enabled"] = bool(local and local.get("enabled"))
+        item["installed_version"] = local.get("version") if local else None
+        result.append(item)
+    return {"schema_version": data.get("schema_version", 1), "plugins": result}
+
+
+def get_enabled_instructions(max_total_bytes: int = 32768) -> list[dict[str, str]]:
+    """Load enabled declarative skills as bounded, untrusted prompt context."""
+    root = plugin_root().resolve()
+    registry = _read_registry()
+    loaded: list[dict[str, str]] = []
+    total = 0
+    for record in registry["plugins"]:
+        if not isinstance(record, dict) or not record.get("enabled") or record.get("type") not in ALLOWED_TYPES:
+            continue
+        plugin_id, version, entry = record.get("id"), record.get("version"), record.get("entry_point")
+        if not all(isinstance(value, str) and value for value in (plugin_id, version, entry)):
+            continue
+        try:
+            safe_entry = _safe_member_name(entry)
+            path = (root / plugin_id / version / safe_entry).resolve()
+            path.relative_to(root)
+            if path.suffix.lower() not in {".md", ".txt"} or not path.is_file():
+                continue
+            remaining = max_total_bytes - total
+            if remaining <= 0:
+                break
+            raw = path.read_bytes()[:remaining]
+            content = raw.decode("utf-8-sig", errors="ignore")
+        except (OSError, ValueError):
+            continue
+        if not content.strip():
+            continue
+        total += len(raw)
+        loaded.append({"id": plugin_id, "name": str(record.get("name") or plugin_id), "content": content})
+    return loaded
+
+
+def set_plugin_enabled(plugin_id: str, enabled: bool) -> dict[str, Any]:
+    if not PLUGIN_ID_RE.fullmatch(plugin_id):
+        raise HTTPException(400, "ID de plugin invalido.")
+    registry = _read_registry()
+    records = [p for p in registry["plugins"] if p.get("id") == plugin_id]
+    if not records:
+        raise HTTPException(404, "Plugin nao encontrado.")
+    # Enable/disable is a library state only. Declarative content is never
+    # imported as Python/JavaScript or granted system capabilities.
+    for record in records:
+        record["enabled"] = bool(enabled)
+    _write_registry(registry)
+    return {"id": plugin_id, "enabled": bool(enabled), "versions": len(records), "executable_code": False}
+
+
 @router.get("/plugins")
 def list_plugins():
     return {"schema_version": REGISTRY_VERSION, "plugins": _read_registry()["plugins"]}
@@ -285,3 +366,18 @@ def remove_plugin(plugin_id: str):
     registry["plugins"] = [p for p in registry["plugins"] if p.get("id") != plugin_id]
     _write_registry(registry)
     return {"removed": True, "id": plugin_id}
+
+
+@router.get("/plugins/catalog")
+def plugin_catalog():
+    return get_catalog()
+
+
+@router.post("/plugins/{plugin_id}/enable")
+def enable_plugin(plugin_id: str):
+    return set_plugin_enabled(plugin_id, True)
+
+
+@router.post("/plugins/{plugin_id}/disable")
+def disable_plugin(plugin_id: str):
+    return set_plugin_enabled(plugin_id, False)

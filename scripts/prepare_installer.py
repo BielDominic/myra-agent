@@ -117,6 +117,9 @@ def main() -> None:
     DEST.mkdir(parents=True)
     shutil.copy2(ROOT / "agent.py", DEST / "agent.py")
     copy_python_tree(ROOT / "tasks", DEST / "tasks")
+    plugin_catalog = DEST / "plugins"
+    plugin_catalog.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROOT / "plugins" / "catalog.json", plugin_catalog / "catalog.json")
     copy_python_tree(ROOT / "computer", DEST / "computer")
     extension = DEST / "browser-extension"
     extension.mkdir()

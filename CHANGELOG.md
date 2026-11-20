@@ -1,3 +1,13 @@
+# Changelog
+
+## [0.26.8] - 2026-11-20
+
+- Added a live local plugin catalog API backed by `plugins/catalog.json`.
+- Added safe enable/disable lifecycle for declarative Skills and Prompts.
+- Enabled Skills/Prompts are injected into local chat as bounded, untrusted reference context; no third-party code is executed.
+- Updated the native library UI to load real catalog state and manage installed packages.
+- Added API, lifecycle, and active-context regression tests.
+
 ## [Unreleased]
 
 - Restored normal local chat routing to Ollama: ordinary text and image messages now reach the configured local chat/vision model instead of returning an empty assistant message. Empty model responses now produce an explicit actionable error.

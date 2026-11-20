@@ -112,29 +112,26 @@
     card.addEventListener("submit",event=>{event.preventDefault();const answers=[];let valid=true;card.querySelectorAll("[data-question-id]").forEach(control=>{if(control.required&&!control.value.trim())valid=false;answers.push(control.dataset.questionLabel+": "+(control.value.trim()||"N?o informado"))});if(!valid){card.querySelector("[data-question-id]:invalid")?.focus();return}card.querySelectorAll("input,select,button").forEach(el=>el.disabled=true);sendMessage("Respostas ao question?rio da MYRA:"+String.fromCharCode(10)+answers.join(String.fromCharCode(10)));});
     parent.append(card);
   }
-  function renderPlugins(){
-    const catalog=[
-      {id:"web-research",name:"Web Research",type:"Tool",category:"research",state:"Nativo",description:"Busca externa, leitura de páginas, comparação de fontes e citações.",url:"https://docs.openwebui.com/features/extensibility/plugin/tools/"},
-      {id:"browser-agent",name:"BrowserAgent",type:"Tool",category:"research",state:"Nativo",description:"Navegação, leitura e interação com páginas usando a bridge existente da MYRA.",url:"https://github.com/BielDominic/myra-agent"},
-      {id:"myra-local-pipe",name:"MYRA Local · Memória + Tarefas",type:"Agent",category:"memory",state:"Nativo",description:"Camada local de continuidade por conversa, separação entre intenção de chat e tarefas e integração com o executor.",url:"https://github.com/BielDominic/myra-agent"},
-      {id:"senior-code-review",name:"Senior Code Review",type:"Skill",category:"development",state:"Planejado",description:"Revisão de segurança, testes, desempenho, arquitetura e manutenção.",url:"https://github.com/continuedev/continue"},
-      {id:"frontend-design",name:"Frontend Design",type:"Skill",category:"design",state:"Planejado",description:"Design system, responsividade, acessibilidade e microinterações.",url:"https://github.com/All-Hands-AI/OpenHands"},
-      {id:"aider",name:"Aider Coding Agent",type:"Referência",category:"development",state:"Avaliar",description:"Referência de fluxo de engenharia com alterações de código e validação.",url:"https://github.com/Aider-AI/aider"},
-      {id:"openhands",name:"OpenHands",type:"Referência",category:"development",state:"Avaliar",description:"Referência de agente de engenharia de software e execução de tarefas.",url:"https://github.com/All-Hands-AI/OpenHands"},
-      {id:"whisper",name:"Whisper / whisper.cpp",type:"Provider STT",category:"voice",state:"Planejado",description:"Reconhecimento de voz local e transcrição de áudio.",url:"https://github.com/ggml-org/whisper.cpp"},
-      {id:"piper",name:"Piper TTS",type:"Provider TTS",category:"voice",state:"Planejado",description:"Síntese de voz neural local com modelos de voz selecionáveis.",url:"https://github.com/rhasspy/piper"},
-      {id:"context-memory",name:"Context Engine",type:"Filter",category:"memory",state:"Planejado",description:"Resumo de conversas longas, memória de projeto e recuperação contextual.",url:"https://docs.openwebui.com/features/extensibility/"}
-    ];
+  async function renderPlugins(){
     const host=$("plugin-grid");if(!host)return;host.replaceChildren();
-    const query=($("plugin-search").value||"").toLowerCase(),category=$("plugin-category").value;
-    catalog.filter(p=>(category==="all"||p.category===category)&&[p.name,p.description,p.type].join(" ").toLowerCase().includes(query)).forEach(p=>{
-      const card=document.createElement("article");card.className="plugin-card";
-      const top=document.createElement("div");top.className="plugin-card-top";const type=document.createElement("span");type.textContent=p.type;const state=document.createElement("span");state.className="plugin-state "+(p.state==="Nativo"?"native":"planned");state.textContent=p.state;top.append(type,state);
-      const name=document.createElement("h3");name.textContent=p.name;const desc=document.createElement("p");desc.textContent=p.description;
-      const actions=document.createElement("div");actions.className="plugin-card-actions";const link=document.createElement("a");link.href=p.url;link.target="_blank";link.rel="noreferrer";link.textContent="Ver fonte ↗";actions.append(link);
-      const request=document.createElement("button");request.type="button";request.className="soft-button";request.textContent="Solicitar avaliação";request.addEventListener("click",()=>{pluginRequests.push({id:p.id,name:p.name,url:p.url,createdAt:Date.now(),status:"pending-review"});save(PLUGIN_REQUESTS_KEY,pluginRequests);renderPluginRequests();$("plugin-source-status").textContent=p.name+" adicionado à fila de avaliação local.";});actions.append(request);
-      card.append(top,name,desc,actions);host.append(card);
-    });
+    const query=($("plugin-search").value||"").trim().toLowerCase(),category=$("plugin-category").value;
+    const loading=document.createElement("p");loading.className="muted-note";loading.textContent="Carregando catalogo local...";host.append(loading);
+    try{
+      const response=await fetch(API+"/plugins/catalog",{cache:"no-store",signal:AbortSignal.timeout(7000)});
+      const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.detail||"Catalogo indisponivel.");
+      const entries=Array.isArray(data.plugins)?data.plugins:[];host.replaceChildren();
+      const filtered=entries.filter(p=>(category==="all"||p.category===category)&&[p.name,p.description,p.type,p.category].join(" ").toLowerCase().includes(query));
+      if(!filtered.length){const empty=document.createElement("p");empty.className="muted-note";empty.textContent="Nenhum item encontrado nesta categoria.";host.append(empty)}
+      filtered.forEach(p=>{
+        const card=document.createElement("article");card.className="plugin-card";
+        const top=document.createElement("div");top.className="plugin-card-top";const type=document.createElement("span");type.textContent=String(p.type||"plugin").toUpperCase();const state=document.createElement("span");state.className="plugin-state "+(p.status==="native"?"native":"planned");state.textContent=p.status==="native"?"NATIVO":p.status==="available"?"DISPONIVEL":"PLANEJADO";top.append(type,state);
+        const name=document.createElement("h3");name.textContent=p.name||p.id;const desc=document.createElement("p");desc.textContent=p.description||"Sem descricao.";
+        const actions=document.createElement("div");actions.className="plugin-card-actions";
+        const source=String(p.source||"");if(/^https:\/\//i.test(source)){const link=document.createElement("a");link.href=source;link.target="_blank";link.rel="noopener noreferrer";link.textContent="Documentacao / fonte";actions.append(link)}else{const label=document.createElement("small");label.textContent=source||"Componente interno";actions.append(label)}
+        if(p.installed){const installed=document.createElement("span");installed.className="plugin-state native";installed.textContent=p.enabled?"ATIVO":"INSTALADO";actions.append(installed)}
+        card.append(top,name,desc,actions);host.append(card);
+      });
+    }catch(error){host.replaceChildren();const message=document.createElement("p");message.className="muted-note";message.textContent="Nao foi possivel carregar o catalogo: "+error.message;host.append(message)}
     renderPluginRequests();
     const installedHost=$("plugin-installed-list");if(installedHost&&installedHost.dataset.loaded!=="true")refreshInstalledPlugins();
   }
@@ -161,6 +158,8 @@
         const hash=document.createElement("small");hash.className="plugin-installed-hash";hash.textContent="SHA-256: "+String(plugin.sha256||"").slice(0,16)+"…";hash.title=plugin.sha256||"";
         info.append(title,meta,hash);
         const state=document.createElement("span");state.className="plugin-state planned";state.textContent=plugin.enabled?"Ativo":"Instalado · desativado";
+        const toggle=document.createElement("button");toggle.type="button";toggle.className="soft-button";toggle.textContent=plugin.enabled?"Desativar":"Ativar";
+        toggle.addEventListener("click",async()=>{toggle.disabled=true;try{const action=plugin.enabled?"disable":"enable";const result=await fetch(API+"/plugins/"+encodeURIComponent(plugin.id)+"/"+action,{method:"POST",signal:AbortSignal.timeout(10000)});const body=await result.json().catch(()=>({}));if(!result.ok)throw new Error(body.detail||"Nao foi possivel alterar o estado do plugin.");$("plugin-source-status").textContent=plugin.name+ (body.enabled?" ativado na biblioteca declarativa.":" desativado.");host.dataset.loaded="false";await refreshInstalledPlugins();await renderPlugins()}catch(error){$("plugin-source-status").textContent=error.message;toggle.disabled=false}});
         const remove=document.createElement("button");remove.type="button";remove.className="soft-button";remove.textContent="Remover";remove.disabled=Boolean(plugin.enabled);
         remove.addEventListener("click",async()=>{
           if(!window.confirm("Remover todas as versões de "+(plugin.name||plugin.id)+" deste dispositivo?"))return;
@@ -168,7 +167,7 @@
           try{const result=await fetch(API+"/plugins/"+encodeURIComponent(plugin.id),{method:"DELETE",signal:AbortSignal.timeout(10000)});const body=await result.json().catch(()=>({}));if(!result.ok)throw new Error(body.detail||"Falha ao remover plugin.");$("plugin-source-status").textContent="Plugin removido: "+(plugin.name||plugin.id);await refreshInstalledPlugins()}
           catch(error){$("plugin-source-status").textContent=error.message;remove.disabled=false}
         });
-        row.append(info,state,remove);host.append(row);
+        row.append(info,state,toggle,remove);host.append(row);
       });
     }catch(error){host.replaceChildren();const message=document.createElement("p");message.className="muted-note";message.textContent="Registro local indisponível: "+error.message;host.append(message)}
     finally{host.dataset.loading="false";host.dataset.loaded="true"}
