@@ -1,3 +1,4 @@
+import json
 import pytest
 from fastapi import HTTPException
 from tasks import local_runtime as runtime
@@ -112,3 +113,19 @@ def test_runtime_probe_reports_missing_local_voice_engine(monkeypatch):
     })
     assert runtime.runtime_probe("whisper")["reachable"] is False
     assert runtime.runtime_probe("kokoro")["reachable"] is False
+
+
+def test_saved_piper_settings_migrate_to_kokoro(tmp_path, monkeypatch):
+    config_file = tmp_path / "runtime.json"
+    config_file.write_text(json.dumps({
+        "servers": {"piper": {"url": "local://piper", "enabled": True}, "whisper": {"enabled": False}},
+        "voice": {"piper_executable": "old-piper.exe", "piper_model_path": "old.onnx"},
+    }), encoding="utf-8")
+    monkeypatch.setattr(runtime, "CONFIG_DIR", tmp_path)
+    monkeypatch.setattr(runtime, "CONFIG_FILE", config_file)
+    monkeypatch.setattr(runtime, "WHISPER_MODEL_DIR", tmp_path / "missing-whisper")
+    config = runtime._load_config()
+    assert "piper" not in config["servers"]
+    assert config["servers"]["kokoro"]["url"] == "local://kokoro"
+    assert "piper_executable" not in config["voice"]
+    assert "piper_model_path" not in config["voice"]

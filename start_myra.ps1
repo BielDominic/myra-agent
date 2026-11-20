@@ -66,4 +66,9 @@ $candidates = @(
 )
 $app = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $app) { throw "Executável MYRA não encontrado nos caminhos padrão. Reinstale o aplicativo." }
-Start-Process -FilePath $app -WorkingDirectory (Split-Path $app)
+$widgetRunning = Get-Process -Name "myra-widget" -ErrorAction SilentlyContinue
+if (-not $widgetRunning) {
+    Start-Process -FilePath $app -WorkingDirectory (Split-Path $app)
+} else {
+    Write-Host "MYRA widget ja esta em execucao; mantendo a instancia atual."
+}
