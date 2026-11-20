@@ -193,6 +193,7 @@
 - [x] Round-trip TTS -> STT testado em portugues e ingles com modelo local small.
 - [ ] Teste real de microfone/alto-falante no Tauri/WebView com dispositivo fisico.
 - [ ] Validar instalacao limpa, primeiro arranque sem internet e reinicio do Windows sem baixar modelos.
+- [ ] VAD/segmentacao por silencio, selecao de microfone/saida, controle de volume e wake word local com testes de falsas ativacoes.
 - [ ] VAD/silencio, eco, interrupcao, selecao de microfone/saida e volume.
 - [ ] Wake word local "MYRA" com limiar configuravel e testes contra ativacoes falsas; permanece desativada.
 
@@ -597,10 +598,10 @@
 | Documentacao | 6 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
 | Meta / Estrategico | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
-**Checklist PT-BR: 326 itens rastreados**
-**Progresso do checklist PT-BR: 49% (161 de 326 itens marcados).**
+**Checklist PT-BR: 327 itens rastreados**
+**Progresso do checklist PT-BR: 49% (161 de 327 itens marcados).**
 
-**Progresso geral combinado dos checklists PT-BR + EN: 50% (344 de 687 itens marcados).**
+**Progresso geral combinado dos checklists PT-BR + EN: 50% (344 de 688 itens marcados).**
 
 *Este percentual é a contagem simples dos checkboxes da seção em português; não pondera complexidade nem significa prontidão para produção.*
 
@@ -1172,8 +1173,8 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 | Documentation | 6 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
 | Strategic / Meta | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
-**PT-BR checklist: 326 tracked items**
-**PT-BR checklist progress: 49% (161 of 326 items checked).**
+**PT-BR checklist: 327 tracked items**
+**PT-BR checklist progress: 49% (161 of 327 items checked).**
 
 **EN checklist progress: 51% (183 of 361 items checked).**
 
