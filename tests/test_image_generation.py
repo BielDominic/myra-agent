@@ -52,3 +52,67 @@ def test_status_reports_offline_comfyui_without_crashing(monkeypatch):
     assert result["status"] == "offline"
     assert result["available"] is False
     assert "ComfyUI" in result["message"]
+
+
+def test_comfyui_cleanup_removes_only_myra_owned_uploads(tmp_path, monkeypatch):
+    from computer.image_generation import _cleanup_uploaded_input
+
+    monkeypatch.setenv("MYRA_COMFYUI_INPUT_DIR", str(tmp_path))
+    owned = tmp_path / "myra_edit_0123456789abcdef01234567.png"
+    unrelated = tmp_path / "family_photo.png"
+    owned.write_bytes(b"temporary")
+    unrelated.write_bytes(b"keep")
+
+    _cleanup_uploaded_input(owned.name)
+    _cleanup_uploaded_input(unrelated.name)
+    _cleanup_uploaded_input("../outside.png")
+
+    assert not owned.exists()
+    assert unrelated.read_bytes() == b"keep"
+
+
+def test_photo_edit_prompt_preserves_unrequested_details():
+    from computer.image_generation import _photo_edit_prompt
+    prompt = _photo_edit_prompt("Change the shirt to blue")
+    assert prompt.startswith("Photorealistic edit: Change the shirt to blue")
+    assert "Preserve the original subject identity" in prompt
+    assert "all details not explicitly requested to change" in prompt
+
+
+def test_edit_cleans_comfyui_temporary_upload_after_success(tmp_path, monkeypatch):
+    from io import BytesIO
+    from PIL import Image
+    from computer import image_generation
+
+    source = BytesIO()
+    Image.new("RGB", (128, 128), (80, 100, 120)).save(source, format="PNG")
+    monkeypatch.setenv("MYRA_COMFYUI_INPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(image_generation, "status", lambda: {
+        "status": "ok", "available": True, "checkpoints": ["dreamshaper.safetensors"],
+    })
+
+    uploaded_names = []
+    class UploadResponse:
+        def raise_for_status(self): pass
+        def json(self): return {"name": uploaded_names[-1], "subfolder": ""}
+
+    def fake_upload(url, files, data, timeout):
+        name, payload, mime = files["image"]
+        uploaded_names.append(name)
+        (tmp_path / name).write_bytes(payload)
+        return UploadResponse()
+
+    captured = {}
+    def fake_wait(workflow, checkpoint, timeout, width, height):
+        captured.update(workflow=workflow)
+        return {"status": "ok", "filename": "MYRA_EDIT.png"}
+
+    monkeypatch.setattr(image_generation.requests, "post", fake_upload)
+    monkeypatch.setattr(image_generation, "_submit_and_wait", fake_wait)
+
+    result = image_generation.edit(source.getvalue(), "photo.png", "Change the shirt to blue")
+
+    assert result["status"] == "ok"
+    assert result["edited"] is True
+    assert not (tmp_path / uploaded_names[0]).exists()
+    assert "Preserve the original subject identity" in captured["workflow"]["2"]["inputs"]["text"]

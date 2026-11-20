@@ -48,6 +48,17 @@ def test_cors_allows_local_development_origin(monkeypatch):
     assert response.headers["access-control-allow-origin"] == "http://localhost:1420"
 
 
+def test_cors_allows_native_desktop_chat_origins(monkeypatch):
+    monkeypatch.setattr(agent, "_telegram_startup", lambda: None)
+    monkeypatch.setattr(agent, "_telegram_shutdown", lambda: None)
+
+    with TestClient(agent.app) as client:
+        for origin in ("http://127.0.0.1:8766", "http://localhost:8766"):
+            response = _preflight(client, origin)
+            assert response.status_code == 200
+            assert response.headers["access-control-allow-origin"] == origin
+
+
 def test_untrusted_origin_is_rejected_even_without_cors_preflight(monkeypatch):
     monkeypatch.setattr(agent, "_telegram_startup", lambda: None)
     monkeypatch.setattr(agent, "_telegram_shutdown", lambda: None)

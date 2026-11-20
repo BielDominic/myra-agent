@@ -71,6 +71,8 @@ MYRA_CORS_DEFAULT_ORIGINS = (
     "tauri://localhost",            # Tauri / macOS e Linux
     "http://localhost:1420",        # Vite dev server
     "http://127.0.0.1:1420",        # Vite dev server via IPv4
+    "http://127.0.0.1:8766",        # Native MYRA desktop chat (local HTTP)
+    "http://localhost:8766",        # Native MYRA desktop chat (localhost alias)
 )
 MYRA_CORS_ORIGINS = [
     origin.strip().rstrip("/")
@@ -5003,7 +5005,7 @@ async def myra_generate_image(data: MyraImageGenerateRequest):
 
 @app.post("/images/edit")
 async def myra_edit_image(data: MyraImageEditRequest):
-    """Edit a user-supplied photo locally; the original is not persisted by MYRA."""
+    """Edit a user-supplied photo locally; retain the chat copy and clean temporary ComfyUI input after completion."""
     match = re.fullmatch(
         r"data:(image/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)",
         data.image_data_url,

@@ -6,6 +6,7 @@ import os
 import secrets
 import time
 from io import BytesIO
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import requests
@@ -130,6 +131,41 @@ def generate(prompt: str, checkpoint: str = "", width: int = 640, height: int = 
     return _submit_and_wait(workflow, chosen, timeout, width, height)
 
 
+def _cleanup_uploaded_input(image_name: str) -> None:
+    """Remove only MYRA-owned temporary uploads from ComfyUI's input directory."""
+    root_value = os.environ.get("MYRA_COMFYUI_INPUT_DIR", "").strip()
+    if root_value:
+        root = Path(root_value).expanduser()
+    else:
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if not local_app_data:
+            return
+        root = Path(local_app_data) / "MYRA" / "ComfyUI" / "ComfyUI" / "input"
+    try:
+        relative = PurePosixPath(str(image_name or ""))
+        if (not relative.parts or relative.is_absolute()
+                or any(part in ("", ".", "..") for part in relative.parts)
+                or "\\" in str(image_name)):
+            return
+        if not relative.name.startswith("myra_edit_") or relative.suffix.lower() != ".png":
+            return
+        resolved_root = root.resolve()
+        target = (resolved_root.joinpath(*relative.parts)).resolve()
+        target.relative_to(resolved_root)
+        if target.is_file():
+            target.unlink()
+    except (OSError, ValueError):
+        # Cleanup must never turn a completed edit into a failed request.
+        return
+
+
+def _photo_edit_prompt(prompt: str) -> str:
+    return (
+        f"Photorealistic edit: {prompt}. Preserve the original subject identity, "
+        "pose, framing and all details not explicitly requested to change."
+    )
+
+
 def edit(image_bytes: bytes, filename: str, prompt: str, checkpoint: str = "",
          denoise: float = 0.45, steps: int = 28, timeout: int = 600) -> dict:
     """Edit an uploaded photo with img2img while retaining its composition."""
@@ -174,12 +210,15 @@ def edit(image_bytes: bytes, filename: str, prompt: str, checkpoint: str = "",
             image_name = f"{subfolder}/{image_name}"
         denoise = max(0.2, min(0.75, float(denoise)))
         steps = max(20, min(36, int(steps)))
-        workflow = _edit_workflow(prompt, chosen, image_name, width, height, steps,
+        edit_prompt = _photo_edit_prompt(prompt)
+        workflow = _edit_workflow(edit_prompt, chosen, image_name, width, height, steps,
                                   secrets.randbelow(2**32), denoise)
         result = _submit_and_wait(workflow, chosen, timeout, width, height)
         if result.get("status") == "ok":
             result["edited"] = True
             result["source_dimensions"] = [width, height]
+        if result.get("status") in ("ok", "error"):
+            _cleanup_uploaded_input(image_name)
         return result
     except (requests.RequestException, ValueError, TypeError) as exc:
         return {"status": "error", "message": f"Falha na edição local: {type(exc).__name__}."}
