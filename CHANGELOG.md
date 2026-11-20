@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+- Restored normal local chat routing to Ollama: ordinary text and image messages now reach the configured local chat/vision model instead of returning an empty assistant message. Empty model responses now produce an explicit actionable error.
+- Made first-run setup resumable and non-blocking: installed models are not downloaded again, and the user can open the chat while optional setup steps are deferred.
 - Improved local image generation quality with DPM++ 2M Karras, 30 sampling steps and a 640×640 default, capped at 768×768 for the 4 GB VRAM profile.
 - Added local image-to-image photo editing: the desktop chat can attach a photo, accept an edit instruction, preserve the original in conversation history and return a separate edited result. Input validation, size limits and local-only ComfyUI processing are enforced.
 - Fixed composer toolbar overlap by removing the icon-only 27 px width from text buttons, arranging tool groups into responsive rows and adding clear attachment/edit/generation labels. Chromium layout checks at 1280, 850, 600 and 390 px found no intersecting controls; the edit button enables after a photo is attached.

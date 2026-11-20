@@ -4675,7 +4675,50 @@ async def _myra_route_message(data, messages, user_msg, model):
                           "instale esse modelo no Ollama ou configure MYRA_VISION_MODEL com um modelo multimodal compat?vel. "
                           f"Detalhe t?cnico: {type(exc).__name__}.")
             else:
-                answer = f"N?o consegui consultar o modelo local {_MYRA_CHAT_MODEL} ({type(exc).__name__})."
+                answer = f"Não consegui executar a ação solicitada ({type(exc).__name__})."
+
+    else:
+        try:
+            # Mensagens comuns devem sempre passar pelo modelo de conversa local.
+            # Não roteamos perguntas comuns para o executor de tarefas.
+            chat_model = _MYRA_CHAT_MODEL
+            ollama_messages = [{"role": "system", "content": agent_profiles[agent_id]}]
+            ollama_messages.extend(history)
+            if image_payload:
+                vision_model = os.environ.get("MYRA_VISION_MODEL", "qwen2.5vl:3b").strip()
+                chat_model = vision_model or chat_model
+                for message in reversed(ollama_messages):
+                    if message.get("role") == "user":
+                        message["images"] = image_payload
+                        break
+            payload = {
+                "model": chat_model,
+                "messages": ollama_messages,
+                "stream": False,
+                "options": {"temperature": 0.7},
+            }
+            req = urllib.request.Request(
+                "http://127.0.0.1:11434/api/chat",
+                data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
+                method="POST",
+            )
+            result = await asyncio.to_thread(_myra_ollama_call, req)
+            answer = str(((result.get("message") or {}).get("content") or result.get("response") or "")).strip()
+            if not answer:
+                raise RuntimeError("Ollama retornou uma resposta vazia.")
+        except Exception as exc:
+            print(f"[MYRA-CHAT] falha no modelo local {chat_model}: {type(exc).__name__}: {exc}")
+            if image_payload:
+                answer = (
+                    f"Não consegui analisar esta imagem com o modelo visual {chat_model}. "
+                    "Verifique se ele está instalado no Ollama e se oferece suporte a imagens."
+                )
+            else:
+                answer = (
+                    f"Não consegui consultar o modelo local {chat_model}. "
+                    f"Detalhe: {type(exc).__name__}. Verifique se o Ollama está em execução."
+                )
 
     if key:
         # Persiste somente o turno atual, sem duplicar o histórico que o cliente enviou.

@@ -238,11 +238,16 @@
           setupLog(data.message||"Ollama instalado.");
           await new Promise(resolve=>setTimeout(resolve,5000));
         }
-        setupLog("Baixando "+prefs.model+". O download depende da sua conexão e pode levar alguns minutos…");
-        const r=await fetch(API+"/setup/model",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:prefs.model}),signal:AbortSignal.timeout(3600000)});
-        const data=await r.json().catch(()=>({}));
-        if(!r.ok)throw new Error(data.detail||"Falha ao baixar o modelo.");
-        setupLog(data.message||"Modelo pronto.");
+        const modelAlreadyInstalled=Array.isArray(setupStatus?.models)&&setupStatus.models.some(name=>String(name).toLowerCase()===prefs.model.toLowerCase());
+        if(!modelAlreadyInstalled){
+          setupLog("Baixando "+prefs.model+". O download depende da sua conexão e pode levar alguns minutos…");
+          const r=await fetch(API+"/setup/model",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:prefs.model}),signal:AbortSignal.timeout(3600000)});
+          const data=await r.json().catch(()=>({}));
+          if(!r.ok)throw new Error(data.detail||"Falha ao baixar o modelo.");
+          setupLog(data.message||"Modelo pronto.");
+        }else{
+          setupLog("Modelo "+prefs.model+" já está instalado. Nenhum download necessário.");
+        }
         await refreshModels();
       }
       save(SETUP_KEY,{completed:true,completedAt:Date.now(),preferences:prefs});
@@ -325,8 +330,12 @@
     messageQueue.forEach((item,index)=>{const row=document.createElement("div");row.className="queue-item";const label=document.createElement("span");label.textContent=(index+1)+". "+(item.displayContent||item.content);const mode=document.createElement("small");mode.textContent=item.taskMode?"TAREFA":"CHAT";const remove=document.createElement("button");remove.type="button";remove.textContent="×";remove.title="Remover da fila";remove.addEventListener("click",()=>{messageQueue.splice(index,1);renderQueue()});row.append(label,mode,remove);panel.append(row)});
   }
   function sendMessage(raw){
-    if(!load(SETUP_KEY,{}).completed){showView("setup");setupLog("Conclua ou adie os primeiros passos antes de iniciar uma conversa.");return}
-    const displayContent=String(raw||"").trim();if(!displayContent)return;let content=displayContent;
+    const displayContent=String(raw||"").trim();if(!displayContent)return;
+    if(!load(SETUP_KEY,{}).completed){
+      save(SETUP_KEY,{completed:true,deferred:true,completedAt:Date.now(),reason:"chat-started-before-optional-setup"});
+      setupLog("Configuração opcional adiada. Você já pode conversar com a MYRA e configurar recursos adicionais depois.");
+    }
+    let content=displayContent;
     const instructions={code:"Atue como engenheira de software sênior. Planeje a solução, produza código completo e executável, valide acessibilidade, segurança, responsividade e testes. Não entregue apenas snippets quando o pedido exigir um projeto.",research:"Pesquise fontes externas atuais e confiáveis antes de responder. Compare fontes, cite links e separe fatos verificados de hipóteses.",design:"Atue como designer de produto e frontend sênior. Defina hierarquia visual, tipografia, espaçamento, responsividade, estados vazios e microinterações.",review:"Faça uma revisão crítica de nível sênior: procure bugs, riscos de segurança, acessibilidade, desempenho, casos extremos e testes ausentes."};
     if(activeSkills.size){const guidance=[...activeSkills].map(key=>instructions[key]).filter(Boolean).join("\n\n");content="[MODO DE TRABALHO ATIVADO]\n"+guidance+"\n\n[PEDIDO]\n"+content}
     activeSkills.clear();document.querySelectorAll(".skill-chip").forEach(b=>b.classList.remove("active"));

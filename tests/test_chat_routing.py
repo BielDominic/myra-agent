@@ -64,6 +64,34 @@ def test_openai_endpoint_forwards_identity_headers_to_memory_key(monkeypatch):
     assert captured["key"] == "endpoint-user:endpoint-chat"
 
 
+def test_normal_chat_messages_are_sent_to_local_ollama(monkeypatch, tmp_path):
+    import asyncio
+    from urllib.request import Request
+
+    monkeypatch.setattr(agent, "_MYRA_CHAT_MODEL", "qwen2.5:3b")
+    monkeypatch.setattr(agent, "_MYRA_CHAT_MEMORY_PATH", tmp_path / "memory.json")
+    captured = {}
+
+    def fake_ollama_call(request):
+        assert isinstance(request, Request)
+        captured["url"] = request.full_url
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return {"message": {"role": "assistant", "content": "Olá! Estou funcionando."}}
+
+    monkeypatch.setattr(agent, "_myra_ollama_call", fake_ollama_call)
+    messages = [{"role": "user", "content": "Olá, MYRA!"}]
+    answer = asyncio.run(agent._myra_route_message(
+        {"metadata": {"chat_id": "chat-test", "user_id": "local-user", "agent_id": "general"}},
+        messages, "Olá, MYRA!", "myra-agent",
+    ))
+
+    assert answer == "Olá! Estou funcionando."
+    assert captured["url"] == "http://127.0.0.1:11434/api/chat"
+    assert captured["payload"]["model"] == "qwen2.5:3b"
+    assert captured["payload"]["stream"] is False
+    assert captured["payload"]["messages"][-1] == {"role": "user", "content": "Olá, MYRA!"}
+
+
 def test_identity_headers_are_used_when_provider_sends_them():
     payload = {"model": "myra-agent", "messages": []}
     enriched = agent._myra_apply_identity_headers(
