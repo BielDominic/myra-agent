@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+- Improved local image generation quality with DPM++ 2M Karras, 30 sampling steps and a 640×640 default, capped at 768×768 for the 4 GB VRAM profile.
+- Added local image-to-image photo editing: the desktop chat can attach a photo, accept an edit instruction, preserve the original in conversation history and return a separate edited result. Input validation, size limits and local-only ComfyUI processing are enforced.
+- Fixed composer toolbar overlap by removing the icon-only 27 px width from text buttons, arranging tool groups into responsive rows and adding clear attachment/edit/generation labels. Chromium layout checks at 1280, 850, 600 and 390 px found no intersecting controls; the edit button enables after a photo is attached.
+- Added image-edit API and workflow regression tests. Image API/generation and Telegram test groups: 84 passed.
 - Fixed Telegram natural-language image routing to accept definite articles (`a imagem`, `o desenho`, `as imagens`) as well as indefinite articles. Added regression coverage for the exact request “Gere a imagem de um gato com um Vídeo game”. The installed backend copy was patched and restarted; Telegram/ComfyUI health checks are green.
 
 ## [0.26.5] - 2026-11-19 — Declarative plugin intake, updater cadence and security hardening

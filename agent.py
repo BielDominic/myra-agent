@@ -4922,10 +4922,18 @@ class MyraImageGenerateRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=4000)
     provider: str = Field(default="comfyui", max_length=32)
     checkpoint: str = Field(default="", max_length=240)
-    width: int = Field(default=512, ge=256, le=1024)
-    height: int = Field(default=512, ge=256, le=1024)
-    steps: int = Field(default=25, ge=1, le=50)
+    width: int = Field(default=640, ge=256, le=768)
+    height: int = Field(default=640, ge=256, le=768)
+    steps: int = Field(default=30, ge=20, le=40)
     include_data_url: bool = Field(default=True)
+
+
+class MyraImageEditRequest(BaseModel):
+    prompt: str = Field(min_length=1, max_length=4000)
+    image_data_url: str = Field(min_length=32, max_length=16_800_000)
+    checkpoint: str = Field(default="", max_length=240)
+    include_data_url: bool = Field(default=False)
+
 
 @app.get("/images/status")
 async def myra_image_status():
@@ -4988,6 +4996,35 @@ async def myra_generate_image(data: MyraImageGenerateRequest):
         code = 503 if result.get("status") == "offline" else 502
         raise HTTPException(status_code=code, detail=result.get("message") or result)
     result = _persist_myra_generated_image(result)
+    if not data.include_data_url:
+        result.pop("data_url", None)
+    return result
+
+
+@app.post("/images/edit")
+async def myra_edit_image(data: MyraImageEditRequest):
+    """Edit a user-supplied photo locally; the original is not persisted by MYRA."""
+    match = re.fullmatch(
+        r"data:(image/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)",
+        data.image_data_url,
+    )
+    if not match:
+        raise HTTPException(status_code=400, detail="Envie uma imagem PNG, JPEG ou WEBP válida.")
+    mime, encoded = match.groups()
+    try:
+        image_bytes = base64.b64decode(encoded, validate=True)
+    except (ValueError, base64.binascii.Error):
+        raise HTTPException(status_code=400, detail="O conteúdo da imagem está inválido.") from None
+    if not image_bytes or len(image_bytes) > 12 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="A imagem deve ter até 12 MB.")
+    result = await asyncio.to_thread(
+        _myra_image_generation.edit, image_bytes, "upload", data.prompt, data.checkpoint,
+    )
+    if result.get("status") != "ok":
+        code = 503 if result.get("status") == "offline" else 502
+        raise HTTPException(status_code=code, detail=result.get("message") or result)
+    result = _persist_myra_generated_image(result)
+    result["edited"] = True
     if not data.include_data_url:
         result.pop("data_url", None)
     return result

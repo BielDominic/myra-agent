@@ -19,6 +19,29 @@ def test_sdxl_workflow_has_connected_model_and_latent_nodes():
     assert workflow["6"]["inputs"]["samples"] == ["5", 0]
 
 
+def test_generation_uses_quality_sampler_and_vram_friendly_defaults():
+    workflow = _workflow("Photorealistic portrait, natural light", "dreamshaper.safetensors", 640, 640, 30, 99)
+    sampler = workflow["5"]["inputs"]
+    assert sampler["sampler_name"] == "dpmpp_2m"
+    assert sampler["scheduler"] == "karras"
+    assert sampler["steps"] == 30
+    assert sampler["cfg"] == 6.5
+    assert workflow["4"]["inputs"]["width"] == 640
+
+
+def test_img2img_workflow_keeps_uploaded_photo_as_latent_source():
+    from computer.image_generation import _edit_workflow
+    workflow = _edit_workflow("Add a red jacket", "dreamshaper.safetensors", "myra/photo.png", 640, 512, 28, 123, 0.4)
+    assert workflow["4"]["class_type"] == "LoadImage"
+    assert workflow["4"]["inputs"]["image"] == "myra/photo.png"
+    assert workflow["5"]["class_type"] == "VAEEncode"
+    sampler = workflow["6"]["inputs"]
+    assert sampler["latent_image"] == ["5", 0]
+    assert sampler["denoise"] == 0.4
+    assert sampler["sampler_name"] == "dpmpp_2m"
+    assert workflow["8"]["class_type"] == "SaveImage"
+
+
 def test_status_reports_offline_comfyui_without_crashing(monkeypatch):
     import requests
     from computer import image_generation

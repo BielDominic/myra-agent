@@ -83,3 +83,44 @@ def test_desktop_image_request_omits_base64_when_local_file_url_is_available(mon
     assert response.status_code == 200
     assert response.json()["image_url"].startswith("http://127.0.0.1:8000/images/files/")
     assert "data_url" not in response.json()
+
+
+def test_image_edit_api_validates_and_persists_local_result(monkeypatch, tmp_path):
+    import base64
+    from io import BytesIO
+    from PIL import Image
+    from fastapi.testclient import TestClient
+    import agent
+
+    buffer = BytesIO()
+    Image.new("RGB", (16, 12), (120, 80, 40)).save(buffer, format="PNG")
+    source_data_url = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
+    result_buffer = BytesIO()
+    Image.new("RGB", (16, 12), (20, 180, 220)).save(result_buffer, format="PNG")
+    result_data_url = "data:image/png;base64," + base64.b64encode(result_buffer.getvalue()).decode("ascii")
+
+    monkeypatch.setattr(agent, "MYRA_GENERATED_IMAGES_DIR", tmp_path)
+    monkeypatch.setattr(agent._myra_image_generation, "edit", lambda image, filename, prompt, checkpoint="": {
+        "status": "ok", "filename": "MYRA_EDIT.png", "data_url": result_data_url, "edited": True,
+    })
+    monkeypatch.setattr(agent, "_telegram_startup", lambda: None)
+    monkeypatch.setattr(agent, "_telegram_shutdown", lambda: None)
+
+    with TestClient(agent.app) as client:
+        response = client.post("/images/edit", json={
+            "prompt": "Add a blue jacket", "image_data_url": source_data_url,
+            "include_data_url": False,
+        })
+        assert response.status_code == 200
+        body = response.json()
+        assert body["edited"] is True
+        assert body["image_url"].startswith("http://127.0.0.1:8000/images/files/")
+        assert "data_url" not in body
+        saved = client.get(body["image_url"].replace("http://127.0.0.1:8000", ""))
+        assert saved.status_code == 200
+        assert saved.content == result_buffer.getvalue()
+
+        invalid = client.post("/images/edit", json={
+            "prompt": "Edit", "image_data_url": "data:image/png;base64,invalid-not-base64",
+        })
+        assert invalid.status_code == 400
