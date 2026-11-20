@@ -23,6 +23,11 @@ $backend = Join-Path $root "backend"
 $python = Join-Path $backend "venv\Scripts\python.exe"
 $logs = Join-Path $root "logs"
 $env:MYRA_DATA_DIR = $root
+$env:MYRA_VOICE_ASSET_ROOT = Join-Path $backend "voice-assets"
+$env:LEXPHON_DATA_HOME = Join-Path $env:MYRA_VOICE_ASSET_ROOT "lexphon"
+$env:HF_HUB_OFFLINE = "1"
+$env:HF_HUB_DISABLE_TELEMETRY = "1"
+$env:TRANSFORMERS_OFFLINE = "1"
 $modelConfig = Join-Path $root "config\model.json"
 if (Test-Path $modelConfig) {
     try {

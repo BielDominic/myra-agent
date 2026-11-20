@@ -41,6 +41,7 @@ The project combines a locally hosted language model with a FastAPI backend, a n
 - [Windows installation guide](INSTALL_WINDOWS.md)
 - [Plugin architecture](docs/PLUGIN_ARCHITECTURE.md)
 - [Local image generation and vision](docs/IMAGE_GENERATION.md)
+- [Local runtime, Docker and voice](docs/LOCAL_RUNTIME_AND_VOICE.md)
 - [Repository layout](docs/REPOSITORY_LAYOUT.md)
 - [Architecture](#architecture)
 - [Technology stack](#technology-stack)
@@ -595,3 +596,13 @@ MYRA builds on open-source and community tools, including:
 ## Instalação no Windows
 
 Consulte [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md) para os requisitos, instalação do backend local e configuração da extensão Chrome. Os instaladores x64 serão publicados em [GitHub Releases](https://github.com/BielDominic/myra-agent/releases).
+
+
+## Local runtime, Docker and voice
+
+The native desktop includes a local Servers & Docker page for the optional MYRA Compose services (Ollama and SearXNG), loopback endpoint checks and channel preferences. The Windows desktop/backend worker remains on the host so it can control local applications. Voice capture/transcription/speech routes are local-first and require locally installed Whisper/Piper models; no hosted speech fallback is used. See [docs/LOCAL_RUNTIME_AND_VOICE.md](docs/LOCAL_RUNTIME_AND_VOICE.md) for configuration, security boundaries and remaining setup work.
+
+
+## Offline voice
+
+The mandatory Windows installer bundles Kokoro v1.0 ONNX for natural Brazilian Portuguese/English speech and faster-whisper-small for local voice commands. Models and pronunciation dictionaries are included in the install payload; speech input/output does not require a hosted API or first-run model download. See [docs/LOCAL_RUNTIME_AND_VOICE.md](docs/LOCAL_RUNTIME_AND_VOICE.md).

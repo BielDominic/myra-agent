@@ -34,6 +34,7 @@ from tasks import browser_bridge as browser_bridge
 from tasks import rea_tools as rea_tools
 from tasks import remote_access as remote_access
 from tasks import plugin_manager as plugin_manager
+from tasks import local_runtime as local_runtime
 from tasks.telegram_bot import criar_bot_do_ambiente
 from tasks.remote_api_auth import validar_token_remoto
 from email.message import EmailMessage
@@ -62,6 +63,7 @@ app = FastAPI(lifespan=_lifespan)
 telegram_bot = criar_bot_do_ambiente()
 app.include_router(browser_bridge.router)
 app.include_router(plugin_manager.router)
+app.include_router(local_runtime.router)
 
 # CORS restrito às origens locais da aplicação. Não usar "*" numa API
 # local que pode ser alcançada por páginas abertas no navegador.

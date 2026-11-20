@@ -1,9 +1,9 @@
 # MYRA - Roadmap
 
-[![Progress](https://img.shields.io/badge/Progress-47%25-orange?style=flat-square)]()
-[![Active Phase](https://img.shields.io/badge/Active_Phase-32-blue?style=flat-square)]()
-[![Phases](https://img.shields.io/badge/Phases-32-purple?style=flat-square)]()
-[![Updated](https://img.shields.io/badge/Updated-2026-11-19-lightgrey?style=flat-square)]()
+[![Progress](https://img.shields.io/badge/Progress-49%25-orange?style=flat-square)]()
+[![Active Phase](https://img.shields.io/badge/Active_Phase-34-blue?style=flat-square)]()
+[![Phases](https://img.shields.io/badge/Phases-34-purple?style=flat-square)]()
+[![Updated](https://img.shields.io/badge/Updated-2026-11-20-lightgrey?style=flat-square)]()
 [![Language](https://img.shields.io/badge/Language-PT--BR_%7C_EN-green?style=flat-square)]()
 
 **Documentacao disponivel em:** [Portugues](#portugues) | [English](#english)
@@ -154,6 +154,46 @@
 - [ ] Memória de projeto, sumarização contextual, busca semântica e controles de retenção.
 - [x] Reorganizar backups, notas de contexto, relatórios de fase e scripts de patch em pastas dedicadas, preservando os arquivos locais.
 
+
+#### FASE 33 - Runtime Local, Docker e Servidores
+![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
+
+**Objetivo:** administrar servicos locais e canais sem exigir infraestrutura hospedada.
+
+- [x] API local de configuracao (`GET/PUT /runtime/config`) com persistencia por usuario.
+- [x] Status do Docker Engine/Compose e inventario de containers MYRA (`GET /runtime/status`, `/runtime/containers`).
+- [x] Compose gerenciado com Ollama e SearXNG opcional, volumes persistentes e portas limitadas a `127.0.0.1`.
+- [x] Tela nativa para modo nativo/Docker/hibrido, endpoints, canais, provedores externos opcionais e acoes de container.
+- [x] Acoes Docker limitadas a servicos/acoes allowlisted; segredo SearXNG aleatorio em arquivo por usuario; protecao contra conflito com portas de servicos nativos.
+- [x] Teste de conectividade de endpoints locais e validacao de loopback.
+- [x] 5 testes focados de runtime passaram; Compose `config -q` validado com Docker 29.8.0 / Compose 5.5.1.
+- [ ] Healthchecks visuais continuos, recuperacao automatica, limites de CPU/RAM/VRAM e configuracao GPU apos teste de hardware.
+- [ ] Container opcional do backend e servicos de dados, preservando o worker Windows no host para automacao de desktop.
+- [ ] Cofre de credenciais, adaptadores reais de provedores externos, consentimento e limites de gastos.
+- [ ] Conectar switches de canais ao estado real de Telegram, Browser Bridge e API remota; atualmente sao preferencias/configuracao.
+- [ ] Teste de instalacao limpa, reinicio do Windows, offline cold-start e upgrade do instalador.
+
+#### FASE 34 - Conversacao por Voz Local
+![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
+
+**Objetivo:** comandos falados e respostas naturais, sem enviar audio a servicos hospedados.
+
+- [x] Captura de microfone pelo `MediaRecorder`; sem dependencia do `SpeechRecognition` hospedado.
+- [x] Endpoint `/voice/transcribe` com faster-whisper, CPU INT8 e `local_files_only=True`; sem fallback para nuvem.
+- [x] Kokoro TTS CPU/ONNX fixado no pacote core obrigatorio do instalador.
+- [x] Modelo Kokoro v1.0 ONNX e pacote de vozes incluidos no payload do instalador; sem download no primeiro uso.
+- [x] Vozes femininas/masculinas em portugues brasileiro, ingles americano e britanico.
+- [x] Endpoint `/voice/speak` usa Kokoro local; fallback apenas para voz instalada no Windows/WebView, nunca para API hospedada.
+- [x] Modelo multilingual faster-whisper-small CPU INT8 incluido no instalador para comandos offline.
+- [x] Dicionarios Lexphon en-US/en-GB incluidos; politica `installed-only`, sem download de dicionario em runtime.
+- [x] Deteccao automatica de idioma, escolha de voz, velocidade, envio automatico, leitura automatica e conversa continua configuraveis.
+- [x] Comando de voz enviado automaticamente recebe resposta falada mesmo com leitura global desativada.
+- [x] WAV gerado e validado para pt-BR, en-US e en-GB; selecao de vozes validada.
+- [x] Round-trip TTS -> STT testado em portugues e ingles com modelo local small.
+- [ ] Teste real de microfone/alto-falante no Tauri/WebView com dispositivo fisico.
+- [ ] Validar instalacao limpa, primeiro arranque sem internet e reinicio do Windows sem baixar modelos.
+- [ ] VAD/silencio, eco, interrupcao, selecao de microfone/saida e volume.
+- [ ] Wake word local "MYRA" com limiar configuravel e testes contra ativacoes falsas; permanece desativada.
 
 #### FASE 26 - Ciclo Autonomo Completo
 ![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
@@ -534,7 +574,7 @@
 | CarPlay (backlog futuro apos distribuicao) | ? | Adiado; nao bloqueia as fases atuais |
 | Distribuicao (FASE 30) | 6 | ![65%](https://img.shields.io/badge/-65%25-yellow?style=flat-square) |
 | Interface propria (FASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |
-| Voz / Audio (FASE 14) | 5 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Voz / Audio (FASE 14 + 34) | 16 | ![75%](https://img.shields.io/badge/-75%25-yellow?style=flat-square) |
 | YouTube (FASE 20) | 12 | ![70%](https://img.shields.io/badge/-70%25-green?style=flat-square) |
 | Geracao de midia (FASE 12) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Arquivos (FASE 15) | 12 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
@@ -550,15 +590,16 @@
 | Agendamento | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Memoria | 12 | ![15%](https://img.shields.io/badge/-15%25-lightgrey?style=flat-square) |
 | Seguranca | 6 | ![45%](https://img.shields.io/badge/-45%25-yellow?style=flat-square) |
+| Runtime local / Docker (FASE 33) | 11 | ![64%](https://img.shields.io/badge/-64%25-yellow?style=flat-square) |
 | Dispositivos | 4 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Testes | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
 | Documentacao | 6 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
 | Meta / Estrategico | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
-**Checklist PT-BR: 250 itens rastreados**
-**Progresso do checklist PT-BR: 37% (92 de 250 itens marcados).**
+**Checklist PT-BR: 325 itens rastreados**
+**Progresso do checklist PT-BR: 49% (158 de 325 itens marcados).**
 
-**Progresso geral combinado dos checklists PT-BR + EN: 33% (160 de 484 itens marcados).**
+**Progresso geral combinado dos checklists PT-BR + EN: 49% (338 de 685 itens marcados).**
 
 *Este percentual é a contagem simples dos checkboxes da seção em português; não pondera complexidade nem significa prontidão para produção.*
 
@@ -721,6 +762,46 @@
 - [ ] Project memory, contextual summarisation, semantic search and retention controls.
 - [x] Reorganise backups, context notes, phase reports and patch scripts into dedicated folders while preserving local files.
 
+
+#### PHASE 33 - Local Runtime, Docker and Servers
+![In progress](https://img.shields.io/badge/-IN_PROGRESS-yellow?style=flat-square)
+
+**Goal:** manage local services and channels without requiring hosted infrastructure.
+
+- [x] Local runtime configuration API (`GET/PUT /runtime/config`) with per-user persistence.
+- [x] Docker Engine/Compose status and MYRA container inventory (`GET /runtime/status`, `/runtime/containers`).
+- [x] Managed Compose project with Ollama and optional SearXNG, persistent volumes and loopback-only ports.
+- [x] Native UI for native/Docker/hybrid mode, server endpoints, channels, optional external providers and container actions.
+- [x] Docker actions restricted to allowlisted services/actions; per-user random SearXNG secret; native-port collision protection.
+- [x] Local endpoint health probes and loopback validation.
+- [x] Five focused runtime tests passed; Compose `config -q` validated with Docker 29.8.0 / Compose 5.5.1.
+- [ ] Continuous visual healthchecks, automatic recovery, CPU/RAM/VRAM limits and GPU configuration after hardware validation.
+- [ ] Optional backend/data-service containers while retaining the Windows host worker for desktop automation.
+- [ ] Credential vault, real external-provider adapters, consent and spending limits.
+- [ ] Connect channel switches to actual Telegram, Browser Bridge and Remote API state; current switches are configuration preferences.
+- [ ] Clean install, Windows restart, offline cold-start and installer-upgrade validation.
+
+#### PHASE 34 - Local Voice Conversation
+![In progress](https://img.shields.io/badge/-IN_PROGRESS-yellow?style=flat-square)
+
+**Goal:** spoken commands and natural spoken replies without sending audio to hosted services.
+
+- [x] Local microphone capture through `MediaRecorder`; no hosted `SpeechRecognition` dependency.
+- [x] `/voice/transcribe` uses faster-whisper CPU INT8 and `local_files_only=True`; no cloud fallback.
+- [x] Kokoro TTS CPU/ONNX pinned in the mandatory installer core package.
+- [x] Kokoro v1.0 ONNX model and voice pack bundled in the installer payload; no first-run model download.
+- [x] Female/male voices for Brazilian Portuguese, US English and UK English.
+- [x] `/voice/speak` uses local Kokoro; fallback only to installed Windows/WebView speech, never a hosted API.
+- [x] Multilingual faster-whisper-small CPU INT8 model bundled for offline voice commands.
+- [x] en-US/en-GB Lexphon dictionaries bundled; `installed-only` policy prevents runtime dictionary downloads.
+- [x] Automatic language detection, voice selection, speaking speed, auto-send, auto-speak and continuous conversation settings.
+- [x] A voice-submitted command receives a spoken reply even when global auto-speak is disabled.
+- [x] WAV synthesis validated for pt-BR, en-US and en-GB; voice selection validated.
+- [x] TTS -> STT round-trip tested in Portuguese and English with the local small model.
+- [ ] Real microphone/speaker test in Tauri/WebView with a physical audio device.
+- [ ] Validate clean install, first launch without internet and Windows restart without model downloads.
+- [ ] VAD/silence segmentation, echo handling, interruption, microphone/output selection and volume.
+- [ ] Local "MYRA" wake word with configurable threshold and false-activation tests; remains disabled.
 
 #### PHASE 26 - Complete Autonomous Loop
 ![In progress](https://img.shields.io/badge/-IN_PROGRESS-yellow?style=flat-square)
@@ -1067,7 +1148,7 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 | CarPlay (future backlog after distribution) | ? | Deferred; does not block current phases |
 | Distribution (PHASE 30) | 6 | ![65%](https://img.shields.io/badge/-65%25-yellow?style=flat-square) |
 | Custom interface (PHASE 31 + 40) | 18 | ![0%](https://img.shields.io/badge/-0%25-red?style=flat-square) |
-| Voice / Audio (PHASE 14) | 5 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
+| Voice / Audio (PHASE 14 + 34) | 16 | ![75%](https://img.shields.io/badge/-75%25-yellow?style=flat-square) |
 | YouTube (PHASE 20) | 12 | ![70%](https://img.shields.io/badge/-70%25-green?style=flat-square) |
 | Media generation (PHASE 12) | 6 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Files (PHASE 15) | 12 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
@@ -1083,15 +1164,16 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 | Scheduling | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Memory | 12 | ![15%](https://img.shields.io/badge/-15%25-lightgrey?style=flat-square) |
 | Security | 6 | ![45%](https://img.shields.io/badge/-45%25-yellow?style=flat-square) |
+| Local runtime / Docker (PHASE 33) | 11 | ![64%](https://img.shields.io/badge/-64%25-yellow?style=flat-square) |
 | Devices | 4 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Testing | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
 | Documentation | 6 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
 | Strategic / Meta | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
-**PT-BR checklist: 250 tracked items**
-**PT-BR checklist progress: 37% (92 of 250 items checked).**
+**PT-BR checklist: 325 tracked items**
+**PT-BR checklist progress: 49% (158 of 325 items checked).**
 
-**EN checklist progress: 29% (68 of 234 items checked).**
+**EN checklist progress: 50% (180 of 360 items checked).**
 
 *This is a simple count of checkboxes in the Portuguese section; it does not weight complexity or imply production readiness.*
 
@@ -1111,7 +1193,7 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 
 ---
 
-**Last updated:** 2026-10-25
+**Last updated:** 2026-11-20
 
 
 ## PHASE 32 - Universal Windows Application Access
@@ -1236,3 +1318,22 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 - [x] Installed official ComfyUI portable v0.46.0 and DreamShaper 8, verified both SHA-256 hashes, confirmed CUDA 13.0 detects the RTX A2000, and generated a real 512×512 PNG locally in 37 seconds; `/images/status` now reports the checkpoint online.
 - [x] Verified a real Telegram `sendPhoto` delivery to the configured authorized chat using a locally generated PNG (Telegram confirmed message ID 619); command routing, background queue, MIME handling and image upload also pass automated tests.
 - [ ] Implement the real plugin manager lifecycle: signed manifests, permissions, provenance/hash verification, install/enable/disable/uninstall, isolated execution, logs and rollback. The current plugin library is a catalogue/request queue, not an executable plugin manager.
+
+
+## 2026-11-20 ? Local Runtime and Voice
+
+- [x] Added the local runtime/Docker settings page, Compose manager for Ollama and SearXNG, server health probes, channel preferences and local-first mode.
+- [x] Added local-only voice capture/transcription/speech routes and continuous conversation controls.
+- [ ] Actual local speech engines/models are not installed in the current environment; end-to-end audio remains pending.
+- [ ] Full backend containerization, credential vault, real channel status integration and wake-word detection remain pending.
+- [x] Five focused runtime tests passed; Python compilation, JavaScript syntax and Docker Compose configuration validation passed.
+
+
+## 2026-11-20 ? Kokoro TTS + Whisper STT (mandatory offline installer)
+
+- [x] Replaced Piper as the primary speech generator with Kokoro v1.0 ONNX on CPU; pinned `pykokoro==0.10.13` and `onnxruntime==1.31.0`.
+- [x] Bundled Brazilian Portuguese, US English and UK English voices, plus the en-US/en-GB pronunciation dictionaries.
+- [x] Added `faster-whisper==1.2.1`, pinned PyAV 18.1.0 for compatibility, and bundled the multilingual `Systran/faster-whisper-small` model for CPU INT8 recognition.
+- [x] Installer preparation provisions and validates every model before packaging; setup refuses to continue if either offline speech model is missing.
+- [x] Verified offline wheelhouse resolution in a fresh Python 3.14 environment; TTS WAV generation passed for three language profiles and STT round-trip passed for Portuguese and English.
+- [ ] Physical microphone/speaker validation in the Tauri WebView and clean offline install/reboot test remain.

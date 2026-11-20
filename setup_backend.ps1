@@ -27,10 +27,13 @@ if (-not (Test-Path $profileFile)) {
     [IO.File]::WriteAllText($profileFile, $profileJson, (New-Object System.Text.UTF8Encoding($false)))
 }
 Write-Host "Instalando arquivos locais da MYRA em $backend"
-foreach ($name in @("agent.py","tasks","computer","browser-extension","tools","requirements.txt","requirements-core.txt","requirements-core.lock","requirements-vision.txt","README.md")) {
+foreach ($name in @("agent.py","tasks","computer","browser-extension","tools","docker-compose.yml","requirements.txt","requirements-core.txt","requirements-core.lock","requirements-vision.txt","voice-assets","README.md")) {
     $from = Join-Path $source $name
     if (Test-Path $from) { Copy-Item -LiteralPath $from -Destination $backend -Recurse -Force }
 }
+$voicePayload = Join-Path $backend "voice-assets"
+if (-not (Test-Path (Join-Path $voicePayload "kokoro-assets\installs\kokoro"))) { throw "Pacote obrigat?rio de voz Kokoro n?o encontrado no instalador." }
+if (-not (Test-Path (Join-Path $voicePayload "whisper-small\model.bin"))) { throw "Modelo obrigat?rio de reconhecimento de voz Whisper n?o encontrado no instalador." }
 
 # Reuse a compatible Python 3.14 installation; otherwise install the signed official runtime bundled with MYRA.
 $pythonExe = $null
@@ -87,9 +90,10 @@ New-Item -ItemType Directory -Force -Path $installedBrowsers | Out-Null
 Copy-Item -Path (Join-Path $playwrightPayload "*") -Destination $installedBrowsers -Recurse -Force
 
 $repo = Join-Path $installRoot "repo"
-if (Get-Command gh.exe -ErrorAction SilentlyContinue) { try { & gh auth setup-git *> $null } catch { Write-Warning "GitHub CLI authentication could not be connected to Git." } }
-if ($env:MYRA_SKIP_GIT_CLONE -ne "1" -and -not (Test-Path (Join-Path $repo ".git")) -and (Get-Command git.exe -ErrorAction SilentlyContinue)) {
-    try { & git clone --depth 1 --branch feature/fase26-vision-fixes https://github.com/BielDominic/myra-agent.git $repo; if ($LASTEXITCODE -ne 0) { Write-Warning "GitHub clone unavailable; GitHub sync remains disabled until a repository is connected." } } catch { Write-Warning "Could not clone repository: $_" }
+# Local-first default: no GitHub authentication or repository clone during setup.
+# An owner may explicitly opt in to a clone by setting MYRA_ENABLE_GIT_CLONE=1.
+if ($env:MYRA_ENABLE_GIT_CLONE -eq "1" -and -not (Test-Path (Join-Path $repo ".git")) -and (Get-Command git.exe -ErrorAction SilentlyContinue)) {
+    try { & git clone --depth 1 --branch feature/fase26-vision-fixes https://github.com/BielDominic/myra-agent.git $repo; if ($LASTEXITCODE -ne 0) { Write-Warning "Optional GitHub clone unavailable; MYRA remains local-first." } } catch { Write-Warning "Optional GitHub clone failed: $_" }
 }
 Copy-Item (Join-Path $PSScriptRoot "start_myra.ps1") (Join-Path $installRoot "start_myra.ps1") -Force
 $startMenu = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\MYRA"

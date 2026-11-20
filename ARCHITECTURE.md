@@ -80,3 +80,11 @@ Image generation is local-first through ComfyUI at `http://127.0.0.1:8188`. MYRA
 - Native chat history is currently local to the desktop profile; multi-device sync and robust large-attachment storage are not yet complete.
 - Open WebUI-specific history compatibility routes and legacy manuals still need retirement.
 - Security needs a complete permission model, per-tool approvals, secret vault, rate limits, and structured audit UI.
+
+
+
+## Local runtime, Docker and voice (2026-11-20)
+
+The native desktop includes an optional local Docker manager for Ollama and SearXNG, loopback endpoint checks, server/channel preferences and allowlisted container actions. Windows desktop automation stays on the host; Docker is not required for the core app.
+
+Voice input/output is now packaged in the mandatory offline installer: Kokoro v1.0 ONNX for natural speech synthesis (pt-BR, en-US, en-GB voices) and faster-whisper-small for CPU INT8 recognition. Model weights and pronunciation dictionaries are provisioned during installer build, not downloaded at first run. Audio is processed locally, with no hosted speech fallback. See [docs/LOCAL_RUNTIME_AND_VOICE.md](docs/LOCAL_RUNTIME_AND_VOICE.md) for exact configuration and remaining device tests.

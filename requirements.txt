@@ -40,3 +40,6 @@ pywebview==5.4
 
 # Testes: TestClient do Starlette atual requer httpx2.
 httpx2
+pykokoro[cpu]==0.10.13
+faster-whisper==1.2.1
+av==18.1.0

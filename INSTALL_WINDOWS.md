@@ -46,3 +46,10 @@ Os dados não são compartilhados entre contas Windows diferentes. O instalador 
 - Logs: `%LOCALAPPDATA%\\MYRA\\logs`.
 - Reexecute `%LOCALAPPDATA%\\MYRA\\setup_backend.ps1` para reparar o ambiente.
 - Ollama e modelos podem ser gerenciados pela aba Modelos ou pela tela Primeiros passos.
+
+
+## Offline voice included in the installer
+
+The mandatory Windows installer includes Kokoro v1.0 ONNX for natural speech output and faster-whisper-small for local voice commands. Brazilian Portuguese, US English and UK English voices are included, together with offline pronunciation dictionaries. These assets are installed with the backend; the first launch does not download speech models and audio is not sent to a hosted speech API.
+
+The speech models add roughly 800 MB of model assets to the installer payload. Ensure the destination drive has at least 4 GB of free space for extraction, Python packages and model files.

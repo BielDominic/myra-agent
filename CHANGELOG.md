@@ -1,5 +1,14 @@
 # Changelog
 
+
+## 0.26.9 ? Offline voice stack (2026-11-20)
+
+- Added Kokoro v1.0 ONNX speech synthesis with Brazilian Portuguese, US English and UK English voice profiles.
+- Added faster-whisper-small CPU INT8 recognition for local spoken commands.
+- Bundled speech models and pronunciation dictionaries in the mandatory Windows installer payload; first-run model downloads are not required.
+- Added automatic language selection, voice/gender selection, speaking speed, auto-send, auto-speak and continuous conversation settings.
+- Verified offline TTS output and Portuguese/English TTS-to-STT round trips. Physical Tauri microphone/speaker validation remains pending.
+
 ## [0.26.8] - 2026-11-20
 
 - Added a live local plugin catalog API backed by `plugins/catalog.json`.

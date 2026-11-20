@@ -80,6 +80,36 @@ def build_offline_vision_wheelhouse() -> None:
     print(f"Prepared {len(wheels)} offline vision wheels ({sum(p.stat().st_size for p in wheels):,} bytes)", flush=True)
 
 
+def prepare_voice_assets(build_python: Path) -> None:
+    payload = DEST / "voice-assets"
+    cache = payload / "kokoro-assets"
+    lexphon_home = payload / "lexphon"
+    if payload.exists():
+        shutil.rmtree(payload)
+    cache.mkdir(parents=True, exist_ok=True)
+    lexphon_home.mkdir(parents=True, exist_ok=True)
+    env = os.environ.copy()
+    env["MYRA_KOKORO_CACHE_DIR"] = str(cache)
+    env["MYRA_WHISPER_MODEL_DIR"] = str(payload / "whisper-small")
+    env["LEXPHON_DATA_HOME"] = str(lexphon_home)
+    lexphon_cli = build_python.parent / "lexphon.exe"
+    if not lexphon_cli.is_file():
+        raise RuntimeError("Lexphon CLI missing from the offline build environment.")
+    print("Provisioning offline English pronunciation dictionary...", flush=True)
+    subprocess.run([str(lexphon_cli), "data", "install", "en-us:gold", "en-gb:gold"], cwd=ROOT, env=env, check=True)
+    print("Downloading and validating Kokoro Brazilian Portuguese and English voices...", flush=True)
+    subprocess.run([str(build_python), str(ROOT / "scripts" / "provision_voice_assets.py")], cwd=ROOT, env=env, check=True)
+    model_files = list(cache.glob("installs/kokoro/**/kokoro-v1.0.onnx"))
+    voice_files = list(cache.glob("installs/kokoro/**/voices-v1.0.npz"))
+    catalog_file = cache / "catalogs" / "kokoro.json"
+    lexicon_files = list(lexphon_home.rglob("*.g2lex"))
+    whisper_model = payload / "whisper-small" / "model.bin"
+    if not model_files or not voice_files or not catalog_file.is_file() or len(lexicon_files) < 2 or not whisper_model.is_file() or not (payload / "manifest.json").is_file():
+        raise RuntimeError("Mandatory offline Kokoro/Whisper models, voices, dictionaries or integrity manifest are missing.")
+    size = sum(p.stat().st_size for p in payload.rglob("*") if p.is_file())
+    print(f"Prepared mandatory Kokoro voice payload ({size:,} bytes)", flush=True)
+
+
 def install_playwright_browser() -> None:
     if BROWSERS.exists():
         shutil.rmtree(BROWSERS)
@@ -102,6 +132,7 @@ def install_playwright_browser() -> None:
     print("Downloading Playwright Chromium for offline browser automation...", flush=True)
     subprocess.run([str(build_python), "-m", "playwright", "install", "chromium"], cwd=ROOT, env=env, check=True)
     subprocess.run([str(build_python), str(ROOT / "installer" / "smoke_browser_test.py")], cwd=ROOT, env=env, check=True)
+    prepare_voice_assets(build_python)
     shutil.rmtree(build_env, ignore_errors=True)
     if not any(BROWSERS.iterdir()):
         raise RuntimeError("Playwright Chromium browser payload is empty.")
@@ -116,6 +147,7 @@ def main() -> None:
         shutil.rmtree(DEST)
     DEST.mkdir(parents=True)
     shutil.copy2(ROOT / "agent.py", DEST / "agent.py")
+    shutil.copy2(ROOT / "docker-compose.yml", DEST / "docker-compose.yml")
     copy_python_tree(ROOT / "tasks", DEST / "tasks")
     plugin_catalog = DEST / "plugins"
     plugin_catalog.mkdir(parents=True, exist_ok=True)
