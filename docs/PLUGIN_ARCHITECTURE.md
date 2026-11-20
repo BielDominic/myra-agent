@@ -1,32 +1,32 @@
 # MYRA Plugin Architecture
 
 ## Goal
-Provide an Open-WebUI-style plugin library in MYRA plus a free-form source field for Git URLs, ZIP packages, or local folders. Catalogue entries are references, not endorsements. Untrusted code is never silently executed.
+Provide a native MYRA library for reviewed capability references and declarative Skill/Prompt ZIP packages. Git URLs are queued for manual review; local-folder import and automatic repository fetching are not implemented. Catalogue entries are references, not endorsements.
 
 ## Plugin classes
 | Type | Purpose | Surface |
 |---|---|---|
-| Tool | Callable capability for the agent | Chat tool picker |
-| Skill | Reusable workflow and instructions | Prompt-bar toggles |
-| Prompt | Saved task templates | Prompt library |
+| Tool | Callable capability for the agent | Planned; current tools remain built-in |
+| Skill | Reusable workflow and instructions | Installed library; enabled text enters local chat context |
+| Prompt | Saved task templates | Installed library; enabled text enters local chat context |
 | Filter | Context enrichment and response validation | Pipeline settings |
 | Provider | LLM, STT, TTS and embedding adapters | Model/voice settings |
 | MCP server | External MCP tools | Integrations |
 | UI extension | Constrained panel, message action or view | Workspace |
 
 ## Package contract
-Every package must include `myra.plugin.json`, README, licence, source and optional tests. Manifest fields: stable ID, semantic version, name, description, author, homepage, repository, entry point, type, minimum MYRA version, dependencies, capabilities, permissions and settings schema.
+Current accepted packages must include `myra.plugin.json`, `README.md`, a licence file and a Markdown/text entry point. Required manifest fields are stable ID, semantic version, name, description, type (`skill` or `prompt`) and `entry_point`; capabilities and permissions must be empty. Author, homepage, repository, dependencies and settings schemas are future metadata.
 
-Registry records source URL, pinned commit/tag, SHA-256, install/enabled state, granted permissions, validation time and audit events.
+The current registry records package identity/version, entry point, SHA-256, install/enabled state, install time and local path. Source pinning, granted permissions and audit events are planned.
 
 ## Lifecycle
-1. Discover in the catalogue or enter a Git URL / ZIP / folder.
-2. Inspect manifest, README, author, licence, version, dependencies and permissions.
+1. Discover reviewed references in the catalogue, import a local ZIP, or add a Git URL to the manual-review queue.
+2. Inspect the package manifest, README, licence, version and supported type.
 3. Validate manifest, package size, paths, symlinks, duplicate IDs and supported version.
-4. Review source and requested capabilities.
-5. Install to the user plugin directory; pin exact version and hash. Never run install scripts automatically.
-6. Enable declarative Skills/Prompts only as bounded, untrusted chat reference context. Executable plugins remain disabled until a restricted worker exists.
-7. Update, rollback or remove with diffs, permission-change review and audit records.
+4. Review declarative text and its SHA-256. No package capabilities or permissions are accepted.
+5. Install to the user plugin directory; record exact version and hash. Never run install scripts.
+6. Enable declarative Skills/Prompts only as bounded, untrusted chat reference context. Executable plugins remain unsupported.
+7. Disable and remove installed packages. Version update, rollback and audit records are future work.
 
 ## Security
 - Never execute third-party Python inside the FastAPI process.
