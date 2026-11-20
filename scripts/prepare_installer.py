@@ -99,6 +99,9 @@ def prepare_voice_assets(build_python: Path) -> None:
     subprocess.run([str(lexphon_cli), "data", "install", "en-us:gold", "en-gb:gold"], cwd=ROOT, env=env, check=True)
     print("Downloading and validating Kokoro Brazilian Portuguese and English voices...", flush=True)
     subprocess.run([str(build_python), str(ROOT / "scripts" / "provision_voice_assets.py")], cwd=ROOT, env=env, check=True)
+    # Runtime only needs the verified install snapshot and catalog; remove duplicate content-addressed blobs/locks.
+    for redundant in ("blobs", "locks"):
+        shutil.rmtree(cache / redundant, ignore_errors=True)
     model_files = list(cache.glob("installs/kokoro/**/kokoro-v1.0.onnx"))
     voice_files = list(cache.glob("installs/kokoro/**/voices-v1.0.npz"))
     catalog_file = cache / "catalogs" / "kokoro.json"

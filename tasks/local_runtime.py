@@ -118,8 +118,8 @@ def _load_config() -> dict:
             "myra": {"url": "http://127.0.0.1:8000", "enabled": True},
             "comfyui": {"url": "http://127.0.0.1:8188", "enabled": False},
             "searxng": {"url": "http://127.0.0.1:8080", "enabled": False},
-            "whisper": {"url": "local://faster-whisper", "enabled": False},
-            "piper": {"url": "local://piper", "enabled": False},
+            "whisper": {"url": "local://faster-whisper", "enabled": True},
+            "kokoro": {"url": "local://kokoro", "enabled": True},
         },
         "channels": {
             "desktop": True, "telegram": False, "browser": True,
@@ -148,7 +148,12 @@ def _load_config() -> dict:
                     defaults[key] = value
     except (OSError, ValueError):
         pass
+    servers = defaults.get("servers", {})
+    servers.pop("piper", None)
+    servers.setdefault("kokoro", {"url": "local://kokoro", "enabled": True})
     voice = defaults.get("voice", {})
+    voice.pop("piper_executable", None)
+    voice.pop("piper_model_path", None)
     if not str(voice.get("stt_model_path") or "").strip() and WHISPER_MODEL_DIR.is_dir():
         voice["stt_model_path"] = str(WHISPER_MODEL_DIR)
     return defaults
@@ -242,7 +247,7 @@ def update_runtime_config(body: RuntimeConfigUpdate):
     if current.get("mode") not in ("native", "docker", "hybrid"):
         raise HTTPException(422, "mode must be native, docker or hybrid")
     current["offline_first"] = bool(current.get("offline_first", True))
-    allowed_servers = {"myra", "ollama", "comfyui", "searxng", "whisper", "piper"}
+    allowed_servers = {"myra", "ollama", "comfyui", "searxng", "whisper", "kokoro"}
     allowed_channels = {"desktop", "telegram", "browser", "remote_api", "voice"}
     if set(current.get("servers", {})) - allowed_servers:
         raise HTTPException(422, "Unknown server name")
@@ -302,12 +307,17 @@ def runtime_status():
 @router.post("/runtime/probe/{server}")
 def runtime_probe(server: str):
     cfg = _load_config()
-    if server not in {"myra", "ollama", "comfyui", "searxng"}:
+    if server not in {"myra", "ollama", "comfyui", "searxng", "whisper", "kokoro"}:
         raise HTTPException(404, "Servidor n?o permitido.")
+    if server in {"whisper", "kokoro"}:
+        status = voice_status()
+        engine = status["stt"] if server == "whisper" else status["tts"]
+        ready = bool(engine.get("package_installed") and engine.get("model_configured"))
+        return {"server": server, "reachable": ready, "detail": "Motor local pronto." if ready else "Pacote ou modelo local ausente.", "status": engine}
     item = cfg.get("servers", {}).get(server, {})
     url = str(item.get("url", "")).rstrip("/")
     if url.startswith("local://"):
-        return {"server": server, "reachable": False, "detail": "Motor local configur?vel; verifique o estado em /voice/status."}
+        return {"server": server, "reachable": False, "detail": "Motor local configuravel; verifique o estado em /voice/status."}
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https") or (parsed.hostname or "").lower() not in ("127.0.0.1", "localhost", "::1"):
         raise HTTPException(422, "A verifica??o aceita apenas endpoints HTTP locais (loopback).")

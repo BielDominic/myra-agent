@@ -1,6 +1,6 @@
 # MYRA - Roadmap
 
-[![Progress](https://img.shields.io/badge/Progress-49%25-orange?style=flat-square)]()
+[![Progress](https://img.shields.io/badge/Progress-50%25-orange?style=flat-square)]()
 [![Active Phase](https://img.shields.io/badge/Active_Phase-34-blue?style=flat-square)]()
 [![Phases](https://img.shields.io/badge/Phases-34-purple?style=flat-square)]()
 [![Updated](https://img.shields.io/badge/Updated-2026-11-20-lightgrey?style=flat-square)]()
@@ -150,7 +150,7 @@
 - [ ] Migrar as ferramentas e skills já existentes do Open WebUI para a interface nativa, preservando BrowserAgent e integrações atuais.
 - [ ] Code Studio com editor de linguagem completo, console, logs, testes, árvore de projeto e preview responsivo.
 - [ ] Integração de imagens no chat, anexos multimodais e análise visual.
-- [ ] STT/TTS locais com Whisper/whisper.cpp e Piper, seleção de modelos e transcrição de áudio.
+- [x] STT/TTS locais com Whisper Small + Kokoro ONNX, selecao de modelos/vozes e transcricao de audio.
 - [ ] Memória de projeto, sumarização contextual, busca semântica e controles de retenção.
 - [x] Reorganizar backups, notas de contexto, relatórios de fase e scripts de patch em pastas dedicadas, preservando os arquivos locais.
 
@@ -166,6 +166,7 @@
 - [x] Tela nativa para modo nativo/Docker/hibrido, endpoints, canais, provedores externos opcionais e acoes de container.
 - [x] Acoes Docker limitadas a servicos/acoes allowlisted; segredo SearXNG aleatorio em arquivo por usuario; protecao contra conflito com portas de servicos nativos.
 - [x] Teste de conectividade de endpoints locais e validacao de loopback.
+- [x] Botoes de teste Whisper/Kokoro reportam prontidao real do modelo e do motor local.
 - [x] 5 testes focados de runtime passaram; Compose `config -q` validado com Docker 29.8.0 / Compose 5.5.1.
 - [ ] Healthchecks visuais continuos, recuperacao automatica, limites de CPU/RAM/VRAM e configuracao GPU apos teste de hardware.
 - [ ] Container opcional do backend e servicos de dados, preservando o worker Windows no host para automacao de desktop.
@@ -301,7 +302,7 @@
 **Caminho:** Audio App (aparece como player no CarPlay)
 
 - [ ] Base iOS shell + Tailscale
-- [ ] TTS (Piper) + STT (Whisper)
+- [x] TTS Kokoro + STT Whisper (offline)
 - [ ] CarPlay Audio App framework
 - [ ] MPNowPlayingInfoCenter
 - [ ] Botoes do volante mapeados
@@ -590,16 +591,16 @@
 | Agendamento | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Memoria | 12 | ![15%](https://img.shields.io/badge/-15%25-lightgrey?style=flat-square) |
 | Seguranca | 6 | ![45%](https://img.shields.io/badge/-45%25-yellow?style=flat-square) |
-| Runtime local / Docker (FASE 33) | 11 | ![64%](https://img.shields.io/badge/-64%25-yellow?style=flat-square) |
+| Runtime local / Docker (FASE 33) | 12 | ![67%](https://img.shields.io/badge/-67%25-yellow?style=flat-square) |
 | Dispositivos | 4 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Testes | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
 | Documentacao | 6 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
 | Meta / Estrategico | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
-**Checklist PT-BR: 325 itens rastreados**
-**Progresso do checklist PT-BR: 49% (158 de 325 itens marcados).**
+**Checklist PT-BR: 326 itens rastreados**
+**Progresso do checklist PT-BR: 49% (161 de 326 itens marcados).**
 
-**Progresso geral combinado dos checklists PT-BR + EN: 49% (338 de 685 itens marcados).**
+**Progresso geral combinado dos checklists PT-BR + EN: 50% (344 de 687 itens marcados).**
 
 *Este percentual é a contagem simples dos checkboxes da seção em português; não pondera complexidade nem significa prontidão para produção.*
 
@@ -758,7 +759,7 @@
 - [ ] Migrate existing Open WebUI tools and skills into the native interface while preserving BrowserAgent and current integrations.
 - [ ] Full language editor, console, logs, tests, project tree and responsive preview in Code Studio.
 - [ ] Chat image attachments, multimodal files and visual analysis.
-- [ ] Local Whisper/whisper.cpp STT and Piper TTS, model selection and audio transcription.
+- [x] Local Whisper Small STT + Kokoro ONNX TTS, voice/model selection and audio transcription.
 - [ ] Project memory, contextual summarisation, semantic search and retention controls.
 - [x] Reorganise backups, context notes, phase reports and patch scripts into dedicated folders while preserving local files.
 
@@ -774,6 +775,7 @@
 - [x] Native UI for native/Docker/hybrid mode, server endpoints, channels, optional external providers and container actions.
 - [x] Docker actions restricted to allowlisted services/actions; per-user random SearXNG secret; native-port collision protection.
 - [x] Local endpoint health probes and loopback validation.
+- [x] Whisper/Kokoro probe buttons report actual local engine and model readiness.
 - [x] Five focused runtime tests passed; Compose `config -q` validated with Docker 29.8.0 / Compose 5.5.1.
 - [ ] Continuous visual healthchecks, automatic recovery, CPU/RAM/VRAM limits and GPU configuration after hardware validation.
 - [ ] Optional backend/data-service containers while retaining the Windows host worker for desktop automation.
@@ -877,7 +879,7 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 **Path:** Audio App (appears as player in CarPlay)
 
 - [ ] iOS shell base + Tailscale
-- [ ] TTS (Piper) + STT (Whisper)
+- [x] TTS Kokoro + STT Whisper (offline)
 - [ ] CarPlay Audio App framework
 - [ ] MPNowPlayingInfoCenter
 - [ ] Steering wheel buttons mapped
@@ -1164,16 +1166,16 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 | Scheduling | 7 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Memory | 12 | ![15%](https://img.shields.io/badge/-15%25-lightgrey?style=flat-square) |
 | Security | 6 | ![45%](https://img.shields.io/badge/-45%25-yellow?style=flat-square) |
-| Local runtime / Docker (PHASE 33) | 11 | ![64%](https://img.shields.io/badge/-64%25-yellow?style=flat-square) |
+| Local runtime / Docker (PHASE 33) | 12 | ![67%](https://img.shields.io/badge/-67%25-yellow?style=flat-square) |
 | Devices | 4 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 | Testing | 6 | ![5%](https://img.shields.io/badge/-5%25-lightgrey?style=flat-square) |
 | Documentation | 6 | ![60%](https://img.shields.io/badge/-60%25-yellow?style=flat-square) |
 | Strategic / Meta | 8 | ![0%](https://img.shields.io/badge/-0%25-lightgrey?style=flat-square) |
 
-**PT-BR checklist: 325 tracked items**
-**PT-BR checklist progress: 49% (158 of 325 items checked).**
+**PT-BR checklist: 326 tracked items**
+**PT-BR checklist progress: 49% (161 of 326 items checked).**
 
-**EN checklist progress: 50% (180 of 360 items checked).**
+**EN checklist progress: 51% (183 of 361 items checked).**
 
 *This is a simple count of checkboxes in the Portuguese section; it does not weight complexity or imply production readiness.*
 

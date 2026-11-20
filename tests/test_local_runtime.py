@@ -95,3 +95,20 @@ def test_runtime_config_accepts_kokoro_voice_preferences(tmp_path, monkeypatch):
 def test_auto_speech_language_detection_for_portuguese_and_english():
     assert runtime._detect_speech_language("Oi, como voc? est?? Posso ajudar agora.") == "pt-br"
     assert runtime._detect_speech_language("Hello, how can I help you today?") == "en-us"
+
+
+def test_runtime_probe_reports_local_whisper_and_kokoro_ready(monkeypatch):
+    monkeypatch.setattr(runtime, "voice_status", lambda: {
+        "stt": {"package_installed": True, "model_configured": True},
+        "tts": {"package_installed": True, "model_configured": True},
+    })
+    assert runtime.runtime_probe("whisper")["reachable"] is True
+    assert runtime.runtime_probe("kokoro")["reachable"] is True
+
+def test_runtime_probe_reports_missing_local_voice_engine(monkeypatch):
+    monkeypatch.setattr(runtime, "voice_status", lambda: {
+        "stt": {"package_installed": True, "model_configured": False},
+        "tts": {"package_installed": False, "model_configured": False},
+    })
+    assert runtime.runtime_probe("whisper")["reachable"] is False
+    assert runtime.runtime_probe("kokoro")["reachable"] is False
