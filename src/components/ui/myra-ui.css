@@ -1,0 +1,47 @@
+/* MYRA LiveOrb WebGL + task tracker */
+myra-orb{display:inline-block;position:relative;flex:none;isolation:isolate;overflow:visible;vertical-align:middle;width:64px;height:64px}
+myra-orb canvas{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:2}
+myra-orb .live-orb-fallback{position:absolute;inset:2%;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#7C6AF7,#7DD3C7,#E8B4D4);z-index:1}
+myra-orb .live-orb-fallback[hidden],myra-orb[data-webgl="ready"] .live-orb-fallback{display:none}
+myra-orb .live-orb-fallback i{position:absolute;top:34%;width:13%;height:28%;border-radius:99px;background:#0c0c10}
+myra-orb .live-orb-fallback i:first-child{left:31%}.live-orb-fallback i:last-child{left:56%}
+myra-orb[data-state="working"]{filter:drop-shadow(0 0 9px #7c3aedaa)}
+myra-orb[data-state="listening"]{filter:drop-shadow(0 0 12px #06b6d4)}
+myra-orb[data-state="success"]{filter:drop-shadow(0 0 11px #36d6a0)}
+myra-orb[data-state="error"]{filter:drop-shadow(0 0 11px #ef476f)}
+.typing-orb{width:25px;height:25px}.myra-orb-welcome{width:76px;height:76px}.message-orb{width:29px;height:29px}
+.message.assistant .message-avatar.message-orb{display:inline-block;background:transparent;border:0;border-radius:50%;min-width:29px;width:29px;height:29px}
+.mascot myra-orb{width:32px;height:32px;min-width:32px;vertical-align:middle}.mascot myra-orb canvas{width:100%;height:100%}
+.chat-task-tracker{width:min(780px,100%);align-self:center}
+.myra-shining-text{display:inline-block;color:transparent!important;background:linear-gradient(110deg,#777 0%,#aaa 35%,#fff 50%,#aaa 65%,#777 100%);background-size:200% 100%;background-clip:text;-webkit-background-clip:text;animation:myraShine 2s linear infinite}
+@keyframes myraShine{to{background-position:-200% 0}}
+.step-tracker{width:100%;margin-top:10px;padding:11px 12px;border:1px solid #8b5cf633;border-radius:10px;background:linear-gradient(145deg,#171421,#10121b);color:#dedbea}
+.step-tracker[hidden]{display:none!important}.step-tracker-top{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:10px}.step-tracker-top strong{font-weight:600;color:#cbb8ff}.step-tracker-top span{font:8px var(--mono,monospace);color:#858397;white-space:nowrap}
+.step-tracker-bar{height:4px;background:#ffffff12;border-radius:99px;overflow:hidden;margin:9px 0}.step-tracker-bar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#7c3aed,#06b6d4);transition:width .25s ease}
+.step-tracker-list{list-style:none;padding:0;margin:0;display:grid;gap:6px}.step-tracker-list li{display:flex;align-items:flex-start;gap:7px;min-width:0;font-size:9px;color:#8c899d;line-height:1.4}.step-tracker-list li i{width:7px;height:7px;min-width:7px;margin-top:2px;border-radius:50%;background:#565265}.step-tracker-list li.is-complete i{background:#36d6a0;box-shadow:0 0 7px #36d6a066}.step-tracker-list li.is-current{color:#d9d2eb}.step-tracker-list li.is-current i{background:#06b6d4;box-shadow:0 0 8px #06b6d4;animation:pulse 1s infinite}.step-tracker-list li span{overflow-wrap:anywhere}
+.step-tracker-compact{padding:7px 9px;margin-top:7px}.step-tracker-compact .step-tracker-list li:nth-child(-n+2){display:none}
+body[data-theme="light"] .step-tracker{background:#fff;border-color:#ddd3f8;color:#243247}body[data-theme="light"] .step-tracker-top strong{color:#5b3a9d}body[data-theme="light"] .step-tracker-list li.is-current{color:#29364b}
+
+.avatar-preview-row{display:flex;align-items:center;gap:12px;padding:8px 2px 12px;color:var(--text-dim);font-size:11px}
+.avatar-settings-preview{width:68px!important;height:68px!important;min-width:68px}
+.avatar-settings-preview canvas{width:100%;height:100%}
+.avatar-settings-panel select{max-width:132px;min-width:118px;background:var(--bg-card);color:var(--text-main);border:1px solid var(--border-accent);border-radius:8px;padding:7px;font:inherit;font-size:11px}
+.avatar-settings-panel input[type=color]{width:38px;height:28px;padding:2px;border:1px solid var(--border-accent);border-radius:7px;background:transparent;cursor:pointer}
+.avatar-settings-panel .routine-save{width:100%;margin-top:9px}
+myra-orb[data-avatar-style="minimal"]{filter:grayscale(.88) saturate(.45)}
+myra-orb[data-avatar-style="minimal"][data-state="working"]{filter:grayscale(.88) saturate(.45) drop-shadow(0 0 8px #7c3aed77)}
+
+/* Avatar customization — shared visual language across widget and desktop settings */
+.avatar-desktop-row .avatar-desktop-controls{display:flex;align-items:center;gap:12px}
+.avatar-desktop-preview{width:58px!important;height:58px!important;min-width:58px}
+.avatar-desktop-preview canvas{width:100%;height:100%}
+.avatar-desktop-controls select,.avatar-desktop-row+ .setting-row input[type=color],.settings-section input[type=color]{background:var(--surface-2,#171923);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;min-width:112px}
+.avatar-gradient-controls{display:flex;gap:7px}
+.avatar-gradient-controls input[type=color],.settings-section input[type=color]{width:36px;height:30px;padding:2px;cursor:pointer}
+.avatar-desktop-row+ .setting-row input[type=color]{width:40px;height:30px}
+#desktop-avatar-reset{margin:10px 0 18px}
+myra-orb[data-avatar-style="minimal"]{filter:grayscale(.88) saturate(.45)}
+
+myra-orb[data-avatar-shape="eye"] canvas{clip-path:ellipse(50% 37% at 50% 50%);transform:scale(1.12,1.16)}
+myra-orb[data-avatar-shape="core"] canvas{clip-path:polygon(50% 0%,91% 23%,91% 77%,50% 100%,9% 77%,9% 23%);transform:scale(.94)}
+myra-orb[data-avatar-shape="orb"] canvas{clip-path:none;transform:none}

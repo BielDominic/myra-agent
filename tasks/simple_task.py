@@ -10,6 +10,7 @@ import json
 import os
 from tasks.cancel_state import esta_cancelada, esta_pausada, resetar, resetar_pausa
 from tasks import autonomy, task_store
+from tasks import cognitive_core
 import re
 import time
 import unicodedata
@@ -470,6 +471,31 @@ def _decidir_proximo_passo(
     # Mantem cada acao como um passo auditavel no loop de autonomia.
     texto_intencao = _normalizar_intencao(objetivo)
 
+    # Pedidos de criação de imagem nunca passam pelo planner genérico:
+    # isso impedia loops indevidos (ex.: get_current_time) em prompts visuais.
+    if "myra_generate_image" in FERRAMENTAS_DISPONIVEIS:
+        pedido_imagem = bool(re.search(
+            r"\b(?:gere|gerar|crie|criar|desenhe|desenhar|produza|produzir|faca|fazer|generate|create|draw)\b.{0,100}\b(?:imagem|foto|ilustracao|image|picture|illustration)\b|"
+            r"\b(?:imagem|foto|ilustracao)\b.{0,80}\b(?:de|do|da|sobre)\b",
+            texto_intencao,
+        ))
+        pedido_continuacao_imagem = bool(re.fullmatch(
+            r"(?:agora )?(?:crie|criar|gere|gerar|desenhe|desenhar|faca|fazer|produza|produzir) (?:a|essa|esta|ela|isso|imagem|foto|ilustracao)(?: agora)?",
+            texto_intencao,
+        ))
+        if not historico and (pedido_imagem or pedido_continuacao_imagem):
+            return {
+                "acao": "chamar",
+                "ferramenta": "myra_generate_image",
+                "args": {"prompt": str(objetivo or "").strip()},
+                "motivo": "pedido explícito de geração visual: encaminhar diretamente ao ComfyUI local, sem chamar ferramentas não relacionadas",
+            }
+        if historico and historico[-1].get("ferramenta") == "myra_generate_image":
+            resultado = historico[-1].get("resultado") or {}
+            if historico[-1].get("ok") and isinstance(resultado, dict) and resultado.get("status") == "ok":
+                return {"acao": "finalizar", "resultado": "Imagem gerada com sucesso.\n\n![Imagem gerada](" + str(resultado.get("image_url") or "") + ")\n\nArquivo: " + str(resultado.get("filename") or "imagem")}
+            return {"acao": "finalizar", "resultado": "Não consegui gerar a imagem no ComfyUI local: " + str(resultado.get("message") or resultado.get("result") or resultado)[:700]}
+
     # Rota deterministica para "abrir YouTube e pesquisar X". Executa a busca
     # diretamente numa unica aba do Chrome real via Browser Bridge; evita que
     # o planner misture abrir app, pesquisa Google e paginas Playwright.
@@ -494,6 +520,28 @@ def _decidir_proximo_passo(
                 "args": {"url": url},
                 "motivo": "abrir a pesquisa solicitada diretamente em uma unica aba do Chrome conectado",
             }
+
+    # Abrir destinos web conhecidos e não confundir com aplicativos locais.
+    # Comando simples como "abra o YouTube" deve navegar no Chrome conectado.
+    destino_web = _extrair_intencao_app_abertura(objetivo)
+    destinos_web = {
+        "youtube": "https://www.youtube.com",
+        "gmail": "https://mail.google.com",
+        "google": "https://www.google.com",
+        "google drive": "https://drive.google.com",
+        "google calendar": "https://calendar.google.com",
+        "whatsapp web": "https://web.whatsapp.com",
+        "github": "https://github.com",
+        "instagram": "https://www.instagram.com",
+        "facebook": "https://www.facebook.com",
+        "linkedin": "https://www.linkedin.com",
+    }
+    if not historico and destino_web and destino_web.casefold() in destinos_web and "browser_new_tab" in FERRAMENTAS_DISPONIVEIS:
+        return {
+            "acao": "chamar", "ferramenta": "browser_new_tab",
+            "args": {"url": destinos_web[destino_web.casefold()]},
+            "motivo": "abrir o site solicitado diretamente no Chrome conectado",
+        }
 
     # Busca de vagas no LinkedIn: quando o pedido envolve vagas/candidaturas,
     # nunca comece lendo a aba ativa (ela pode ser o ChatGPT). Abra primeiro
@@ -1251,7 +1299,8 @@ def _decidir_proximo_passo(
     ))
     nomes_prompt = sorted(
         nome for nome in FERRAMENTAS_DISPONIVEIS
-        if not (eh_navegacao and nome in ferramentas_ocultas_navegacao)
+        if not (cognitive_core.is_scheduled_execution() and not cognitive_core.is_safe_scheduled_tool(nome))
+        and not (eh_navegacao and nome in ferramentas_ocultas_navegacao)
         and not (eh_arquivo and nome in ferramentas_ocultas_arquivo)
         and not (proibicao_clima and nome in {"get_weather", "weather"})
         and not (diagnostico_tecnico and proibicao_clima and nome in {
@@ -1268,6 +1317,7 @@ def _decidir_proximo_passo(
         ferramentas_str = ", ".join(nomes_prompt)
 
     historico_str = _adicionar_observacao_ao_historico_str(historico)
+    _specialist = cognitive_core.route_agent(objetivo)["agent"]
 
     system = (
         "Voce e um agente autonomo que decide UM passo por vez. "
@@ -1276,6 +1326,15 @@ def _decidir_proximo_passo(
         "Use a mesma sessao e as abas existentes; nao afirme que nao pode acessar sites quando as ferramentas browser_* estiverem disponiveis. "
         "Responda SEMPRE com JSON puro, sem texto antes ou depois."
     )
+    _specialist_guidance = {
+        "research": "ESPECIALISTA DE PESQUISA: priorize pesquisa web, fontes independentes, datas e evidências; diferencie inferência de fato.",
+        "developer": "ESPECIALISTA DE PROGRAMAÇÃO: inspecione arquivos e testes antes de editar; execute verificações e não declare sucesso sem evidência.",
+        "vision": "ESPECIALISTA DE VISÃO: use ferramentas visuais/imagem quando disponíveis; descreva apenas evidências observáveis.",
+        "browser": "ESPECIALISTA DE NAVEGADOR: use a sessão real do navegador, leia o estado antes e confirme após cada interação.",
+        "computer": "ESPECIALISTA DE AUTOMAÇÃO: selecione ferramentas de computador/UI adequadas; confirme efeitos e solicite autorização para ações destrutivas.",
+        "general": "AGENTE GERAL: use a ferramenta mínima necessária e responda diretamente.",
+    }.get(_specialist, "")
+    system += "\nROTEAMENTO DE AGENTE: " + _specialist + ". " + _specialist_guidance
 
     # FASE 26 - bloco de recuperacao: diz explicitamente o que nao repetir.
     bloco_recuperacao = ""
@@ -1735,6 +1794,11 @@ def executar_task(
         persistir: desliga a persistencia (usado em testes/execucoes avulsas).
     """
     print(f"[TASK] iniciando (adaptativo): {objetivo}")
+    _route = cognitive_core.route_agent(objetivo)
+    try:
+        cognitive_core.record_trace("task_route", task_id=task_id, agent=_route["agent"], detail={"objective":objetivo[:300],"reason":_route["reason"]})
+    except Exception:
+        pass
 
     if not FERRAMENTAS_DISPONIVEIS:
         return _resposta("erro", objetivo, [], task_id, erro="Nenhuma ferramenta registrada.")
@@ -1923,8 +1987,8 @@ def executar_task(
                 _evento(task_id, "pausada", "pausa antes de executar", passo=passo_num)
                 return _resposta("pausado", objetivo, historico, task_id, passo_atual=len(historico))
 
-            if ferramenta not in FERRAMENTAS_DISPONIVEIS:
-                print(f"[TASK] ferramenta invalida: {ferramenta}")
+            if ferramenta not in FERRAMENTAS_DISPONIVEIS or (cognitive_core.is_scheduled_execution() and not cognitive_core.is_safe_scheduled_tool(ferramenta)):
+                print(f"[TASK] ferramenta indisponível ou bloqueada neste contexto: {ferramenta}")
                 erros_consecutivos += 1
                 historico.append({
                     "passo": passo_num,
@@ -1995,7 +2059,14 @@ def executar_task(
             # Notifica o widget: qual ferramenta ta rodando AGORA
             _widget_notify(passo_atual=ferramenta, state="running", computer_activity=_is_computer_activity_tool(ferramenta))
 
+            _tool_started = time.perf_counter()
             r = _executar_passo(ferramenta, args)
+            try:
+                cognitive_core.record_trace("tool_call", task_id=task_id, agent=_route["agent"],
+                    tool=ferramenta, ok=r.get("ok"), latency_ms=(time.perf_counter()-_tool_started)*1000,
+                    detail={"args":args,"error":r.get("erro")})
+            except Exception:
+                pass
 
             # FASE 26 - observar o resultado (se a ferramenta muda estado)
             observacao = _observar(objetivo, ferramenta, args, r["resultado"], r["erro"])

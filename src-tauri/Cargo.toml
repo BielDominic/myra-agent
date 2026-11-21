@@ -1,6 +1,6 @@
 [package]
 name = "myra-widget"
-version = "0.26.9"
+version = "0.26.12"
 description = "MYRA widget"
 authors = ["BielDominic"]
 license = ""

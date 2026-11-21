@@ -1055,7 +1055,7 @@ class RotasDestrutivasRecusamCorpoVazioTestCase(BaseRotas):
                 self.assertEqual(r.status_code, 200)
                 corpo = self._resposta_ok(r, rota)
                 self.assertEqual(corpo["status"], "erro", f"{rota} nao caiu no caminho de erro")
-                self.assertIn("GMAIL_USER", corpo["result"])
+                self.assertIn("cofre de credenciais", corpo["result"])
 
 
 # ============================================================

@@ -1,3 +1,17 @@
+## 0.26.10 ? Local voice/runtime polish (2026-11-20)
+
+- Migrate the local speech server entry from legacy Piper to Kokoro and expose real Whisper/Kokoro readiness probes in Servers & Docker.
+- Keep voice models fully offline; remove redundant Kokoro blob/lock cache copies from future installer payloads after verifying the installed snapshot.
+- Prevent repeated launcher runs from opening duplicate MYRA widget processes.
+- Split the optional backend release package into core setup and optional browser/vision assets so each GitHub release asset stays below the 2 GB limit.
+- Keep iOS simulator builds deferred until post-distribution.
+- Add a persistent desktop wake-word indicator with off, listening, processing, activated and error states, plus a short two-tone activation chime.
+- Improve wake transcription lifecycle: restore the listening indicator after non-matching/empty segments, distinguish command recognition, abort in-flight transcription when wake mode is disabled, and guard against stale requests clearing a newer request state.
+- Update the voice roadmap to distinguish the current VAD + Whisper wake prototype from a dedicated keyword-spotting engine; physical microphone/speaker validation remains pending.
+- Full Python test suite: 1,296 passed, 9 skipped, 12 xfailed, 1 warning and 3,250 subtests passed. After the desktop wake UI changes, JavaScript syntax check and 14 UI contract/feature tests passed.
+- Tauri desktop debug build succeeded in the separate `target-desktop` directory; the currently running widget was left untouched. The first build attempt exposed a missing Windows SDK `rc.exe` PATH entry, corrected for the successful build.
+- Synthetic local audio round-trip: Kokoro `af_sarah` speaking “Hey Mira” was transcribed by local Whisper as “Hey Myra”; other generated voice/phrase combinations were inconsistent. This is a pipeline smoke test, not physical-microphone acceptance.
+
 # Changelog
 
 
@@ -19,9 +33,24 @@
 
 ## [Unreleased]
 
+### 2026-11-21 — Desktop UX, offline chat reliability and capability inventory
+- Replaced the button-local domino animation with a centered, responsive glassmorphism loading overlay and animated bars. It is used for actual save/apply/setup/model-change operations, not for widget idle state or chat thinking.
+- Removed the separate Widget Studio navigation/view. Widget accent, opacity, width and height are now configured in Settings > Appearance and synchronized to the real widget.
+- Moved the native show/hide widget control into the top bar immediately beside the active model selector.
+- Fixed Ollama chat compatibility: generic chat no longer sends think=true, which caused HTTP 400 with Llama 3.1. Reduced the ordinary response token ceiling and increased the backend/UI timeout to accommodate the 8B model on a 4 GB GPU.
+- Added a live capability inventory for requests such as “Mostre tudo o que você consegue fazer neste ambiente”. It checks local runtime endpoints and explicitly separates available, configuration-dependent and unavailable features instead of inventing integrations.
+- Corrected visible Portuguese labels in the runtime/settings area and added regression coverage for top-bar placement, Studio removal, settings persistence, widget task tracking and absence of JavaScript page errors.
+- No installer was generated. The native release executable is updated in place only after the build succeeds.
+
+
+- Fixed Telegram image follow-ups such as “Corpo todo”: when the latest assistant turn is a generated image, MYRA now combines the previous image prompt with a full-body/wider-framing instruction and routes it directly to local ComfyUI instead of sending the short follow-up to the general chat model. The rule is context-bound and does not hijack unrelated conversations. Added regression tests; Telegram suite: 81 passed. Backend restarted; Telegram and ComfyUI health checks are green.
+- Fixed desktop image generation from the chat composer: first-run setup no longer blocks chat, generation uses the tested 512×768 / 25-step profile for 4 GB VRAM, checks ComfyUI, reports actionable errors, preserves the prompt on failure and verifies the image loads before saving it in conversation history. Fixed eager loading for generated images. Playwright end-to-end test from a clean first-run profile completed a real local generation, displayed the image in chat and reported no JavaScript errors.
 - Restored normal local chat routing to Ollama: ordinary text and image messages now reach the configured local chat/vision model instead of returning an empty assistant message. Empty model responses now produce an explicit actionable error.
 - Made first-run setup resumable and non-blocking: installed models are not downloaded again, and the user can open the chat while optional setup steps are deferred.
-- Improved local image generation quality with DPM++ 2M Karras, 30 sampling steps and a 640×640 default, capped at 768×768 for the 4 GB VRAM profile.
+- Replaced the default DreamShaper checkpoint with Realistic Vision V6.0 B1 fp16 + the recommended external SD VAE on the tested RTX A2000 4 GB setup; retained DreamShaper as fallback.
+- Added local CPU-only Ollama literal prompt translation before image generation; original and translated prompts plus translation status are returned for traceability, with safe fallback to the original request when Ollama is unavailable. Tested the exact phrase “Gere a imagem de uma loira pelada” → “A nude blonde woman” without inventing a beach, tan or other details.
+- Tuned photorealistic generation to DPM++ 2M SDE / Karras, 25–30 steps and CFG 5.5; dynamic negative prompts exclude nudity only when it was not requested, and suppress unrequested CGI/anime/illustration styles.
+- Downloaded and locally verified the Realistic Vision checkpoint (2,132,625,894 bytes) and Stability AI VAE; generated a real 512×768 photorealistic image successfully.
 - Added local image-to-image photo editing: the desktop chat can attach a photo, accept an edit instruction, preserve the original in conversation history and return a separate edited result. Input validation, size limits and local-only ComfyUI processing are enforced.
 - Fixed composer toolbar overlap by removing the icon-only 27 px width from text buttons, arranging tool groups into responsive rows and adding clear attachment/edit/generation labels. Chromium layout checks at 1280, 850, 600 and 390 px found no intersecting controls; the edit button enables after a photo is attached.
 - Added image-edit API and workflow regression tests, photo-preservation prompting and safe cleanup of MYRA-owned temporary ComfyUI uploads. Image, CORS and Telegram test groups: 93 passed.
@@ -193,3 +222,46 @@ Este arquivo segue o formato [Keep a Changelog](https://keepachangelog.com/en/1.
 - Removed the separate blocking WinForms model wizard from the installer flow; setup choices now live in the MYRA interface.
 - Added a prompt improver beside the chat composer. It uses the configured local model and returns an editable draft; it never sends the improved prompt automatically.
 - Added local-only guards to setup endpoints and documented first-run choices, model download, and per-user workspace behavior.
+
+- Replace the legacy CSS-eye mascot in the chat welcome, assistant avatars, thinking indicator and floating widget with a reusable MYRA orb custom element. It follows the pointer, blinks, and changes visual state for idle, working, success and error; CSS rendering avoids extra GPU/WebGL contexts.
+- Add ShiningText-style shimmer to chat thinking and widget execution labels using CSS animation, without introducing a second React runtime.
+- Add a shared task-step tracker in the chat and floating widget, driven by the existing `/task_status` payload (history, current step, step number and total). It displays recent completed steps and the active step.
+- Browser smoke tests passed for the widget and desktop chat: orb custom element mounted, tracker rendered expected progress/history, no page errors. The widget smoke fixture showed 3/8 steps; the chat fixture showed 2/5 steps.
+- Document the framework decision and future React/shadcn setup in `docs/UI_COMPONENTS.md`. Current production frontend is vanilla HTML/CSS/JS, not React/TypeScript/Tailwind/shadcn; components were adapted natively instead of migrating the application shell or adding unused Motion dependencies.
+- Final regression after orb/tracker integration: full Python suite passed (1,296 passed, 9 skipped, 12 xfailed, 1 warning, 3,250 subtests) in 138.67s; JavaScript syntax checks, git diff --check, desktop/widget Playwright smoke tests all passed with no browser page errors; Tauri debug build completed successfully.
+
+## 0.26.11 — LiveOrb WebGL replacement
+
+- Replaced the previous CSS-only mascot with the supplied LiveOrb WebGL shader renderer in the Tauri desktop workspace, primary widget window, and standalone widget page.
+- Added pointer-following gaze, autonomous glances, blink animation, palette-based fluid wash, resize/visibility/reduced-motion handling, and WebGL context restoration.
+- Kept the existing task-step tracker and status shimmer while preserving the current static Tauri frontend and IPC.
+- Automated Chromium smoke tests confirm the custom element mounts, WebGL context initializes, task tracker renders, and no page errors occur.
+
+## 0.26.12 — Avatar customization and widget-only presence
+
+- Increased LiveOrb eye dimensions and retained gaze tracking, blinking, and draggable floating-widget interaction.
+- Added shared avatar model presets (MYRA Orb, Eye MYRA, Core), rendering styles (animated, solid, minimal), body/eye colors, and three animated gradient color controls.
+- Added live avatar previews and matching controls in the floating widget preferences and desktop Appearance settings.
+- Persisted avatar preferences under myra-avatar-settings-v1 and synchronized updates through storage events and BroadcastChannel.
+- Removed the MYRA orb from chat welcome, typing indicator, and assistant message rows. The avatar remains in the floating widget and settings previews only.
+- Added automated Playwright coverage for widget settings, desktop settings, WebGL initialization, and chat-message avatar absence.
+## Unreleased — Chat workspace, prompt bar and widget synchronization
+
+- Replaced the desktop chat composer with a native HTML/CSS adaptation of 21st.dev Metal Prompt Bar, preserving the existing message queue, image attachments, skills, voice controls, agent selector and Enter/Shift+Enter behavior.
+- Added Agent, Auto/Task and Tools chips, a metallic purple/cyan animated border, pointer-following highlights, and a liquid-metal send ring.
+- Added the Uiverse domino loader to chat thinking and widget task-loading states, with scoped class names and the requested attribution/license comment.
+- Made the conversation sidebar list scrollable and searchable at narrow widths instead of hiding it; retained selection and bulk deletion.
+- Removed saved-routine controls and routine code from the floating widget while retaining task history.
+- Added global Win32 cursor tracking to LiveOrb through the existing get_cursor_relative_to_window Tauri command so the eyes follow the pointer outside the widget window.
+- Added widget activity state synchronization for desktop chat and Telegram text/photo responses.
+- Added persisted theme synchronization from desktop settings to the floating widget, including light/dark updates while both windows are open.
+- No installer was generated. This work remains in the Unreleased source tree until the user explicitly requests a release.
+
+
+## 0.26.12 — widget interaction refinement
+
+- Added a workspace eye-button to show/hide the floating widget through a native Tauri command.
+- Added native global cursor polling for WebGL eye tracking outside the pill and enlarged the avatar eyes.
+- Kept task execution steps in the widget only; removed the duplicate chat tracker.
+- Moved the Domino loader to save/apply actions; it is not used by the widget or chat thinking state.
+- Verified WebGL context recovery, desktop/widget UI behavior, visibility action wiring, loader lifecycle, and JavaScript syntax. Updated the installed executable in place; no installer was generated.

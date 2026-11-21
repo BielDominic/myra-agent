@@ -1,33 +1,32 @@
-# MYRA ? Local image generation and vision
+# MYRA — local image generation and vision
 
 ## Image understanding
 
 1. Install a multimodal Ollama model, for example `qwen2.5vl:3b`.
-2. Set `MYRA_VISION_MODEL=qwen2.5vl:3b` in the MYRA runtime environment if using a different model.
-3. In MYRA chat, use **? Imagem** to attach one or more images and ask a question.
-4. In Telegram, send a photo with an optional caption. MYRA downloads it from Telegram and forwards it to the local vision model.
+2. Set `MYRA_VISION_MODEL=qwen2.5vl:3b` if using a different model.
+3. In the native MYRA chat, attach one or more images and ask a question.
+4. In Telegram, send a photo with an optional caption. MYRA downloads it and forwards it to the local vision model.
 
-The native client converts large images to JPEG previews before upload. The backend currently accepts JPEG, PNG and WebP data URLs. Animated GIFs are converted to a still image in the desktop client.
+## Image generation
 
-## Image generation (free local inference)
+MYRA uses ComfyUI locally. No hosted image API or per-image service is required. The current tested profile is RTX A2000 Laptop 4 GB VRAM, ComfyUI low-VRAM mode, Realistic Vision V6.0 B1 SD 1.5, and the Stability AI SD VAE. See [COMFYUI_SETUP.md](COMFYUI_SETUP.md) for downloads, checksums, setup and model licensing.
 
-MYRA uses ComfyUI locally. This avoids hosted API billing and does not require an API key. It is not bundled in the MYRA installer because ComfyUI and model checkpoints are large and hardware-dependent. For the Windows portable setup, low-VRAM launch script and the current 4 GB GPU profile, see `docs/COMFYUI_SETUP.md`.
+Before generation, MYRA uses local Ollama `qwen2.5:3b-instruct-q5_K_M` on CPU as a literal Portuguese/English translator for SD 1.5. It must not embellish, invent settings, poses or accessories, or convert requested nudity into lingerie or clothing. If Ollama is unavailable, the original prompt is used unchanged. The response records both the original and translated prompt and the translation status.
 
-1. Install ComfyUI using its official instructions: https://github.com/Comfy-Org/ComfyUI
-2. Download an open-weight Stable Diffusion 1.5 checkpoint that you are licensed to use, and place the `.safetensors` file in `ComfyUI/models/checkpoints/`. A commonly used starting point is `v1-5-pruned-emaonly.safetensors` from the Stable Diffusion v1.5 model repository.
-3. Start ComfyUI with its local server on `127.0.0.1:8188`.
-4. Open MYRA, enter a prompt in the chat box and select **? Gerar imagem**. The first checkpoint listed by ComfyUI is used.
-5. Telegram supports `/image <prompt>`, `/imagine <prompt>`, `/gerar <prompt>`, `/image_status`, and natural-language requests such as ?Gere uma imagem de um farol?. Generation runs in the background so chat polling stays responsive.
+The negative prompt removes rendering defects and non-photographic styles. It excludes nudity only when the user did not request nudity, to avoid the model introducing it into unrelated portraits. This behavior is a fidelity default, not a blanket censorship filter. The model license and applicable safety boundaries still apply.
 
-MYRA supports repeated generation requests; it does not impose an image-count quota. Actual throughput and resolution depend on available VRAM/RAM, disk space and the selected checkpoint. For machines with 4 GB VRAM, begin at 512?512 and use ComfyUI low-VRAM mode.
+Recommended tested sampler: DPM++ 2M SDE / Karras, 25–30 steps, CFG 5.5. Start with 512×768 portraits or 640×640 square images on 4 GB VRAM. Generation resolution and speed depend on hardware and model.
+
+Telegram supports `/image <prompt>`, `/imagine <prompt>`, `/gerar <prompt>`, `/image_status`, and natural-language image requests. Generation runs in the background and sends the resulting photo to the chat.
 
 ## Image model licensing and remote services
 
-?Free? here means open-weight model files and local inference without per-image hosted API charges. Check each checkpoint's license and usage restrictions before commercial use. Hosted image APIs are not silently used as a fallback: current providers may require a user key and charge against a balance.
+“Local” means inference runs on the user's computer without hosted image inference charges. It does not mean that model weights have no license conditions. Review the upstream model card and license before use, especially commercial use. Hosted APIs are not silently used as a fallback.
 
 ## Troubleshooting
 
-- `ComfyUI local n?o est? dispon?vel`: start ComfyUI and verify `http://127.0.0.1:8188/system_stats`.
-- `Nenhum checkpoint v?lido`: install a compatible checkpoint in `models/checkpoints` and restart/refresh ComfyUI.
-- Out of memory: lower image dimensions, use a smaller checkpoint, or enable ComfyUI low-VRAM mode.
-- Vision model not found: run `ollama pull qwen2.5vl:3b` or set `MYRA_VISION_MODEL` to an installed multimodal model.
+- ComfyUI offline: start it and verify `http://127.0.0.1:8188/system_stats`.
+- Checkpoint missing: install the checkpoint in `ComfyUI/models/checkpoints`.
+- VAE missing: install the VAE in `ComfyUI/models/vae`.
+- Out of memory: lower dimensions and steps, close other GPU-heavy applications, and use ComfyUI low-VRAM mode.
+- Vision model missing: run `ollama pull qwen2.5vl:3b` or select an installed multimodal model.

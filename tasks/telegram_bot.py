@@ -29,6 +29,7 @@ CHAT_MODEL_STATE_FILE = Path(__file__).with_name(".telegram_chat_model")
 CHAT_MEMORY_FILE = Path(__file__).with_name(".telegram_chat_memory.json")
 CHAT_FIRST_MESSAGE_FILE = Path(__file__).with_name(".telegram_chat_first_messages.json")
 CHAT_AGENT_FILE = Path(__file__).with_name(".telegram_chat_agents.json")
+CHAT_IMAGE_REFERENCE_FILE = Path(__file__).with_name(".telegram_last_image_refs.json")
 MAX_MESSAGE_LENGTH = 3900
 MAX_CHAT_HISTORY_TURNS = 12
 MAX_TASK_LENGTH = 1200
@@ -58,6 +59,8 @@ class TelegramBot:
         self._task_running = False
         # Serializa o uso da VRAM local: somente uma geração de imagem por vez.
         self._image_generation_lock = threading.Lock()
+        # Última imagem gerada/editada por chat para continuações com referência.
+        self._last_generated_image: dict[str, str] = self._load_last_generated_images()
         self._last_error: str | None = None
         # Histórico curto por chat para permitir conversas com contexto sem misturar usuários.
         self._chat_history_lock = threading.RLock()
@@ -90,6 +93,31 @@ class TelegramBot:
             if valid:
                 restored[str(chat_id)] = valid
         return restored
+
+    def _load_last_generated_images(self) -> dict[str, str]:
+        """Restaura referências visuais locais para permitir edições após reiniciar o backend."""
+        try:
+            payload = json.loads(CHAT_IMAGE_REFERENCE_FILE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        if not isinstance(payload, dict):
+            return {}
+        return {str(k): str(v) for k, v in payload.items()
+                if isinstance(v, str) and v.startswith("data:image/") and len(v) < 32 * 1024 * 1024}
+
+    def _persist_last_generated_image(self, chat_id: str | int, data_url: str) -> None:
+        """Salva a última referência em arquivo local, sem depender da memória do processo."""
+        if not data_url.startswith("data:image/") or len(data_url) > 32 * 1024 * 1024:
+            return
+        with self._chat_history_lock:
+            self._last_generated_image[str(chat_id)] = data_url
+            temporary = CHAT_IMAGE_REFERENCE_FILE.with_suffix(".json.tmp")
+            try:
+                CHAT_IMAGE_REFERENCE_FILE.parent.mkdir(parents=True, exist_ok=True)
+                temporary.write_text(json.dumps(self._last_generated_image), encoding="utf-8")
+                temporary.replace(CHAT_IMAGE_REFERENCE_FILE)
+            except OSError as exc:
+                self._last_error = f"image_reference_save: {type(exc).__name__}"
 
     def _load_chat_agents(self) -> dict[str, str]:
         try:
@@ -164,13 +192,18 @@ class TelegramBot:
 
     @classmethod
     def from_env(cls) -> "TelegramBot":
-        allowed = {
-            item.strip()
-            for item in os.getenv("MYRA_TELEGRAM_ALLOWED_CHAT_IDS", "").split(",")
-            if item.strip()
-        }
+        # O token pode vir do cofre DPAPI; IDs autorizados continuam sendo
+        # configurados explicitamente e nunca são inferidos do token.
+        saved = {}
+        try:
+            from tasks.credential_vault import get_credential
+            saved = get_credential("telegram") or {}
+        except Exception:
+            saved = {}
+        allowed_source = saved.get("username") or os.getenv("MYRA_TELEGRAM_ALLOWED_CHAT_IDS", "")
+        allowed = {item.strip() for item in allowed_source.split(",") if item.strip()}
         return cls(
-            token=os.getenv("MYRA_TELEGRAM_BOT_TOKEN", ""),
+            token=saved.get("secret") or os.getenv("MYRA_TELEGRAM_BOT_TOKEN", ""),
             allowed_chat_ids=allowed,
             agent_url=os.getenv("MYRA_API_URL", DEFAULT_AGENT_URL),
             api_base=os.getenv("MYRA_TELEGRAM_API_BASE", "https://api.telegram.org"),
@@ -1192,8 +1225,106 @@ class TelegramBot:
         )[0].strip(" .?!,;:")
         return city
 
+    @staticmethod
+    def _extract_image_followup_prompt(text: str, history: list[dict[str, str]]) -> str | None:
+        """Turn short composition edits into image-generation continuations only after a generated image."""
+        value = (text or "").strip()
+        if not value or len(value) > 300:
+            return None
+        normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii").casefold()
+        image_action = bool(re.search(
+            r"\b(corpo todo|corpo inteiro|de corpo inteiro|corpo completo|"
+            r"da cabeca aos pes|mostrar o corpo|mostra o corpo|"
+            r"full body|full-body|full length|head to toe|show the whole body|"
+            r"zoom out|wider shot|wider framing|"
+            r"dando tchau|dar tchau|acenando|acenar|wave|waving|"
+            r"sorrindo|sorrir|olhando para|virada de costas|de lado|"
+            r"mude a pose|mudar a pose|troque a pose|nova pose|"
+            r"nao mude o rosto|mantenha o rosto|preserve o rosto|"
+            r"keep the face|preserve the face|same face)\b",
+            normalized,
+        ))
+        if not image_action:
+            return None
+        turns = history[-12:]
+        if len(turns) < 2:
+            return None
+        # O bot pode registrar uma descrição textual depois da imagem. Procure o
+        # resultado visual mais recente em vez de exigir que ele seja o último turno.
+        image_index = next((i for i in range(len(turns) - 1, -1, -1)
+                            if turns[i].get("role") == "assistant"
+                            and (str(turns[i].get("content", "")).startswith(("[Imagem gerada]", "[Foto editada]"))
+                                 or re.search(r"\bMYRA_[A-Za-z0-9_-]+\.(?:png|jpe?g|webp)\b", str(turns[i].get("content", "")), re.IGNORECASE))), None)
+        if image_index is None:
+            return None
+        # Se houve uma nova conversa do usuário depois da imagem, só aceite comandos
+        # curtos de continuação; não deixe uma imagem antiga sequestrar outro assunto.
+        later_users = [t for t in turns[image_index + 1:] if t.get("role") == "user"]
+        if len(later_users) > 1:
+            return None
+        if re.search(r"\b(corpo todo|corpo inteiro|de corpo inteiro|corpo completo|da cabeca aos pes|full body|full-length|head to toe|zoom out|wider shot|wider framing)\b", normalized):
+            return "Full-body composition, head to toe, wider framing. Preserve the same adult subject and facial identity."
+        action = value.strip(" .!?")
+        return (f"Edit the provided reference image only: {action}. "
+                "Preserve the same adult subject, exact facial identity, facial features, hairstyle and overall appearance. "
+                "Change only the requested pose or expression; do not redesign the face. "
+                "Keep the result fully clothed and non-explicit.")
+
+    @staticmethod
+    def _extract_image_generation_prompt(text: str) -> str | None:
+        """Extract explicit image-generation requests without hijacking ordinary chat."""
+        value = (text or "").strip()
+        if not value or len(value) > 4000:
+            return None
+        cedilla, tilde_a, circumflex_e = chr(0xE7), chr(0xE3), chr(0xEA)
+        article = r"(?:(?:uma?|a|o|as|os|an)\s+)?"
+        media = (r"(?:fotografias|fotografia|fotos|foto|pictures|picture|photos|photo|"
+                 + r"imagens|imagem|ilustra[c" + cedilla + r"][a" + tilde_a + r"]o|desenho|image|illustration|drawing)")
+        separator = r"(?:(?:de|do|da|dos|das|sobre|com|of|about|with)\s+)?"
+        faca = r"fa[c" + cedilla + r"]a"
+        voce = r"voc[e" + circumflex_e + r"]"
+        patterns = (
+            r"^\s*(?:por favor[, ]*\s*)?(?:myra\s*[,!:]?\s*)?"
+            + r"(?:gere|gera|gerar|crie|criar|" + faca + r"|fazer|desenhe|desenhar|produza|produzir|ilustre|ilustrar|"
+            + r"generate|create|draw|make)\s+" + article + media + r"\s*" + separator + r"(.+?)\s*[.!?]*$",
+            r"^\s*(?:myra\s*[,!:]?\s*)?(?:quero|queria|preciso de|gostaria de|me manda|me mande|me envia|manda|envia|envie|"
+            r"manda pra mim|mande para mim|me envie|envie para mim|envia pra mim|pode gerar|pode criar|pode fazer|"
+            r"can you generate|can you create|please make|show me)\s+"
+            + r"(?:(?:que\s+(?:" + voce + r"|a myra)\s+)?(?:gere|crie|" + faca + r")\s+)?"
+            + article + media + r"\s*" + separator + r"(.+?)\s*[.!?]*$",
+            r"^\s*(?:myra\s*[,!:]?\s*)?(?:responda|responde|answer|reply)\s+(?:com|with)\s+"
+            + article + media + r"\s*" + separator + r"(.+?)\s*[.!?]*$",
+            r"^\s*(?:myra\s*[,!:]?\s*)?(?:desenha|desenhe|desenhar|draw|illustrate)\s+(.+?)\s*[.!?]*$",
+        )
+        for pattern in patterns:
+            match = re.match(pattern, value, re.IGNORECASE)
+            if match:
+                prompt = match.group(1).strip(" .!?,;:")
+                if len(prompt) >= 2:
+                    return prompt[:4000]
+        return None
+
+    def _set_chat_activity(self, active: bool) -> None:
+        """Notifica o widget local sobre respostas iniciadas pelo Telegram."""
+        try:
+            self.http.post(
+                f"{self.agent_url}/chat_activity",
+                json={"active": bool(active), "source": "telegram"},
+                timeout=2,
+            )
+        except Exception:
+            pass
+
+    def _handle_incoming_photo_guarded(self, chat_id: str, message: dict) -> None:
+        self._set_chat_activity(True)
+        try:
+            self._handle_incoming_photo(chat_id, message)
+        finally:
+            self._set_chat_activity(False)
+
     def _route_text_message_guarded(self, chat_id: str, user_text: str) -> None:
         """Garante uma resposta explicita quando um roteamento inesperado falha."""
+        self._set_chat_activity(True)
         try:
             self._route_text_message(chat_id, user_text)
         except Exception as exc:
@@ -1206,6 +1337,8 @@ class TelegramBot:
                 )
             except Exception:
                 pass
+        finally:
+            self._set_chat_activity(False)
 
     def _route_text_message(self, chat_id: str, user_text: str) -> None:
         # Pedidos explícitos para enviar uma imagem da tela devem executar a captura,
@@ -1225,26 +1358,25 @@ class TelegramBot:
             return
 
         # Geração de imagem em linguagem natural, além dos comandos /image e /imagine.
-        image_patterns = (
-            r"^\s*(?:por favor,?\s*)?(?:myra\s*[,!:]?\s*)?(?:gere|gera|gerar|crie|criar|fa[cç]a|fazer|desenhe|desenhar|produza|produzir)\s+(?:(?:uma?|a|o|as|os)\s+)?(?:imagem|ilustra[cç][aã]o|desenho)\s*(?:(?:de|do|da|dos|das|sobre|com)\s+)?(.+?)\s*$",
-            r"^\s*quero\s+(?:que\s+voc[eê]\s+)?(?:gere|crie|fa[cç]a)\s+(?:(?:uma?|a|o|as|os)\s+)?(?:imagem|ilustra[cç][aã]o|desenho)\s*(?:(?:de|do|da|dos|das|sobre|com)\s+)?(.+?)\s*$",
-            r"^\s*(?:please\s+)?(?:generate|create|draw)\s+(?:an?\s+)?(?:image|illustration|drawing)\s*(?:(?:of|about|with)\s+)?(.+?)\s*$",
-        )
-        image_prompt = None
-        for pattern in image_patterns:
-            image_match = re.match(pattern, user_text, re.IGNORECASE)
-            if image_match:
-                image_prompt = image_match.group(1).strip(" .!?")
-                break
+        image_prompt = self._extract_image_generation_prompt(user_text)
+        is_image_followup = False
+        if not image_prompt:
+            with self._chat_history_lock:
+                prior_turns = list(self._chat_history.get(str(chat_id), []))
+            image_prompt = self._extract_image_followup_prompt(user_text, prior_turns)
+            is_image_followup = image_prompt is not None
         if image_prompt:
             self._remember_chat_turn(chat_id, "user", user_text)
-            self._send_message(chat_id, "Pedido recebido. Estou gerando a imagem localmente; voce pode continuar conversando enquanto isso.")
-            threading.Thread(
-                target=self._generate_image_for_chat,
-                args=(chat_id, image_prompt[:4000]),
-                name="myra-telegram-image-generation",
-                daemon=True,
-            ).start()
+            with self._chat_history_lock:
+                reference_image = self._last_generated_image.get(str(chat_id))
+            if is_image_followup and reference_image:
+                self._send_message(chat_id, "Entendi como uma continuação da imagem anterior. Vou alterar apenas o solicitado e preservar o rosto.")
+                threading.Thread(target=self._edit_photo_for_chat, args=(chat_id, reference_image, image_prompt[:3000]), name="myra-telegram-image-followup", daemon=True).start()
+            elif is_image_followup:
+                self._send_message(chat_id, "Encontrei a referência da imagem no histórico, mas o arquivo original não está disponível para edição. Reenvie a foto aqui no Telegram como anexo e eu farei a alteração. Não vou afirmar que gerei uma imagem sem enviar o arquivo.")
+            else:
+                self._send_message(chat_id, "Pedido recebido. Estou gerando a imagem localmente; voce pode continuar conversando enquanto isso.")
+                threading.Thread(target=self._generate_image_for_chat, args=(chat_id, image_prompt[:4000]), name="myra-telegram-image-generation", daemon=True).start()
             return
 
         # Pedido comum de VPN é informativo e deve receber uma opção concreta, não uma recusa.
@@ -1344,6 +1476,40 @@ class TelegramBot:
                 )
             return
 
+        # Perguntas meteorológicas precisam consultar a fonte real, não o modelo de conversa.
+        weather_city = self._extract_weather_city(user_text)
+        if weather_city is not None:
+            self._remember_chat_turn(chat_id, "user", user_text)
+            try:
+                result = self._agent_request(
+                    "POST", "/get_weather", {"cidade": weather_city}, timeout=25
+                )
+                answer = self._short_result(
+                    result,
+                    "Não consegui obter a previsão meteorológica agora.",
+                )
+                self._remember_chat_turn(chat_id, "assistant", answer)
+                self._send_message(chat_id, answer)
+            except Exception as exc:
+                self._last_error = f"weather: {type(exc).__name__}"
+                self._send_message(
+                    chat_id,
+                    "Não consegui consultar a previsão meteorológica no backend da MYRA. "
+                    "Verifique se o serviço local está disponível.",
+                )
+            return
+        # Navegação simples é uma chamada direta; não deve virar uma pesquisa por suas próprias palavras.
+        direct_url = self._direct_open_target(user_text)
+        if direct_url:
+            self._remember_chat_turn(chat_id, "user", user_text)
+            try:
+                result = self._agent_request("POST", "/open_url", {"url": direct_url}, timeout=20)
+                answer = self._short_result(result, f"Abri {direct_url}.")
+                self._remember_chat_turn(chat_id, "assistant", answer)
+                self._send_message(chat_id, answer)
+            except Exception as exc:
+                self._send_message(chat_id, f"Não consegui abrir {direct_url}: {type(exc).__name__}.")
+            return
         # Perguntas meteorológicas precisam consultar a fonte real, não o modelo de conversa.
         weather_city = self._extract_weather_city(user_text)
         if weather_city is not None:
@@ -1554,7 +1720,16 @@ class TelegramBot:
                            files={"photo": (safe_name, content, mime)}, timeout=90)
             return True
         except Exception as exc:
-            self._last_error = f"sendPhoto: {type(exc).__name__}"
+            detail = ""
+            response = getattr(exc, "response", None)
+            if response is not None:
+                try:
+                    payload = response.json()
+                    if isinstance(payload, dict):
+                        detail = str(payload.get("description") or "")[:180]
+                except Exception:
+                    pass
+            self._last_error = f"sendPhoto: {type(exc).__name__}" + (f" ({detail})" if detail else "")
             return False
 
     def _generate_image_for_chat(self, chat_id: str, prompt: str) -> None:
@@ -1590,8 +1765,9 @@ class TelegramBot:
                     raise ValueError("A imagem esta vazia ou excede 24 MB.")
                 filename = str(result.get("filename") or "myra.png")
                 if not self._send_photo_bytes(chat_id, raw, filename, "Imagem gerada localmente pela MYRA"):
-                    raise RuntimeError("O Telegram nao confirmou o envio da imagem.")
+                    raise RuntimeError(self._last_error or "O Telegram nao confirmou o envio da imagem.")
                 self._remember_chat_turn(chat_id, "user", "[Geracao de imagem] " + prompt[:1000])
+                self._persist_last_generated_image(chat_id, data_url)
                 self._remember_chat_turn(chat_id, "assistant", "[Imagem gerada] " + filename)
             except Exception as exc:
                 self._last_error = f"image_generation: {type(exc).__name__}"
@@ -1600,13 +1776,77 @@ class TelegramBot:
         finally:
             self._image_generation_lock.release()
 
+    @staticmethod
+    def _extract_image_edit_prompt(caption: str) -> str | None:
+        """Return a caption only when it clearly asks to edit the attached photo."""
+        value = (caption or "").strip()
+        if not value or len(value) > 3000:
+            return None
+        normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+        pattern = (
+            r"^\s*(?:myra\s*[,!:]?\s*)?(?:(?:quero|queria|gostaria de|pode)\s+"
+            r"(?:que\s+(?:voce|a myra)\s+)?)?"
+            r"(?:edite|editar|edita|faca|fazer|modifique|modificar|transforme|transformar|mude|mudar|"
+            r"remova|remover|adicione|adicionar|melhore|melhorar|deixe|deixar|troque|trocar|"
+            r"substitua|substituir|coloque|colocar|apague|apagar|enhance|edit|modify|transform|"
+            r"change|remove|replace|add|make)\b"
+        )
+        return value if re.match(pattern, normalized, re.IGNORECASE) else None
+
+    def _edit_photo_for_chat(self, chat_id: str, image_data_url: str, prompt: str) -> None:
+        """Edit a Telegram photo locally and return the edited result as a Telegram photo."""
+        queued = not self._image_generation_lock.acquire(blocking=False)
+        if queued:
+            self._send_message(chat_id, "Sua edicao entrou na fila para proteger a memoria da GPU.")
+            self._image_generation_lock.acquire()
+        try:
+            self._send_message(chat_id, "Recebi sua foto. Estou editando localmente; vou devolver a imagem aqui no Telegram.")
+            result = self._agent_request(
+                "POST", "/images/edit",
+                {"prompt": prompt[:3000], "image_data_url": image_data_url, "include_data_url": True},
+                timeout=900,
+            )
+            data_url = str(result.get("data_url") or "")
+            header, separator, encoded = data_url.partition(",")
+            if not separator or not header.startswith("data:image/") or not encoded:
+                raise ValueError("O motor local nao retornou uma imagem editada valida.")
+            import base64
+            import binascii
+            raw = base64.b64decode(encoded, validate=True)
+            if not raw or len(raw) > 9 * 1024 * 1024:
+                raise ValueError("A imagem editada esta vazia ou excede o limite de 9 MB do Telegram.")
+            filename = str(result.get("filename") or "myra-edit.png")
+            if not self._send_photo_bytes(chat_id, raw, filename, "Foto editada localmente pela MYRA"):
+                raise RuntimeError(self._last_error or "O Telegram nao confirmou o envio da foto editada.")
+            self._remember_chat_turn(chat_id, "user", "[Edicao de foto] " + prompt[:1000])
+            self._persist_last_generated_image(chat_id, data_url)
+            self._remember_chat_turn(chat_id, "assistant", "[Foto editada] " + filename)
+        except Exception as exc:
+            self._last_error = f"image_edit: {type(exc).__name__}"
+            detail = str(exc).strip()
+            response = getattr(exc, "response", None)
+            if response is not None:
+                try:
+                    payload = response.json()
+                    if isinstance(payload, dict):
+                        detail = str(payload.get("detail") or payload.get("description") or detail)
+                except Exception:
+                    pass
+            self._send_message(chat_id, "Nao consegui editar/enviar a foto: " + (detail or type(exc).__name__)[:650])
+        finally:
+            self._image_generation_lock.release()
+
     def _handle_incoming_photo(self, chat_id: str, message: dict) -> None:
         """Download a Telegram photo and route it through the configured local vision model."""
         try:
             photos = message.get("photo") or []
-            if not photos:
+            document = message.get("document") or {}
+            if not photos and not str(document.get("mime_type") or "").lower().startswith("image/"):
                 return
-            file_id = str(max(photos, key=lambda item: int(item.get("file_size") or 0)).get("file_id") or "")
+            if photos:
+                file_id = str(max(photos, key=lambda item: int(item.get("file_size") or 0)).get("file_id") or "")
+            else:
+                file_id = str(document.get("file_id") or "")
             if not file_id:
                 self._send_message(chat_id, "N?o consegui identificar o arquivo da imagem.")
                 return
@@ -1622,7 +1862,17 @@ class TelegramBot:
                 return
             import base64
             encoded = base64.b64encode(response.content).decode("ascii")
+            data_url = "data:image/jpeg;base64," + encoded
             question = str(message.get("caption") or "Descreva e analise esta imagem.")[:3000]
+            edit_prompt = self._extract_image_edit_prompt(question)
+            # Toda foto recebida vira referencia persistente da conversa, inclusive
+            # quando a analise visual falha; assim um pedido posterior pode edita-la.
+            self._persist_last_generated_image(chat_id, data_url)
+            if edit_prompt:
+                self._remember_chat_turn(chat_id, "user", "[Foto recebida para edicao] " + edit_prompt[:1000])
+                self._edit_photo_for_chat(chat_id, data_url, edit_prompt)
+                return
+            self._remember_chat_turn(chat_id, "user", "[Imagem recebida] " + question)
             payload = {"model": "myra-agent", "stream": False,
                        "metadata": {"chat_id": f"telegram:{chat_id}", "user_id": f"telegram:{chat_id}", "agent_id": "vision"},
                        "messages": [{"role": "user", "content": [
@@ -1631,7 +1881,6 @@ class TelegramBot:
                        ]}]}
             result = self._agent_request("POST", "/v1/chat/completions", payload, timeout=180)
             answer = str(((result.get("choices") or [{}])[0].get("message") or {}).get("content") or "N?o recebi uma an?lise da imagem.")
-            self._remember_chat_turn(chat_id, "user", "[Imagem recebida] " + question)
             self._remember_chat_turn(chat_id, "assistant", answer)
             self._send_message(chat_id, answer)
         except Exception as exc:
@@ -1669,8 +1918,10 @@ class TelegramBot:
         if not chat_id or chat_id not in self.allowed_chat_ids:
             return
         text = str(message.get("text") or "").strip()
-        if message.get("photo"):
-            threading.Thread(target=self._handle_incoming_photo, args=(chat_id, message),
+        if message.get("photo") or str((message.get("document") or {}).get("mime_type") or "").lower().startswith("image/"):
+            # Confirma o recebimento imediatamente; a inferencia visual pode levar dezenas de segundos em hardware local.
+            self._send_message(chat_id, "Recebi sua imagem. Estou analisando localmente; já envio o resultado.")
+            threading.Thread(target=self._handle_incoming_photo_guarded, args=(chat_id, message),
                              name="myra-telegram-image", daemon=True).start()
             return
         if not text:

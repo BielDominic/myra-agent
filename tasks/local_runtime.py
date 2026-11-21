@@ -55,10 +55,10 @@ KOKORO_VOICES = {
 
 def _detect_speech_language(text: str) -> str:
     value = str(text or "").lower()
-    pt = len(re.findall(r"\b(que|nao|n?o|voce|voc?|como|para|com|uma|mais|tambem|tamb?m|esta|est?|sao|s?o|foi|pode|posso|obrigado|obrigada|porque|entao|ent?o|isso|essa|esse|seu|sua|sobre|aqui|agora|vamos|fazer|tenho|tem|pela|pelo)\b", value))
-    pt += len(re.findall(r"[????????????]", value)) * 2
+    has_pt_marks = bool(re.search(r"[áàâãéêíóôõúç]", value))
+    pt = len(re.findall(r"\b(ola|olá|oi|obrigado|obrigada|voce|você|nao|não|tambem|também|esta|está|sao|são|acao|ação|porque|entao|então|isso|essa|esse|sobre|aqui|agora|vamos|fazer|tenho|tem|para|com|uma|mais|como|pode|posso|seu|sua|pela|pelo|das|dos)\b", value))
     en = len(re.findall(r"\b(the|and|you|your|how|what|when|where|why|can|could|would|should|will|have|has|with|from|this|that|there|here|hello|thanks|please|because|about|into|for|are|was|were|is|not|yes|no|today|tomorrow)\b", value))
-    return "pt-br" if pt >= en else "en-us"
+    return "pt-br" if has_pt_marks or pt >= en else "en-us"
 
 
 def _kokoro_assets_ready() -> bool:

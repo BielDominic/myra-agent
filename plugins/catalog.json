@@ -1,14 +1,11 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "catalogue": [
-    {"id":"myra.web-research","name":"Web Research","type":"tool","category":"research","status":"native","description":"Search external sources, compare evidence and cite URLs.","source":"MYRA native browser/search tools"},
-    {"id":"myra.browser-control","name":"Browser Control","type":"tool","category":"automation","status":"native","description":"Navigate pages, inspect content and interact with browser UI.","source":"MYRA browser automation"},
-    {"id":"myra.file-workspace","name":"File Workspace","type":"tool","category":"productivity","status":"native","description":"Read, create and organise project files in permitted workspaces.","source":"MYRA file tools"},
-    {"id":"myra.code-review","name":"Senior Code Review","type":"skill","category":"development","status":"planned","description":"Review correctness, security, tests, performance and maintainability.","source":"MYRA skill pack"},
-    {"id":"myra.frontend-design","name":"Frontend Design","type":"skill","category":"design","status":"planned","description":"Apply design systems, responsive layouts, accessibility and interaction states.","source":"MYRA skill pack"},
-    {"id":"myra.context-engine","name":"Context and Memory","type":"filter","category":"memory","status":"planned","description":"Summarise long conversations and retrieve relevant project context.","source":"MYRA context pipeline"},
-    {"id":"myra.whisper-stt","name":"Whisper Speech Recognition","type":"provider","category":"voice","status":"planned","description":"Local speech-to-text with Whisper or whisper.cpp.","source":"https://github.com/ggml-org/whisper.cpp"},
-    {"id":"myra.piper-tts","name":"Piper Voice","type":"provider","category":"voice","status":"planned","description":"Local neural text-to-speech with selectable voice models.","source":"https://github.com/rhasspy/piper"},
-    {"id":"myra.openwebui-compat","name":"Open WebUI Plugin Compatibility","type":"tool","category":"integration","status":"planned","description":"Import compatible packages after manifest conversion and security review.","source":"https://docs.openwebui.com/features/extensibility/"}
+    {"id":"myra.web-research","name":"Pesquisa na Web","type":"tool","category":"research","status":"native","description":"Pesquisar fontes externas, comparar evidências e apresentar referências.","source":"Ferramenta nativa MYRA","installable":false},
+    {"id":"myra.browser-control","name":"Controle do Navegador","type":"tool","category":"automation","status":"native","description":"Navegar, ler páginas e interagir com o navegador autorizado.","source":"Ferramenta nativa MYRA","installable":false},
+    {"id":"myra.file-workspace","name":"Workspace de Arquivos","type":"tool","category":"productivity","status":"native","description":"Ler, criar e organizar arquivos nos espaços permitidos.","source":"Ferramenta nativa MYRA","installable":false},
+    {"id":"myra.code-review","name":"Revisão de Código","type":"skill","category":"development","status":"available","description":"Revisão estruturada de bugs, segurança, desempenho, testes e manutenção.","source":"Pacote nativo MYRA","installable":true},
+    {"id":"myra.frontend-design","name":"Design de Interfaces","type":"skill","category":"design","status":"available","description":"Criação de interfaces responsivas, acessíveis e consistentes com um sistema visual.","source":"Pacote nativo MYRA","installable":true},
+    {"id":"myra.research-brief","name":"Pesquisa e Síntese","type":"skill","category":"research","status":"available","description":"Pesquisa comparativa com fontes, evidências, incertezas e conclusão prática.","source":"Pacote nativo MYRA","installable":true}
   ]
 }

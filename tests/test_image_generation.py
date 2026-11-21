@@ -22,10 +22,10 @@ def test_sdxl_workflow_has_connected_model_and_latent_nodes():
 def test_generation_uses_quality_sampler_and_vram_friendly_defaults():
     workflow = _workflow("Photorealistic portrait, natural light", "dreamshaper.safetensors", 640, 640, 30, 99)
     sampler = workflow["5"]["inputs"]
-    assert sampler["sampler_name"] == "dpmpp_2m"
+    assert sampler["sampler_name"] == "dpmpp_2m_sde"
     assert sampler["scheduler"] == "karras"
     assert sampler["steps"] == 30
-    assert sampler["cfg"] == 6.5
+    assert sampler["cfg"] == 5.5
     assert workflow["4"]["inputs"]["width"] == 640
 
 
@@ -116,3 +116,77 @@ def test_edit_cleans_comfyui_temporary_upload_after_success(tmp_path, monkeypatc
     assert result["edited"] is True
     assert not (tmp_path / uploaded_names[0]).exists()
     assert "Preserve the original subject identity" in captured["workflow"]["2"]["inputs"]["text"]
+
+
+def test_prompt_enhancement_preserves_explicit_visual_attributes(monkeypatch):
+    from computer import image_generation
+
+    captured = {}
+    class Response:
+        def raise_for_status(self): pass
+        def json(self):
+            return {"response": "A nude blonde woman"}
+
+    def fake_post(url, json, timeout):
+        captured.update(url=url, payload=json, timeout=timeout)
+        return Response()
+
+    monkeypatch.setattr(image_generation.requests, "post", fake_post)
+    enhanced, status = image_generation._enhance_prompt("Gere a imagem de uma loira pelada")
+
+    assert enhanced == "A nude blonde woman"
+    assert status == "ollama_local"
+    assert captured["payload"]["options"]["num_gpu"] == 0
+    assert captured["payload"]["keep_alive"] == 0
+    assert "literal translator" in captured["payload"]["system"]
+    assert "Never add a location, pose, clothing" in captured["payload"]["system"]
+
+
+def test_prompt_enhancement_falls_back_to_original_when_ollama_is_offline(monkeypatch):
+    import requests
+    from computer import image_generation
+
+    def unavailable(*args, **kwargs):
+        raise requests.ConnectionError("offline")
+
+    monkeypatch.setattr(image_generation.requests, "post", unavailable)
+    original = "A blonde woman in a forest"
+    enhanced, status = image_generation._enhance_prompt(original)
+
+    assert enhanced == original
+    assert status == "fallback_original_prompt"
+
+
+def test_prompt_enhancement_can_be_disabled(monkeypatch):
+    from computer import image_generation
+
+    monkeypatch.setenv("MYRA_IMAGE_PROMPT_ENHANCER", "0")
+    enhanced, status = image_generation._enhance_prompt("Uma mulher loira")
+
+    assert enhanced == "Uma mulher loira"
+    assert status == "disabled"
+
+
+def test_realistic_vision_workflow_uses_external_vae_when_available():
+    workflow = _workflow(
+        "A photorealistic portrait", "Realistic_Vision_V6.safetensors",
+        512, 768, 30, 123, "vae-ft-mse-840000-ema-pruned.safetensors",
+    )
+
+    assert workflow["8"]["class_type"] == "VAELoader"
+    assert workflow["8"]["inputs"]["vae_name"] == "vae-ft-mse-840000-ema-pruned.safetensors"
+    assert workflow["6"]["inputs"]["vae"] == ["8", 0]
+    assert workflow["5"]["inputs"]["sampler_name"] == "dpmpp_2m_sde"
+
+
+def test_negative_prompt_only_suppresses_nudity_when_not_requested():
+    from computer.image_generation import NEGATIVE_PROMPT, _negative_prompt_for
+
+    ordinary = _negative_prompt_for("A photorealistic blonde woman portrait")
+    requested = _negative_prompt_for("A nude blonde woman")
+    portuguese = _negative_prompt_for("Uma loira pelada")
+
+    assert "nude, naked, topless" in ordinary
+    assert "nude, naked, topless" not in requested
+    assert "nude, naked, topless" not in portuguese
+    assert "cgi, 3d render" in NEGATIVE_PROMPT

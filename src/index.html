@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MYRA</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=widget-save-native-7"><link rel="stylesheet" href="components/ui/myra-ui.css?v=cursor-global-2">
 </head>
 <body data-theme="dark" data-compact="off" data-popover="off">
 
@@ -13,12 +13,7 @@
 
         <!-- VIEW: idle -->
         <div class="view view-idle active" data-tauri-drag-region>
-            <div class="mascot idle" id="mascot">
-                <div class="eye left"></div>
-                <div class="eye right"></div>
-                <div class="mouth"></div>
-                <div class="zzz">zZz</div>
-            </div>
+            <div class="mascot idle" id="mascot"><myra-orb data-state="idle" data-variant="webgl"></myra-orb></div>
             <span class="label" data-tauri-drag-region>MYRA</span>
             <span class="status-dot"></span>
             <button id="btn-open-settings" title="Configurações">&#9881;</button>
@@ -32,7 +27,7 @@
                     <span class="label">Prefer&ecirc;ncias</span>
                     <span class="settings-subtitle">Personalize o widget</span>
                 </div>
-                <button class="btn-close" id="btn-close-widget" title="Fechar widget" aria-label="Fechar">&#10005;</button>
+
             </div>
             <div class="content settings-content">
                 <section class="set-section">
@@ -48,10 +43,21 @@
                             <button class="set-btn set-btn-small" id="btn-compact" title="Atalho: Ctrl+Shift+M">Desativado</button>
                         </div>
                         <div class="set-divider"></div>
-                        <label class="set-control-row set-color">
-                            <span class="set-copy"><span class="set-name">Cor de destaque</span><span class="set-description">Cor do mascote e dos detalhes</span></span>
-                            <input type="color" id="mascot-color" value="#6366f1" aria-label="Cor de destaque">
-                        </label>
+                        <div class="set-control-row"><div class="set-copy"><span class="set-name">Sempre no topo</span><span class="set-description">Manter o widget acima das outras janelas</span></div><button class="set-btn set-btn-small" id="btn-always-on-top">Ativado</button></div>
+                    </div>
+                </section>
+                <section class="set-section avatar-settings-section">
+                    <div class="set-title">Avatar MYRA</div>
+                    <div class="set-panel avatar-settings-panel">
+                        <div class="avatar-preview-row"><myra-orb class="avatar-settings-preview" data-state="idle" data-variant="webgl"></myra-orb><span>Pré-visualização ao vivo</span></div>
+                        <label class="set-control-row"><span class="set-copy"><span class="set-name">Avatar</span><span class="set-description">Modelo visual</span></span><select id="avatar-model"><option value="orb">MYRA Orb</option><option value="eye">Olho MYRA</option><option value="core">Núcleo</option></select></label>
+                        <label class="set-control-row"><span class="set-copy"><span class="set-name">Estilo do avatar</span><span class="set-description">Animação fluida ou visual sólido</span></span><select id="avatar-style"><option value="animated">Orb animado</option><option value="solid">Orb sólido</option><option value="minimal">Minimalista</option></select></label>
+                        <label class="set-control-row set-color"><span class="set-copy"><span class="set-name">Cor principal</span><span class="set-description">Cor do avatar sólido</span></span><input type="color" id="avatar-color" value="#7C6AF7"></label>
+                        <label class="set-control-row set-color"><span class="set-copy"><span class="set-name">Cor dos olhos</span><span class="set-description">Contraste dos olhos</span></span><input type="color" id="avatar-eye-color" value="#09090B"></label>
+                        <label class="set-control-row set-color"><span class="set-copy"><span class="set-name">Gradiente 1</span><span class="set-description">Primeira cor do orb animado</span></span><input type="color" id="avatar-c1" value="#7C6AF7"></label>
+                        <label class="set-control-row set-color"><span class="set-copy"><span class="set-name">Gradiente 2</span><span class="set-description">Segunda cor do orb animado</span></span><input type="color" id="avatar-c2" value="#7DD3C7"></label>
+                        <label class="set-control-row set-color"><span class="set-copy"><span class="set-name">Gradiente 3</span><span class="set-description">Terceira cor do orb animado</span></span><input type="color" id="avatar-c3" value="#E8B4D4"></label>
+                        <div class="widget-setting-actions"><button class="set-btn routine-save" id="avatar-reset" type="button">Restaurar padrão MYRA</button><button class="set-btn routine-save" id="avatar-save" type="button">Salvar avatar</button></div>
                     </div>
                 </section>
                 <section class="set-section">
@@ -90,7 +96,7 @@
                     </div>
                 </section>
                 <section class="set-section">
-                    <div class="set-title">Hist&oacute;rico e rotinas</div>
+                    <div class="set-title">Hist&oacute;rico de tarefas</div>
                     <div class="set-panel">
                         <div class="set-control-row">
                             <div class="set-copy"><span class="set-name">Execu&ccedil;&otilde;es recentes</span><span class="set-description">Guardadas localmente neste widget</span></div>
@@ -100,41 +106,38 @@
                             </div>
                         </div>
                         <div id="task-history" class="local-list" hidden></div>
-                        <div class="set-divider"></div>
-                        <div class="routine-editor">
-                            <label class="set-name" for="routine-name">Nova rotina</label>
-                            <input id="routine-name" class="routine-input" maxlength="48" placeholder="Nome curto (ex.: Resumo di?rio)">
-                            <textarea id="routine-objective" class="routine-input routine-textarea" maxlength="1200" rows="2" placeholder="O que a MYRA deve fazer quando executar esta rotina"></textarea>
-                            <button class="set-btn routine-save" id="btn-save-routine">Salvar rotina</button>
-                        </div>
-                        <div id="routine-list" class="local-list"></div>
+                    </div>
+                </section>
+                <section class="set-section">
+                    <div class="set-title">Rotinas rápidas</div>
+                    <div class="set-panel">
+                        <label class="set-control-row"><span class="set-copy"><span class="set-name">Nome da rotina</span></span><input id="routine-name" type="text" maxlength="80" placeholder="Ex.: Revisar meu projeto"></label>
+                        <label class="set-control-row"><span class="set-copy"><span class="set-name">Objetivo</span></span><textarea id="routine-objective" maxlength="1200" rows="3" placeholder="Descreva o que a MYRA deve fazer"></textarea></label>
+                        <div class="widget-setting-actions"><button class="set-btn routine-save" id="routine-add" type="button">Salvar rotina</button><span class="meta" id="routine-status" role="status">Até 20 rotinas locais.</span></div>
+                        <div id="routine-list" class="local-list" aria-live="polite"></div>
                     </div>
                 </section>
             </div>
             <div class="footer settings-footer">
                 <span class="meta">MYRA <span class="footer-separator">&middot;</span> Esc para voltar</span>
-                <span class="meta">Ctrl+Shift+M compacto</span>
+                <span class="meta" id="widget-settings-save-status">Alterações não salvas</span><button class="set-btn routine-save" id="btn-save-settings" type="button">Salvar ajustes</button><span class="meta">Ctrl+Shift+M compacto</span>
             </div>
         </div>
 
         <!-- VIEW: running -->
         <div class="view view-running">
             <div class="header" data-tauri-drag-region>
-                <div class="mascot running" id="mascot-running">
-                    <div class="eye left"></div>
-                    <div class="eye right"></div>
-                    <div class="mouth"></div>
-                </div>
+                <div class="mascot running" id="mascot-running"><myra-orb data-state="working" data-variant="webgl"></myra-orb></div>
                 <span class="label" data-tauri-drag-region>MYRA</span>
                 <span class="status-dot running-dot"></span>
                 <span class="pill-timer" id="pill-timer"></span>
                 <button class="btn-toggle-mode" id="btn-toggle-running-mode" title="Alternar modo">&#9660;</button>
                 <button class="btn-cancel-pill" id="btn-cancel-pill" title="Cancelar task">&#10005;</button>
-                <button class="btn-close" onclick="closeWidget()" title="Fechar">&times;</button>
+
             </div>
             <div class="content">
                 <div class="state-row">
-                    <span class="state-icon spinning" aria-hidden="true"></span>
+                    <div class="myra-domino-loader" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
                     <span class="state-text" id="task-state-label">Executando...</span>
                 </div>
                 <div class="task-objective" id="task-objective" title="Objetivo atual"></div>
@@ -158,13 +161,9 @@
         <!-- VIEW: done -->
         <div class="view view-done">
             <div class="header" data-tauri-drag-region>
-                <div class="mascot done" id="mascot-done">
-                    <div class="eye left"></div>
-                    <div class="eye right"></div>
-                    <div class="mouth"></div>
-                </div>
+                <div class="mascot done" id="mascot-done"><myra-orb data-state="success" data-variant="webgl"></myra-orb></div>
                 <span class="label" data-tauri-drag-region>MYRA</span>
-                <button class="btn-close" onclick="closeWidget()" title="Fechar">&times;</button>
+
             </div>
             <div class="content">
                 <div class="state-row">
@@ -185,13 +184,9 @@
         <!-- VIEW: error -->
         <div class="view view-error">
             <div class="header" data-tauri-drag-region>
-                <div class="mascot error" id="mascot-error">
-                    <div class="eye left"></div>
-                    <div class="eye right"></div>
-                    <div class="mouth"></div>
-                </div>
+                <div class="mascot error" id="mascot-error"><myra-orb data-state="error" data-variant="webgl"></myra-orb></div>
                 <span class="label" data-tauri-drag-region>MYRA</span>
-                <button class="btn-close" onclick="closeWidget()" title="Fechar">&times;</button>
+
             </div>
             <div class="content">
                 <div class="state-row">
@@ -205,7 +200,7 @@
                 </div>
             </div>
             <div class="footer">
-                <button class="btn btn-ok" onclick="resetWidget()">Fechar</button>
+                <button class="btn btn-ok" onclick="resetWidget()">OK</button>
             </div>
         </div>
 
@@ -220,10 +215,10 @@
         <div id="gpu-bar"><div id="gpu-fill"></div></div>
     </div>
 
-    <script>window.MYRA_RICH_WIDGET = true;</script>
+    <script>window.MYRA_RICH_WIDGET = true;</script><script src="components/ui/myra-ui.js?v=cursor-global-3-eyes"></script>
     <script src="tauri-widget.js"></script>
-    <script src="main.js"></script>
-    <script src="features.js"></script>
+    <script src="main.js?v=widget-save-native-7"></script>
+    <script src="features.js?v=widget-save-native-7"></script>
     <script src="features-vida.js"></script>
 </body>
 </html>

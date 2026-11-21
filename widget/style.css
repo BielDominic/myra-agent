@@ -127,6 +127,8 @@ body {
     box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
 }
 
+.mascot { background: transparent !important; box-shadow: none !important; width: 44px; height: 44px; min-width: 44px; overflow: visible; }
+.mascot myra-orb { width: 44px; height: 44px; }
 .mascot .eye {
     width: 6px;
     height: 6px;
@@ -382,3 +384,46 @@ body {
 
 [System.IO.File]::WriteAllText("C:\computer-agent\widget-tauri\ui\style.css", $css, [System.Text.UTF8Encoding]::new($false))
 Write-Host "style.css limpo"
+/* Uiverse loader adaptation — From Uiverse.io by satyamchaudharydev
+   https://uiverse.io/satyamchaudharydev/splendid-husky-54
+   MIT License, Copyright (c) satyamchaudharydev (satyam) */
+.myra-domino-loader{position:relative;width:118px;height:32px;flex:0 0 118px;display:inline-flex;justify-content:center;align-items:center;overflow:visible}
+.myra-domino-loader span{position:absolute;top:50%;left:var(--left);width:35px;height:7px;border-radius:2px;background:#f8f7ff;animation:myra-dominos 1s ease infinite;box-shadow:2px 2px 3px #0009;transform-origin:center}
+.myra-domino-loader span:nth-child(1){--left:80px;animation-delay:.125s}
+.myra-domino-loader span:nth-child(2){--left:70px;animation-delay:.3s}
+.myra-domino-loader span:nth-child(3){left:60px;animation-delay:.425s}
+.myra-domino-loader span:nth-child(4){left:50px;animation-delay:.54s}
+.myra-domino-loader span:nth-child(5){left:40px;animation-delay:.665s}
+.myra-domino-loader span:nth-child(6){left:30px;animation-delay:.79s}
+.myra-domino-loader span:nth-child(7){left:20px;animation-delay:.915s}
+.myra-domino-loader span:nth-child(8){left:10px}
+@keyframes myra-dominos{50%{opacity:.7}75%{transform:rotate(90deg)}80%{opacity:1}}
+body[data-theme="light"] .myra-domino-loader span{background:#45366b;box-shadow:2px 2px 3px #27324755}
+.mascot.chat-thinking myra-orb{filter:drop-shadow(0 0 9px #8b5cf6aa);animation:myra-chat-react 1.2s ease-in-out infinite alternate}
+@keyframes myra-chat-react{from{transform:scale(1)}to{transform:scale(1.13)}}
+
+.island.chat-active{border-color:#9b78ff!important;box-shadow:0 0 0 2px #8b5cf622,0 0 24px #7c3aed44,inset 0 0 20px #06b6d410}\n
+/* MYRA orb visibly responds while the desktop chat is generating a reply. */
+#island.chat-active .mascot myra-orb{filter:drop-shadow(0 0 9px #06b6d477) drop-shadow(0 0 18px #7c3aed55);animation:myra-chat-react 1.25s ease-in-out infinite}
+@keyframes myra-chat-react{0%,100%{transform:scale(1)}50%{transform:scale(1.045)}}
+@media(prefers-reduced-motion:reduce){#island.chat-active .mascot myra-orb{animation:none}}
+
+/* Independent widget theme — controlled by MYRA Desktop, not platform theme. */
+body[data-theme="light"]{color:#202438;background:transparent;}
+body[data-theme="light"] .island{background:rgba(248,250,255,.97);border-color:rgba(91,102,140,.28);box-shadow:inset 0 1px 0 #fff,0 8px 30px #26314a22;}
+body[data-theme="light"] .label,body[data-theme="light"] .state-text{color:#25283a;}
+body[data-theme="light"] .header,body[data-theme="light"] .footer{border-color:#dce0ec;background:rgba(242,245,252,.88);}
+body[data-theme="light"] .meta{color:#596078;}
+body[data-theme="light"] .tool-name{color:#51418a;background:#eeeaff;border-color:#d9d0ff;}
+body[data-theme="light"] .result-text{color:#30364b;background:#eef1f8;border-left-color:#159b75;}
+body[data-theme="light"] .result-text.error-text{color:#9f303b;background:#fff0f1;border-left-color:#d34b58;}
+body[data-theme="light"] .btn-ok{background:#e8e2ff;color:#49347f;border-color:#cfc2ff;}
+body[data-theme="light"] .btn-cancel{background:#fff0f1;color:#a3323c;border-color:#f0c3c7;}
+
+/* High-contrast native option menus (WebView2 / Windows). */
+select, select:focus { color-scheme: dark; background-color: #171923 !important; color: #f4f2fa !important; }
+select option, select optgroup { background-color: #171923 !important; color: #f4f2fa !important; }
+body[data-theme="light"] select, body[data-theme="light"] select:focus { color-scheme: light; background-color: #ffffff !important; color: #182235 !important; }
+body[data-theme="light"] select option, body[data-theme="light"] select optgroup { background-color: #ffffff !important; color: #182235 !important; }
+
+.routine-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border,#303044)}.routine-row span{flex:1;min-width:0;overflow-wrap:anywhere;color:var(--text-main,var(--text,#eee))}.routine-row button{flex:none}

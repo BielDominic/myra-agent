@@ -1,7 +1,7 @@
 # MYRA Plugin Architecture
 
 ## Goal
-Provide a native MYRA library for reviewed capability references and declarative Skill/Prompt ZIP packages. Git URLs are queued for manual review; local-folder import and automatic repository fetching are not implemented. Catalogue entries are references, not endorsements.
+Provide a first-party MYRA plugin library with a local catalogue, bundled installable packages, local ZIP import, installed-package management and chat integration. The library does not embed or depend on the Open WebUI community catalogue. Current installable packages are declarative Skills/Prompts; executable third-party Tools require the isolated worker and explicit capability grants described below.
 
 ## Plugin classes
 | Type | Purpose | Surface |
@@ -20,7 +20,7 @@ Current accepted packages must include `myra.plugin.json`, `README.md`, a licenc
 The current registry records package identity/version, entry point, SHA-256, install/enabled state, install time and local path. Source pinning, granted permissions and audit events are planned.
 
 ## Lifecycle
-1. Discover reviewed references in the catalogue, import a local ZIP, or add a Git URL to the manual-review queue.
+1. Discover bundled first-party packages in the MYRA catalogue or import a local ZIP.
 2. Inspect the package manifest, README, licence, version and supported type.
 3. Validate manifest, package size, paths, symlinks, duplicate IDs and supported version.
 4. Review declarative text and its SHA-256. No package capabilities or permissions are accepted.
@@ -39,10 +39,7 @@ The current registry records package identity/version, entry point, SHA-256, ins
 - Only mark a package Installed after validation; only mark Enabled after a successful runtime load and recorded permission grant.
 
 ## Reference projects and docs
-- Open WebUI extensibility: https://docs.openwebui.com/features/extensibility/
-- Tools and Functions: https://docs.openwebui.com/features/extensibility/plugin/
-- Tools reference: https://docs.openwebui.com/features/extensibility/plugin/tools/
-- Security hardening: https://docs.openwebui.com/getting-started/advanced-topics/hardening/
+- Plugin package validation and runtime isolation are maintained inside MYRA; third-party executable code must never be imported into the FastAPI process.
 - Continue: https://github.com/continuedev/continue
 - Aider: https://github.com/Aider-AI/aider
 - OpenHands: https://github.com/All-Hands-AI/OpenHands
@@ -50,7 +47,8 @@ The current registry records package identity/version, entry point, SHA-256, ins
 - Piper: https://github.com/rhasspy/piper
 
 ## Current local API (stage A — declarative intake)
-- `GET /plugins/catalog`: return the reviewed local catalogue joined with installed/enabled state.
+- `GET /plugins/catalog`: return the first-party MYRA catalogue joined with installed/enabled state.
+- `GET /plugins/catalog/{plugin_id}/package`: build and return a bundled MYRA Skill/Prompt ZIP for local installation.
 - `GET /plugins`: list installed packages and their state.
 - `POST /plugins/{plugin_id}/enable` and `/disable`: change declarative library state; activation does not grant tools or execute code.
 - `POST /plugins/validate`: validate a raw ZIP body (`Content-Type: application/zip`) without installing it.
@@ -58,11 +56,11 @@ The current registry records package identity/version, entry point, SHA-256, ins
 - `DELETE /plugins/{plugin_id}`: remove all installed versions only while every version is disabled.
 - Current accepted package types are `skill` and `prompt`, with Markdown/text entry points. `myra.plugin.json`, `README.md`, and a licence file are required. No script, Python, JavaScript, native binary, requested permission, or capability is accepted.
 - Upload is streamed with a 20 MB compressed limit; extraction is bounded to 50 MB / 500 files, rejects traversal, backslashes, symlinks and duplicate paths, and stages files before an atomic directory move.
-- The native desktop plugin view loads the real API catalogue, filters/searches entries, imports local ZIPs after validation/confirmation, lists installed packages, enables/disables declarative content and removes disabled packages. A Git URL is only queued for manual review; it is not fetched or installed.
+- The native desktop plugin view loads the MYRA catalogue, filters/searches entries, installs bundled packages after validation/confirmation, imports local ZIPs, lists installed packages, enables/disables declarative content and removes disabled packages. No community catalogue or Git URL source is embedded.
 - Enabled Skill/Prompt entry points are loaded into normal local chat as bounded (32 KiB total), explicitly untrusted reference context. This does not expose tool capabilities and does not execute package code.
 
 ## Delivery stages
-- A (declarative lifecycle implemented): live catalogue, ZIP validator, local registry, safe install/enable/disable/remove and bounded active Skill/Prompt context in chat. Native local ZIP import/list/manage UI is wired; Git source fetching and manual review remain pending.
+- A (declarative lifecycle implemented): first-party MYRA catalogue, bundled installable Skill packages, ZIP validator, local registry, safe install/enable/disable/remove and bounded active Skill/Prompt context in chat. Native local ZIP import/list/manage UI is wired.
 - B: native Tool adapters and explicit capability grants.
 - C: restricted worker runtime, MCP connectors and per-capability permissions.
 - D: updates, rollback, audit and signed catalogue metadata.

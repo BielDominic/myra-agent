@@ -1,6 +1,5 @@
 use tauri::Manager;
 
-
 // ============================================================
 // Win32: GetCursorPos (posicao global do mouse na tela)
 // ============================================================
@@ -31,8 +30,13 @@ mod win32 {
 #[cfg(not(target_os = "windows"))]
 mod win32 {
     #[derive(Default, Clone, Copy)]
-    pub struct POINT { pub x: i32, pub y: i32 }
-    pub fn cursor_pos() -> POINT { POINT::default() }
+    pub struct POINT {
+        pub x: i32,
+        pub y: i32,
+    }
+    pub fn cursor_pos() -> POINT {
+        POINT::default()
+    }
 }
 
 // ============================================================
@@ -56,7 +60,8 @@ fn set_ignore_cursor_events(
     let win = app
         .get_webview_window(&label)
         .ok_or_else(|| format!("janela {} nao encontrada", label))?;
-    win.set_ignore_cursor_events(ignore).map_err(|e| e.to_string())?;
+    win.set_ignore_cursor_events(ignore)
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -94,14 +99,23 @@ fn set_widget_size(app: tauri::AppHandle, size: String) -> Result<(), String> {
 #[tauri::command]
 async fn get_gpu_info() -> serde_json::Value {
     let output = std::process::Command::new("nvidia-smi")
-        .args(["--query-gpu=memory.used,memory.total", "--format=csv,noheader,nounits"])
+        .args([
+            "--query-gpu=memory.used,memory.total",
+            "--format=csv,noheader,nounits",
+        ])
         .output();
     let output = match output {
         Ok(o) if o.status.success() => o,
         _ => return serde_json::json!({ "ok": false, "error": "nvidia-smi indisponivel" }),
     };
     let line = String::from_utf8_lossy(&output.stdout);
-    let parts: Vec<&str> = line.lines().next().unwrap_or("").split(',').map(str::trim).collect();
+    let parts: Vec<&str> = line
+        .lines()
+        .next()
+        .unwrap_or("")
+        .split(',')
+        .map(str::trim)
+        .collect();
     if parts.len() < 2 {
         return serde_json::json!({ "ok": false, "error": "resposta da GPU invalida" });
     }
@@ -111,7 +125,9 @@ async fn get_gpu_info() -> serde_json::Value {
 }
 #[tauri::command]
 fn toggle_always_on_top(app: tauri::AppHandle, on_top: bool) -> Result<bool, String> {
-    let win = app.get_webview_window("main").ok_or_else(|| "janela main nao encontrada".to_string())?;
+    let win = app
+        .get_webview_window("main")
+        .ok_or_else(|| "janela main nao encontrada".to_string())?;
     win.set_always_on_top(on_top).map_err(|e| e.to_string())?;
     Ok(on_top)
 }
@@ -138,6 +154,28 @@ fn get_cursor_relative_to_window(app: tauri::AppHandle) -> serde_json::Value {
 // ============================================================
 // IPC: TARS overlay visibility
 // ============================================================
+
+#[tauri::command]
+fn get_widget_visible(app: tauri::AppHandle) -> Result<bool, String> {
+    let widget = app
+        .get_webview_window("main")
+        .ok_or_else(|| "janela do widget nao encontrada".to_string())?;
+    widget.is_visible().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_widget_visible(app: tauri::AppHandle, visible: bool) -> Result<bool, String> {
+    let widget = app
+        .get_webview_window("main")
+        .ok_or_else(|| "janela do widget nao encontrada".to_string())?;
+    if visible {
+        widget.show().map_err(|e| e.to_string())?;
+        widget.set_always_on_top(true).map_err(|e| e.to_string())?;
+    } else {
+        widget.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(visible)
+}
 
 #[tauri::command]
 fn set_overlay_visible(app: tauri::AppHandle, visible: bool) -> Result<(), String> {
@@ -180,7 +218,16 @@ async fn get_task_status() -> Result<serde_json::Value, String> {
 async fn cancel_task() -> Result<serde_json::Value, String> {
     let url = "http://127.0.0.1:8000/task_cancel";
     let response = std::process::Command::new("curl")
-        .args(["--fail", "--silent", "--show-error", "--max-time", "3", "-X", "POST", url])
+        .args([
+            "--fail",
+            "--silent",
+            "--show-error",
+            "--max-time",
+            "3",
+            "-X",
+            "POST",
+            url,
+        ])
         .output()
         .ok()
         .filter(|o| o.status.success())
@@ -198,18 +245,24 @@ fn focus_chrome_window() -> Result<serde_json::Value, String> {
     {
         let output = std::process::Command::new("osascript")
             .args(["-e", "tell application \"Google Chrome\" to activate"])
-            .output().map_err(|e| e.to_string())?;
-        if !output.status.success() { return Err(String::from_utf8_lossy(&output.stderr).to_string()); }
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).to_string());
+        }
         return Ok(serde_json::json!({"ok": true, "platform": "macos"}));
     }
     #[cfg(target_os = "linux")]
     {
-        let output = std::process::Command::new("wmctrl").args(["-a", "Google Chrome"]).output().map_err(|e| e.to_string())?;
+        let output = std::process::Command::new("wmctrl")
+            .args(["-a", "Google Chrome"])
+            .output()
+            .map_err(|e| e.to_string())?;
         return Ok(serde_json::json!({"ok": output.status.success(), "platform": "linux"}));
     }
     #[cfg(target_os = "windows")]
     {
-    let script = r#"
+        let script = r#"
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class MyraForeground { [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd); [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow); }'
 $p = Get-Process chrome -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
 if ($null -eq $p) { @{ok=$false;error="Nenhuma janela visível do Chrome foi encontrada."} | ConvertTo-Json -Compress; exit 0 }
@@ -217,11 +270,21 @@ if ($null -eq $p) { @{ok=$false;error="Nenhuma janela visível do Chrome foi enc
 $ok = [MyraForeground]::SetForegroundWindow($p.MainWindowHandle)
 @{ok=$ok;processId=$p.Id} | ConvertTo-Json -Compress
 "#;
-    let output = std::process::Command::new("powershell")
-        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script])
-        .output().map_err(|e| e.to_string())?;
-    if !output.status.success() { return Err(String::from_utf8_lossy(&output.stderr).to_string()); }
-    serde_json::from_slice(&output.stdout).map_err(|_| String::from_utf8_lossy(&output.stdout).to_string())
+        let output = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                script,
+            ])
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).to_string());
+        }
+        serde_json::from_slice(&output.stdout)
+            .map_err(|_| String::from_utf8_lossy(&output.stdout).to_string())
     }
 }
 // RUN
@@ -237,26 +300,32 @@ fn open_external_url(url: String) -> Result<(), String> {
     {
         std::process::Command::new("rundll32.exe")
             .args(["url.dll,FileProtocolHandler", parsed.as_str()])
-            .spawn().map_err(|e| e.to_string())?;
+            .spawn()
+            .map_err(|e| e.to_string())?;
         return Ok(());
     }
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")
-            .arg(parsed.as_str()).spawn().map_err(|e| e.to_string())?;
+            .arg(parsed.as_str())
+            .spawn()
+            .map_err(|e| e.to_string())?;
         return Ok(());
     }
     #[cfg(target_os = "linux")]
     {
         std::process::Command::new("xdg-open")
-            .arg(parsed.as_str()).spawn().map_err(|e| e.to_string())?;
+            .arg(parsed.as_str())
+            .spawn()
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 }
 
 #[tauri::command]
 fn focus_desktop_window(app: tauri::AppHandle) -> Result<(), String> {
-    let win = app.get_webview_window("desktop")
+    let win = app
+        .get_webview_window("desktop")
         .ok_or_else(|| "janela desktop nao encontrada".to_string())?;
     win.show().map_err(|e| e.to_string())?;
     win.set_focus().map_err(|e| e.to_string())?;
@@ -284,9 +353,19 @@ pub fn run() {
                 overlay.set_always_on_top(true)?;
                 overlay.hide()?;
             }
-            // The normal desktop workspace is the primary app window; show it on launch.
+            // Fit the desktop workspace to the monitor work area. A fixed 1440x920
+            // window can push the composer below the visible screen on 1366x768 / HiDPI displays.
             if let Some(desktop) = app.get_webview_window("desktop") {
                 desktop.show()?;
+                let monitor = desktop.current_monitor()?.or(desktop.primary_monitor()?);
+                if let Some(monitor) = monitor {
+                    let scale = monitor.scale_factor().max(1.0);
+                    let area = monitor.work_area().size;
+                    let width = ((area.width as f64 / scale) * 0.95).min(1440.0).max(980.0);
+                    let height = ((area.height as f64 / scale) * 0.92).min(780.0).max(600.0);
+                    desktop.set_size(tauri::LogicalSize::new(width, height))?;
+                    desktop.center()?;
+                }
                 desktop.set_focus()?;
             }
             Ok(())
@@ -302,6 +381,8 @@ pub fn run() {
             get_mouse_pos,
             set_ignore_cursor_events,
             set_overlay_visible,
+            set_widget_visible,
+            get_widget_visible,
             focus_chrome_window,
             open_external_url,
             focus_desktop_window

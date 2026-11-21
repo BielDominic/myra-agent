@@ -60,3 +60,34 @@ A tarefa roda em uma thread separada para que o bot continue recebendo `/status`
 - Testar `/status`, `/task`, `/cancel`, `/pause`, `/resume`, `/screenshot` e `/see` com o Telegram real e confirmar os resultados no chat autorizado.
 - Tailscale esta instalado/conectado no PC, mas nao ha peer iOS no tailnet; adicionar o iPhone para acesso direto.
 - O app iOS possui fontes SwiftUI e projeto Xcode inicial em `mobile-ios/`; build CI, execucao em dispositivo e widgets/Siri/notificacoes ainda precisam de validacao/implementacao.
+
+
+## Imagens no Telegram (2026-11-20)
+
+- Geracao local: mensagens naturais como `Gere uma imagem de ...`, `Quero uma imagem de ...`, `Me mande uma imagem de ...` e `Pode gerar uma imagem de ...` sao reconhecidas e enfileiradas em background. `/image` e `/imagine` continuam disponiveis.
+- Entrega: a imagem gerada e validada como PNG/JPEG/WEBP e enviada como foto real pela Bot API `sendPhoto`; nao e devolvido apenas um link local.
+- Recepcao: fotos e documentos de imagem enviados ao chat autorizado sao baixados do Telegram e encaminhados ao endpoint visual local com a legenda/pergunta.
+- Edicao: legendas com instrucoes explicitas (por exemplo, `Edite a foto`, `Mude o fundo`, `Remove the background`) acionam `/images/edit` local e devolvem o resultado como foto via `sendPhoto`; analises sem pedido de edicao continuam no modelo visual.
+- Geracao e edicao compartilham a mesma fila de VRAM, evitando concorrencia no ComfyUI.
+- Diagnostico: falhas de upload preservam a descricao devolvida pelo Telegram, para que erros de tamanho/formato/limite nao fiquem escondidos atras de uma mensagem generica.
+- Hardware: ComfyUI local `127.0.0.1:8188`, checkpoint DreamShaper 8, GPU RTX A2000 4 GB com low-VRAM. A fila serializa geracoes para evitar concorrencia de VRAM.
+
+### Validacao em 2026-11-20
+
+- [x] `/images/status` confirmou ComfyUI e checkpoint local disponiveis.
+- [x] Geracao real de imagem 512x512 retornou HTTP 200 e PNG valido.
+- [x] `sendPhoto` real aceito pelo Telegram para a lista autorizada.
+- [x] Fluxo completo de linguagem natural -> ComfyUI -> `sendPhoto` executado com sucesso no chat autorizado.
+- [x] 79 testes de `tests/test_telegram_bot.py` passaram, incluindo parser conversacional, entrega de fotos e roteamento de edicao local.
+- [ ] Validar recebimento e edicao de uma foto real enviada pelo usuario no chat autorizado.
+
+
+## Atualizacao ? edicao de fotos no Telegram (2026-11-20)
+
+- Legendas com intencao explicita de edicao sao reconhecidas em portugues e ingles.
+- A foto e baixada do Telegram e enviada ao endpoint local `/images/edit` (ComfyUI img2img).
+- A resposta editada e devolvida como foto real via `sendPhoto`, nao como URL.
+- Fotos sem legenda de edicao continuam sendo analisadas pelo modelo visual.
+- Documentos enviados com MIME `image/*` tambem entram no mesmo fluxo.
+- Geracao e edicao compartilham a fila de VRAM.
+- 79 testes focados passaram; falta validar uma foto real enviada pelo chat autorizado.

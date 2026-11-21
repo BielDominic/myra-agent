@@ -4,37 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MYRA</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=chat-activity-react-1?v=chatbar-1">
+    <link rel="stylesheet" href="myra-ui.css?v=cursor-global-2">
 </head>
 <body>
     <div id="island" class="island idle">
 
         <div class="view view-idle active">
-            <div class="mascot idle">
-                <div class="eye left"></div>
-                <div class="eye right"></div>
-            </div>
+            <div class="mascot"><myra-orb data-state="idle"></myra-orb></div>
             <span class="label">MYRA</span>
             <span class="status-dot"></span>
         </div>
 
         <div class="view view-running">
             <div class="header">
-                <div class="mascot running">
-                    <div class="eye left"></div>
-                    <div class="eye right"></div>
-                </div>
+                <div class="mascot"><myra-orb data-state="working"></myra-orb></div>
                 <span class="label">MYRA</span>
-                <button class="btn-close" onclick="closeWidget()" title="Fechar">×</button>
             </div>
             <div class="content">
                 <div class="state-row">
                     <span class="state-icon spinning">⚙️</span>
-                    <span class="state-text">Executando...</span>
+                    <span class="state-text myra-shining-text">Executando...</span>
                 </div>
                 <div class="tool-row">
                     <span class="tool-name" id="tool-name">—</span>
                 </div>
+                <div class="step-tracker" id="widget-step-tracker" hidden aria-live="polite"></div>
             </div>
             <div class="footer">
                 <span class="meta" id="meta-tempo">⏱ 0s</span>
@@ -45,12 +40,8 @@
 
         <div class="view view-done">
             <div class="header">
-                <div class="mascot done">
-                    <div class="eye left"></div>
-                    <div class="eye right"></div>
-                </div>
+                <div class="mascot"><myra-orb data-state="success"></myra-orb></div>
                 <span class="label">MYRA</span>
-                <button class="btn-close" onclick="closeWidget()" title="Fechar">×</button>
             </div>
             <div class="content">
                 <div class="state-row">
@@ -58,6 +49,7 @@
                     <span class="state-text">Concluído</span>
                 </div>
                 <div class="result-text" id="result-text">(sem resultado)</div>
+                <div class="step-tracker" id="widget-step-tracker-done" hidden></div>
             </div>
             <div class="footer">
                 <button class="btn btn-ok" onclick="resetWidget()">OK</button>
@@ -66,12 +58,8 @@
 
         <div class="view view-error">
             <div class="header">
-                <div class="mascot error">
-                    <div class="eye left"></div>
-                    <div class="eye right"></div>
-                </div>
+                <div class="mascot"><myra-orb data-state="error"></myra-orb></div>
                 <span class="label">MYRA</span>
-                <button class="btn-close" onclick="closeWidget()" title="Fechar">×</button>
             </div>
             <div class="content">
                 <div class="state-row">
@@ -81,12 +69,13 @@
                 <div class="result-text error-text" id="error-text">(sem mensagem)</div>
             </div>
             <div class="footer">
-                <button class="btn btn-ok" onclick="resetWidget()">Fechar</button>
+                <button class="btn btn-ok" onclick="resetWidget()">OK</button>
             </div>
         </div>
 
     </div>
 
-    <script src="script.js"></script>
+    <script src="myra-ui.js?v=cursor-global-3-eyes-eye"></script>
+    <script src="script.js?v=chat-activity-react-1"></script>
 </body>
 </html>

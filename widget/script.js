@@ -18,6 +18,10 @@ function switchToState(state, status) {
 
     island.classList.remove("idle", "running", "done", "error");
     island.classList.add(state);
+    document.querySelectorAll("myra-orb").forEach(orb => { orb.dataset.state = state === "running" ? "working" : state; });
+    const trackerStatus = status || { state };
+    window.MyraUI?.renderStepTracker(document.getElementById("widget-step-tracker"), trackerStatus, { compact: true });
+    window.MyraUI?.renderStepTracker(document.getElementById("widget-step-tracker-done"), trackerStatus, { compact: true });
 
     Object.values(views).forEach((v) => v.classList.remove("active"));
     views[state].classList.add("active");
@@ -74,9 +78,25 @@ async function cancelTask() {
     }
 }
 
+// O widget não pode se fechar por conta própria. A visibilidade é controlada
+// exclusivamente pelo switch nativo no topo do MYRA Desktop.
 function closeWidget() {
-    window.close();
+    return false;
 }
+
+const widgetThemeChannel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("myra-widget-theme-sync") : null;
+function applyWidgetTheme(theme) {
+    const normalized = theme === "light" ? "light" : "dark";
+    document.body.dataset.theme = normalized;
+    try { localStorage.setItem("myra-widget-theme-v1", normalized); } catch (_) {}
+}
+try { applyWidgetTheme(localStorage.getItem("myra-widget-theme-v1") || "dark"); } catch (_) { applyWidgetTheme("dark"); }
+widgetThemeChannel?.addEventListener("message", event => {
+    if (event.data?.type === "widget-theme") applyWidgetTheme(event.data.theme);
+});
+window.addEventListener("storage", event => {
+    if (event.key === "myra-widget-theme-v1") applyWidgetTheme(event.newValue || "dark");
+});
 
 function resetWidget() {
     switchToState("idle");

@@ -6,7 +6,7 @@ const invoke = window.__TAURI__.core.invoke;
 
 const IDLE_W = 220, IDLE_H = 44;
 const CARD_W = 440, CARD_H = 340;
-const SETTINGS_W = 380, SETTINGS_H = 550;
+const SETTINGS_W = 380, SETTINGS_H = 600;
 
 let lastState = null;
 let resetting = false;
@@ -121,8 +121,7 @@ function switchView(state) {
         delete document.body.dataset.agentInteractive;
         delete document.body.dataset.agentPanelSized;
         delete document.body.dataset.widgetSizeKey;
-        delete document.body.dataset.runningMode;
-        try { localStorage.removeItem("myra-running-mode"); } catch (_) {}
+        // Preserva o modo de execução salvo; trocar de view não deve apagar preferências do usuário.
         island.style.width = "";
         island.style.height = "";
         const modeButton = document.getElementById("btn-toggle-running-mode");
@@ -131,6 +130,8 @@ function switchView(state) {
 
     island.classList.remove("idle", "running", "done", "error", "settings");
     island.classList.add(state);
+    const orbState = state === "running" ? "working" : state === "done" ? "success" : state === "error" ? "error" : "idle";
+    document.querySelectorAll("myra-orb").forEach(orb => { orb.dataset.state = orbState; });
 
     document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
     const view = document.querySelector(".view-" + state);
@@ -197,11 +198,9 @@ function setupMascotClick() {
 }
 
 async function closeWidget() {
-    resetting = true;
-    try { await invoke('cancel_task'); } catch (e) { console.error(e); }
-    switchView("idle");
-    lastState = "idle";
-    setTimeout(() => { resetting = false; }, 1200);
+    // Oculta a janela nativa sem cancelar tarefas nem destruir a janela.
+    try { await invoke("set_widget_visible", { visible: false }); }
+    catch (e) { console.error("[WIDGET CLOSE]", e); }
 }
 
 async function resetWidget() {
@@ -220,16 +219,16 @@ async function cancelTask() {
     setTimeout(() => { resetting = false; }, 1200);
 }
 
-const widgetStudioChannel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("myra-widget-sync") : null;
-if (widgetStudioChannel) {
-    widgetStudioChannel.addEventListener("message", event => {
+const widgetSettingsChannel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("myra-widget-sync") : null;
+if (widgetSettingsChannel) {
+    widgetSettingsChannel.addEventListener("message", event => {
         if (event.data?.type !== "config") return;
-        applyWidgetStudioConfig();
-        console.log("[WIDGET SYNC] configuração recebida do Widget Studio");
+        applyWidgetSettingsConfig();
+        console.log("[WIDGET SYNC] configuração recebida das Configurações do widget");
     });
 }
 
-function applyWidgetStudioConfig() {
+function applyWidgetSettingsConfig() {
     let config = {};
     try {
         config = JSON.parse(localStorage.getItem("myra-widget-config-v1") || "{}");
@@ -240,12 +239,6 @@ function applyWidgetStudioConfig() {
     } catch (_) {}
     const island = document.getElementById("island");
     if (!island) return;
-    const accent = ["purple", "blue", "green"].includes(config.accent) ? config.accent : "purple";
-    document.body.dataset.widgetAccent = accent;
-    try {
-        const desktopPrefs = JSON.parse(localStorage.getItem("myra-desktop-prefs-v1") || "{}");
-        if (desktopPrefs.theme === "light" || desktopPrefs.theme === "dark") document.body.dataset.theme = desktopPrefs.theme;
-    } catch (_) {}
     const opacity = Math.max(85, Math.min(100, Number(config.opacity) || 100));
     island.style.opacity = String(opacity / 100);
     const width = Math.max(340, Math.min(480, Number(config.width) || 360));
@@ -266,6 +259,27 @@ function applyWidgetStudioConfig() {
     }
 }
 
+const widgetThemeChannel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("myra-widget-theme-sync") : null;
+widgetThemeChannel?.addEventListener("message", event => {
+    const theme = event.data?.type === "widget-theme" ? event.data.theme : null;
+    if (theme !== "light" && theme !== "dark") return;
+    if (typeof state !== "undefined") state.theme = theme;
+    if (typeof applyTheme === "function") {
+        // Aplica o tema recebido sem retransmitir a mensagem. Retransmitir aqui
+        // fazia o canal receber a própria alteração em looping.
+        applyTheme({ broadcast: false });
+    } else {
+        document.body.dataset.theme = theme;
+        try { localStorage.setItem("myra-widget-theme-v1", theme); } catch (_) {}
+    }
+});
+try {
+    const savedWidgetTheme = localStorage.getItem("myra-widget-theme-v1");
+    document.body.dataset.theme = savedWidgetTheme === "light" ? "light" : "dark";
+    if (typeof state !== "undefined") state.theme = document.body.dataset.theme;
+} catch (_) {}
+applyWidgetSettingsConfig();
+
 async function pollStatus() {
     if (resetting || pollInFlight) return;
     pollInFlight = true;
@@ -283,11 +297,15 @@ async function pollStatus() {
         // Reforça o painel completo em todo ciclo: preferências ou modo pill
         // não podem ocultar os controles enquanto a tarefa estiver ativa.
         if (state === "running") enforceAgentPanel();
-        applyWidgetStudioConfig();
+        applyWidgetSettingsConfig();
         document.querySelectorAll(".mascot.chat-thinking").forEach(m => m.classList.remove("chat-thinking"));
         const activeMascot = document.querySelector(".view-" + state + " .mascot");
         const chatActive = Boolean(status.chat_activity) && state !== "running";
         if (activeMascot && chatActive) activeMascot.classList.add("chat-thinking");
+        document.querySelectorAll(".view-idle myra-orb").forEach(orb => {
+            orb.dataset.state = chatActive ? "working" : "idle";
+        });
+        document.getElementById("island")?.classList.toggle("chat-active", chatActive);
         if (status.objetivo) window.__ultimoObjetivo = status.objetivo;
         renderTaskProgress(status);
         updatePauseResumeButton(status);
@@ -344,9 +362,8 @@ async function pollStatus() {
 }
 
 
-// Recursos adicionais: progresso, pausa/retomada, historico e rotinas locais
+// Recursos adicionais: progresso, pausa/retomada e histórico local de tarefas
 const MYRA_HISTORY_KEY = "myra-task-history-v1";
-const MYRA_ROUTINES_KEY = "myra-routines-v1";
 const MYRA_MAX_HISTORY = 30;
 
 function safeLocalArray(key) {
@@ -582,47 +599,6 @@ async function runMyraObjective(objective) {
     }
 }
 
-function renderRoutines() {
-    const panel = document.getElementById("routine-list");
-    if (!panel) return;
-    panel.replaceChildren();
-    const routines = safeLocalArray(MYRA_ROUTINES_KEY);
-    if (!routines.length) {
-        const empty = document.createElement("p");
-        empty.className = "local-list-empty";
-        empty.textContent = "Salve uma tarefa acima para criar sua primeira rotina.";
-        panel.appendChild(empty);
-        return;
-    }
-    routines.forEach((routine, index) => {
-        const item = document.createElement("div");
-        item.className = "routine-item";
-        const name = document.createElement("span");
-        name.className = "routine-name";
-        name.textContent = routine.name;
-        name.title = routine.objective;
-        const run = document.createElement("button");
-        run.type = "button";
-        run.className = "history-rerun";
-        run.textContent = "Rodar";
-        run.addEventListener("click", () => runMyraObjective(routine.objective));
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.className = "routine-remove";
-        remove.textContent = "×";
-        remove.title = "Remover rotina";
-        remove.setAttribute("aria-label", "Remover rotina " + routine.name);
-        remove.addEventListener("click", () => {
-            const current = safeLocalArray(MYRA_ROUTINES_KEY);
-            current.splice(index, 1);
-            localStorage.setItem(MYRA_ROUTINES_KEY, JSON.stringify(current));
-            renderRoutines();
-        });
-        item.append(name, run, remove);
-        panel.appendChild(item);
-    });
-}
-
 function setupLocalTaskTools() {
     const historyToggle = document.getElementById("btn-history-toggle");
     const historyPanel = document.getElementById("task-history");
@@ -638,35 +614,13 @@ function setupLocalTaskTools() {
         localStorage.removeItem(MYRA_HISTORY_KEY);
         renderTaskHistory();
     });
-    const saveBtn = document.getElementById("btn-save-routine");
-    saveBtn && saveBtn.addEventListener("click", () => {
-        const nameEl = document.getElementById("routine-name");
-        const objectiveEl = document.getElementById("routine-objective");
-        const name = String(nameEl && nameEl.value || "").trim();
-        const objective = String(objectiveEl && objectiveEl.value || "").trim();
-        if (!name || !objective) {
-            alert("Preencha o nome e a instrução da rotina.");
-            return;
-        }
-        const routines = safeLocalArray(MYRA_ROUTINES_KEY);
-        if (routines.length >= 20) {
-            alert("Limite de 20 rotinas. Remova uma rotina antiga para adicionar outra.");
-            return;
-        }
-        routines.push({ name: name.slice(0, 48), objective: objective.slice(0, 1200) });
-        localStorage.setItem(MYRA_ROUTINES_KEY, JSON.stringify(routines));
-        nameEl.value = "";
-        objectiveEl.value = "";
-        renderRoutines();
-    });
     renderTaskHistory();
-    renderRoutines();
 }
 
 const appWin = window.__TAURI__.window.getCurrentWindow();
 const chromeEl = document.getElementById('chrome');
 const btnSettings = document.getElementById('btn-settings');
-const btnClose = document.getElementById('btn-close');
+const btnClose = document.getElementById('btn-close-widget');
 
 btnSettings?.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -679,7 +633,7 @@ document.addEventListener('click', (e) => {
     }
 });
 
-btnClose?.addEventListener('click', () => appWin.close());
+btnClose?.addEventListener('click', () => closeWidget());
 
 const opacityEl = document.getElementById('opacity');
 const islandEl = document.getElementById('island');
@@ -691,19 +645,35 @@ if (opacityEl && islandEl) {
     opacityEl.addEventListener('input', () => {
         const val = opacityEl.value;
         islandEl.style.opacity = val / 100;
-        localStorage.setItem('myra-opacity', val);
     });
 }
 
 window.addEventListener("DOMContentLoaded", () => {
     switchView("idle");
     lastState = "idle";
+    setupAvatarSettings();
     startBlinking();
     setupMascotClick();
     setupLocalTaskTools();
-    pollStatus();
-    setInterval(pollStatus, 500);
 });
+// Keep the widget synchronized even if this script is injected after DOMContentLoaded.
+pollStatus();
+setInterval(pollStatus, 500);
+// Native global cursor tracking: keeps the WebGL eyes following the pointer even
+// when it moves outside the widget pill and therefore outside the WebView bounds.
+let cursorPollBusy=false;
+async function pollGlobalCursor(){
+    if(cursorPollBusy||document.hidden)return;
+    cursorPollBusy=true;
+    try{
+        const point=await invoke("get_cursor_relative_to_window");
+        if(point?.ok){
+            document.querySelectorAll(".view.active myra-orb").forEach(orb=>orb._trackGlobalCursor?.(point.dx,point.dy));
+        }
+    }catch(error){console.debug("[WIDGET CURSOR]",error)}
+    finally{cursorPollBusy=false}
+}
+setInterval(pollGlobalCursor,55);
 
 // ============================================================
 // Acões dos botões do card "done"
@@ -840,6 +810,7 @@ window.addEventListener("DOMContentLoaded", () => {
     const btnToggleMode = document.getElementById("btn-toggle-running-mode");
     if (btnToggleMode) {
         let runningMode = localStorage.getItem("myra-running-mode") || "full";
+        window.__myraRunningModeDraft = runningMode;
         document.body.dataset.runningMode = runningMode;
 
         const updateToggleBtn = () => {
@@ -852,7 +823,7 @@ window.addEventListener("DOMContentLoaded", () => {
             e.stopPropagation();
             runningMode = runningMode === "pill" ? "full" : "pill";
             document.body.dataset.runningMode = runningMode;
-            localStorage.setItem("myra-running-mode", runningMode);
+            window.__myraRunningModeDraft = runningMode;
             updateToggleBtn();
             // Redimensiona janela
             setWindowSize(lastState || "running");
@@ -881,6 +852,7 @@ window.addEventListener("DOMContentLoaded", () => {
     const btnTop = document.getElementById("btn-top");
     if (btnTop) {
         let travado = localStorage.getItem("myra-travado") === "on"; // default: destravado
+        window.__myraTravadoDraft = travado;
 
         const aplicarTrava = (trav) => {
             if (trav) {
@@ -913,7 +885,7 @@ window.addEventListener("DOMContentLoaded", () => {
         btnTop.addEventListener("click", () => {
             travado = !travado;
             aplicarTrava(travado);
-            localStorage.setItem("myra-travado", travado ? "on" : "off");
+            window.__myraTravadoDraft = travado;
             updateTopBtn();
             console.log("[TRAVA]", travado ? "travado" : "livre");
         });
@@ -933,7 +905,7 @@ function initWidgetDrag() {
     document.addEventListener("mousedown", (e) => {
         if (!island.contains(e.target) || e.button !== 0) return;
         // Respeita a opcao "Travar posicao" mesmo com arraste via JS.
-        if (localStorage.getItem("myra-travado") === "on") return;
+        if ((window.__myraTravadoDraft ?? (localStorage.getItem("myra-travado") === "on"))) return;
         if (e.target.closest("button, input, textarea, select, label, [contenteditable], .no-drag, .result-text, .tool-name, .state-text, .meta, .quick-actions")) return;
         e.preventDefault();
         currentWindow.startDragging().catch((err) => console.error("[DRAG] Falha ao mover a janela:", err));
@@ -990,3 +962,92 @@ document.addEventListener("keydown", (e) => {
         }, 380);
     }
 });
+
+function setupAvatarSettings(){
+    const key="myra-avatar-settings-v1", defaults={avatar:"orb",style:"animated",color:"#7C6AF6",eyeColor:"#09090B",c1:"#7C6AF6",c2:"#7DD3C7",c3:"#E8B4D4"};
+    const ids={avatar:"avatar-model",style:"avatar-style",color:"avatar-color",eyeColor:"avatar-eye-color",c1:"avatar-c1",c2:"avatar-c2",c3:"avatar-c3"};
+    const controls=Object.fromEntries(Object.entries(ids).map(([k,id])=>[k,document.getElementById(id)]));
+    const read=()=>{try{return {...defaults,...JSON.parse(localStorage.getItem(key)||"{}")}}catch(_){return {...defaults}}};
+    const collect=()=>Object.fromEntries(Object.keys(defaults).map(k=>[k,controls[k]?.value||defaults[k]]));
+    const sync=cfg=>{
+        Object.entries(controls).forEach(([k,el])=>{if(el)el.value=cfg[k]||defaults[k]});
+        window.MyraUI?.applyAvatarConfig?.(cfg);
+    };
+    const status=message=>{const el=document.getElementById("widget-settings-save-status");if(el)el.textContent=message};
+    let cfg=read();sync(cfg);
+    const markDraft=()=>{cfg=collect();sync(cfg);status("Avatar alterado apenas na prévia. Clique em Salvar ajustes.")};
+    const save=()=>{
+        cfg=collect();
+        localStorage.setItem(key,JSON.stringify(cfg));
+        sync(cfg);
+        try{const ch=new BroadcastChannel("myra-avatar-sync");ch.postMessage({type:"avatar-config",config:cfg});ch.close()}catch(_){}
+        status("Avatar salvo.");
+    };
+    window.__myraSaveAvatarSettings=save;
+    Object.values(controls).forEach(el=>{el?.addEventListener("input",markDraft);el?.addEventListener("change",markDraft)});
+    document.getElementById("avatar-save")?.addEventListener("click",save);
+    document.getElementById("avatar-reset")?.addEventListener("click",()=>{cfg={...defaults};sync(cfg);status("Padrões restaurados na prévia. Clique em Salvar ajustes.")});
+    window.addEventListener("storage",e=>{if(e.key===key)sync(read())});
+}
+
+
+/* Rotinas rápidas locais: enviadas ao chat desktop apenas após ação explícita. */
+const MYRA_ROUTINES_KEY = "myra-routines-v1";
+function readMyraRoutines() {
+    try {
+        const value = JSON.parse(localStorage.getItem(MYRA_ROUTINES_KEY) || "[]");
+        return Array.isArray(value) ? value.filter(item => item && typeof item.name === "string" && typeof item.objective === "string").slice(0, 20) : [];
+    } catch (_) { return []; }
+}
+function saveMyraRoutines(routines) {
+    localStorage.setItem(MYRA_ROUTINES_KEY, JSON.stringify(routines.slice(0, 20)));
+}
+function renderMyraRoutines() {
+    const host = document.getElementById("routine-list");
+    if (!host) return;
+    host.replaceChildren();
+    const routines = readMyraRoutines();
+    routines.forEach((routine, index) => {
+        const row = document.createElement("div");
+        row.className = "routine-row";
+        const label = document.createElement("span");
+        label.textContent = routine.name;
+        label.title = routine.objective;
+        const run = document.createElement("button");
+        run.type = "button"; run.className = "set-btn"; run.textContent = "Executar";
+        run.addEventListener("click", () => {
+            try {
+                const channel = new BroadcastChannel("myra-routine-run");
+                channel.postMessage({ type: "run-routine", objective: routine.objective });
+                channel.close();
+                const status = document.getElementById("routine-status");
+                if (status) status.textContent = "Rotina enviada ao chat da MYRA.";
+            } catch (error) {
+                const status = document.getElementById("routine-status");
+                if (status) status.textContent = "Não foi possível abrir o chat: " + error.message;
+            }
+        });
+        const remove = document.createElement("button");
+        remove.type = "button"; remove.className = "set-btn"; remove.textContent = "Excluir";
+        remove.addEventListener("click", () => {
+            const next = readMyraRoutines(); next.splice(index, 1); saveMyraRoutines(next); renderMyraRoutines();
+        });
+        row.append(label, run, remove); host.append(row);
+    });
+}
+function addMyraRoutine() {
+    const name = document.getElementById("routine-name")?.value.trim() || "";
+    const objective = document.getElementById("routine-objective")?.value.trim() || "";
+    const status = document.getElementById("routine-status");
+    if (!name || !objective) { if (status) status.textContent = "Informe o nome e o objetivo."; return; }
+    const routines = readMyraRoutines();
+    if (routines.length >= 20) { if (status) status.textContent = "Limite de 20 rotinas atingido. Exclua uma para adicionar outra."; return; }
+    routines.push({ id: crypto.randomUUID(), name, objective, createdAt: Date.now() });
+    saveMyraRoutines(routines);
+    document.getElementById("routine-name").value = "";
+    document.getElementById("routine-objective").value = "";
+    if (status) status.textContent = "Rotina salva neste dispositivo.";
+    renderMyraRoutines();
+}
+document.getElementById("routine-add")?.addEventListener("click", addMyraRoutine);
+renderMyraRoutines();

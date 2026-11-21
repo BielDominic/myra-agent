@@ -120,7 +120,7 @@ body {
 
 
 .island.idle      { width: 200px; height: 44px; }
-.island.settings  { width: 340px; height: 400px; }
+.island.settings  { width: 380px; height: 600px; max-width: calc(100vw - 12px); max-height: calc(100vh - 12px); }
 .island.running,
 .island.done,
 .island.error     { width: 340px; height: 260px; }
@@ -933,3 +933,54 @@ body[data-theme="light"] .island .range-labels { color: #64748b; }
 /* Keep the mascot visually compact even during hover and activity animations. */
 .mascot:hover{transform:scale(1.03)!important}
 @keyframes pulse-running{0%,100%{transform:scale(1) rotate(0deg)}50%{transform:scale(1.04) rotate(3deg)}}
+
+.avatar-preview-row{display:flex;align-items:center;gap:12px;padding:8px 2px 12px;color:var(--text-dim);font-size:11px}
+.avatar-settings-preview{width:68px!important;height:68px!important;min-width:68px}
+.avatar-settings-preview canvas{width:100%;height:100%}
+.avatar-settings-panel select{max-width:132px;min-width:118px;background:var(--bg-card);color:var(--text-main);border:1px solid var(--border-accent);border-radius:8px;padding:7px;font:inherit;font-size:11px}
+.avatar-settings-panel input[type=color]{width:38px;height:28px;padding:2px;border:1px solid var(--border-accent);border-radius:7px;background:transparent;cursor:pointer}
+.avatar-settings-panel .routine-save{width:100%;margin-top:9px}
+myra-orb[data-avatar-style="minimal"]{filter:grayscale(.88) saturate(.45)}
+myra-orb[data-avatar-style="minimal"][data-state="working"]{filter:grayscale(.88) saturate(.45) drop-shadow(0 0 8px #7c3aed77)}
+
+
+/* Uiverse loader adaptation — From Uiverse.io by satyamchaudharydev
+   https://uiverse.io/satyamchaudharydev/splendid-husky-54
+   MIT License, Copyright (c) satyamchaudharydev (satyam) */
+.myra-domino-loader{position:relative;width:118px;height:32px;flex:0 0 118px;display:inline-flex;justify-content:center;align-items:center;overflow:visible}
+.myra-domino-loader span{position:absolute;top:50%;left:var(--left);width:35px;height:7px;border-radius:2px;background:#f8f7ff;animation:myra-dominos 1s ease infinite;box-shadow:2px 2px 3px #0009;transform-origin:center}
+.myra-domino-loader span:nth-child(1){--left:80px;animation-delay:.125s}
+.myra-domino-loader span:nth-child(2){--left:70px;animation-delay:.3s}
+.myra-domino-loader span:nth-child(3){left:60px;animation-delay:.425s}
+.myra-domino-loader span:nth-child(4){left:50px;animation-delay:.54s}
+.myra-domino-loader span:nth-child(5){left:40px;animation-delay:.665s}
+.myra-domino-loader span:nth-child(6){left:30px;animation-delay:.79s}
+.myra-domino-loader span:nth-child(7){left:20px;animation-delay:.915s}
+.myra-domino-loader span:nth-child(8){left:10px}
+@keyframes myra-dominos{50%{opacity:.7}75%{transform:rotate(90deg)}80%{opacity:1}}
+body[data-theme="light"] .myra-domino-loader span{background:#45366b;box-shadow:2px 2px 3px #27324755}
+.mascot.chat-thinking myra-orb{filter:drop-shadow(0 0 9px #8b5cf6aa);animation:myra-chat-react 1.2s ease-in-out infinite alternate}
+@keyframes myra-chat-react{from{transform:scale(1)}to{transform:scale(1.13)}}
+
+.island.chat-active{border-color:#9b78ff!important;box-shadow:0 0 0 2px #8b5cf622,0 0 24px #7c3aed44,inset 0 0 20px #06b6d410}\n
+/* MYRA orb visibly responds while the desktop chat is generating a reply. */
+#island.chat-active .mascot myra-orb{filter:drop-shadow(0 0 9px #06b6d477) drop-shadow(0 0 18px #7c3aed55);animation:myra-chat-react 1.25s ease-in-out infinite}
+@keyframes myra-chat-react{0%,100%{transform:scale(1)}50%{transform:scale(1.045)}}
+@media(prefers-reduced-motion:reduce){#island.chat-active .mascot myra-orb{animation:none}}
+
+/* Evita o efeito de pulsa??o cont?nua que fazia o avatar do widget parecer piscar durante o chat. */
+#island.chat-active .mascot myra-orb{animation:none!important;filter:none!important}
+
+/* Widget settings: draft controls are committed only by the explicit save button. */
+.widget-setting-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.settings-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+#widget-settings-save-status{font-size:10px;opacity:.75}
+#btn-save-settings{border-color:var(--myra-accent,#7c3aed);color:var(--myra-accent,#7c3aed);white-space:nowrap}
+
+/* High-contrast native option menus (WebView2 / Windows). */
+select, select:focus { color-scheme: dark; background-color: #171923 !important; color: #f4f2fa !important; }
+select option, select optgroup { background-color: #171923 !important; color: #f4f2fa !important; }
+body[data-theme="light"] select, body[data-theme="light"] select:focus { color-scheme: light; background-color: #ffffff !important; color: #182235 !important; }
+body[data-theme="light"] select option, body[data-theme="light"] select optgroup { background-color: #ffffff !important; color: #182235 !important; }
+
+.routine-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border,#303044)}.routine-row span{flex:1;min-width:0;overflow-wrap:anywhere;color:var(--text-main,var(--text,#eee))}.routine-row button{flex:none}

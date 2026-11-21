@@ -522,7 +522,7 @@ def test_election_question_is_routed_to_web_search_not_local_chat():
     web_questions = []
     bot._handle_web_question = lambda chat_id, text: web_questions.append((chat_id, text))
 
-    question = "Qual foi o resultado das elei\\u00e7\\u00f5es?"
+    question = "Qual foi o resultado das elei\u00e7\\u00f5es?"
     bot._route_text_message("123", question)
 
     assert web_questions == [("123", question)]
@@ -1123,9 +1123,12 @@ def test_jan8_stf_filter_accepts_official_specific_criminal_decision():
 
 
 
-def test_telegram_image_generation_sends_local_png_and_records_turn():
+def test_telegram_image_generation_sends_local_png_and_records_turn(tmp_path, monkeypatch):
     import base64
+    import tasks.telegram_bot as module
 
+    # Nunca deixe uma geração de teste sobrescrever a referência visual real do usuário.
+    monkeypatch.setattr(module, "CHAT_IMAGE_REFERENCE_FILE", tmp_path / "test-image-refs.json")
     http = FakeHTTP()
     bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
     png = b"\x89PNG\r\n\x1a\n" + b"test-image"
@@ -1284,3 +1287,226 @@ def test_telegram_image_generation_serializes_jobs_for_low_vram():
     assert not worker.is_alive()
     assert routes == ["/images/status"]
     assert not bot._image_generation_lock.locked()
+
+
+
+def test_telegram_image_prompt_parser_accepts_conversational_pt_br_and_english():
+    cases = {
+        "Quero uma imagem de um cachorro": "um cachorro",
+        "Gere uma foto realista de um cachorro": "realista de um cachorro",
+        "Me mande uma fotografia de uma paisagem": "uma paisagem",
+        "Me mande uma imagem de um cachorro": "um cachorro",
+        "Me envia uma imagem de um cachorro": "um cachorro",
+        "Pode gerar uma imagem de um cachorro?": "um cachorro",
+        "Fa\u00e7a uma imagem de um cachorro": "um cachorro",
+        "Quero que a Myra fa\u00e7a uma imagem de um cachorro": "um cachorro",
+        "Generate an image of a dog": "a dog",
+        "Can you create an image of a dog?": "a dog",
+        "Responda com uma imagem de um castelo": "um castelo",
+    }
+    for message, expected in cases.items():
+        assert TelegramBot._extract_image_generation_prompt(message) == expected
+
+    for ordinary_message in (
+        "Quem e voce?",
+        "O que aparece na imagem?",
+        "Me mande uma mensagem de bom dia",
+    ):
+        assert TelegramBot._extract_image_generation_prompt(ordinary_message) is None
+
+
+def test_telegram_conversational_image_request_queues_generation(monkeypatch):
+    import tasks.telegram_bot as module
+    started = []
+
+    class CapturedThread:
+        def __init__(self, target, args, kwargs=None, name=None, daemon=None):
+            self.target, self.args = target, args
+        def start(self):
+            started.append((self.target, self.args))
+
+    monkeypatch.setattr(module.threading, "Thread", CapturedThread)
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    bot._route_text_message("123", "Quero uma imagem de um cachorro")
+
+    assert len(started) == 1
+    assert started[0][0].__name__ == "_generate_image_for_chat"
+    assert started[0][1] == ("123", "um cachorro")
+    assert any(
+        "/sendMessage" in call[1] and "gerando a imagem localmente" in call[2]["text"]
+        for call in http.calls
+    )
+
+
+
+def test_telegram_full_body_followup_continues_the_last_generated_image():
+    history = [
+        {"role": "user", "content": "[Geracao de imagem] A nude blonde woman"},
+        {"role": "assistant", "content": "[Imagem gerada] MYRA_001.png"},
+    ]
+    prompt = TelegramBot._extract_image_followup_prompt("Corpo todo", history)
+    assert prompt == "Full-body composition, head to toe, wider framing. Preserve the same adult subject and facial identity."
+
+
+def test_telegram_full_body_followup_requires_recent_generated_image():
+    history = [
+        {"role": "user", "content": "Qual a previsão do tempo?"},
+        {"role": "assistant", "content": "Hoje vai chover."},
+    ]
+    assert TelegramBot._extract_image_followup_prompt("Corpo todo", history) is None
+    assert TelegramBot._extract_image_followup_prompt(
+        "Corpo todo",
+        [{"role": "user", "content": "[Geracao de imagem] A portrait"},
+         {"role": "assistant", "content": "[Imagem gerada] image.png"}],
+    )
+
+
+def test_telegram_image_edit_intent_detector_handles_pt_br_and_english():
+    cedilla = chr(0xE7)
+    circumflex = chr(0xEA)
+    assert TelegramBot._extract_image_edit_prompt("Edite a foto para parecer uma fotografia profissional")
+    assert TelegramBot._extract_image_edit_prompt("Quero que voc" + circumflex + " edite a imagem e mude o fundo")
+    assert TelegramBot._extract_image_edit_prompt("Myra, remove the background")
+    assert TelegramBot._extract_image_edit_prompt("Transforme esta foto em uma pintura a oleo")
+    assert TelegramBot._extract_image_edit_prompt("Mude o fundo para uma praia")
+    assert TelegramBot._extract_image_edit_prompt("Change the background to a beach")
+    assert TelegramBot._extract_image_edit_prompt("Adicione um cachorro ao meu lado")
+    assert TelegramBot._extract_image_edit_prompt("Fa" + cedilla + "a a foto parecer cinematografica")
+    assert TelegramBot._extract_image_edit_prompt("Descreva esta foto") is None
+    assert TelegramBot._extract_image_edit_prompt("O que aparece na imagem?") is None
+
+
+def test_telegram_incoming_photo_with_edit_caption_returns_edited_photo(tmp_path, monkeypatch):
+    import base64
+    import tasks.telegram_bot as module
+
+    monkeypatch.setattr(module, "CHAT_IMAGE_REFERENCE_FILE", tmp_path / "edited-test-image-refs.json")
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    downloaded = b"\xff\xd8\xffsource-jpeg"
+    edited = b"\x89PNG\r\n\x1a\n" + b"edited-png-bytes"
+    class DownloadResponse:
+        content = downloaded
+        def raise_for_status(self):
+            return None
+
+    bot._telegram = lambda method, **kwargs: {"result": {"file_path": "photos/source.jpg"}}
+    bot.http.get = lambda *args, **kwargs: DownloadResponse()
+    calls = []
+    def fake_agent_request(method, route, payload=None, timeout=20):
+        calls.append((method, route, payload, timeout))
+        return {"data_url": "data:image/png;base64," + base64.b64encode(edited).decode("ascii"),
+                "filename": "myra-edited.png"}
+    bot._agent_request = fake_agent_request
+    sent_photos = []
+    bot._send_photo_bytes = lambda chat_id, content, filename, caption="": sent_photos.append(
+        (chat_id, content, filename, caption)
+    ) or True
+    bot._send_message = lambda *args, **kwargs: None
+
+    bot._handle_incoming_photo("123", {
+        "photo": [{"file_id": "telegram-file-id", "file_size": len(downloaded)}],
+        "caption": "Edite a foto e mude o fundo para uma praia",
+    })
+
+    assert len(calls) == 1
+    assert calls[0][1] == "/images/edit"
+    assert calls[0][2]["include_data_url"] is True
+    assert calls[0][2]["image_data_url"].startswith("data:image/jpeg;base64,")
+    assert "mude o fundo para uma praia" in calls[0][2]["prompt"]
+    assert sent_photos == [("123", edited, "myra-edited.png", "Foto editada localmente pela MYRA")]
+
+
+def test_telegram_image_followup_recognizes_pose_and_face_preservation():
+    history = [
+        {"role": "user", "content": "[Geracao de imagem] Adult woman portrait"},
+        {"role": "assistant", "content": "[Imagem gerada] MYRA_002.png"},
+    ]
+    prompt = TelegramBot._extract_image_followup_prompt("Agora ela dando tchau, não mude o rosto", history)
+    assert prompt is not None
+    assert "dando tchau" in prompt
+    assert "Preserve the same adult subject" in prompt
+    assert "exact facial identity" in prompt
+    assert "fully clothed and non-explicit" in prompt
+
+
+def test_telegram_image_followup_requires_generated_image_context():
+    history = [
+        {"role": "user", "content": "Oi"},
+        {"role": "assistant", "content": "Olá!"},
+    ]
+    assert TelegramBot._extract_image_followup_prompt("Agora ela dando tchau", history) is None
+
+
+def test_telegram_image_pose_followup_routes_to_reference_edit(monkeypatch):
+    import tasks.telegram_bot as module
+    started = []
+
+    class CapturedThread:
+        def __init__(self, target, args, kwargs=None, name=None, daemon=None):
+            started.append((target, args, name))
+        def start(self):
+            pass
+
+    monkeypatch.setattr(module.threading, "Thread", CapturedThread)
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=FakeHTTP())
+    bot._chat_history["123"] = [
+        {"role": "user", "content": "[Geracao de imagem] Adult portrait"},
+        {"role": "assistant", "content": "[Imagem gerada] portrait.png"},
+    ]
+    bot._last_generated_image["123"] = "data:image/png;base64,ZmFrZQ=="
+    bot._route_text_message("123", "Agora ela dando tchau, não mude o rosto")
+
+    assert len(started) == 1
+    assert started[0][0].__name__ == "_edit_photo_for_chat"
+    assert started[0][1][0:2] == ("123", "data:image/png;base64,ZmFrZQ==")
+    assert "exact facial identity" in started[0][1][2]
+
+
+def test_image_followup_allows_assistant_description_after_image_marker():
+    history = [
+        {"role": "user", "content": "[Geracao de imagem] Adult woman portrait, fully clothed"},
+        {"role": "assistant", "content": "[Imagem gerada] MYRA_00021_.png"},
+        {"role": "assistant", "content": "Na imagem, a pessoa está em pé."},
+    ]
+    prompt = TelegramBot._extract_image_followup_prompt("Ela dando tchau, não mude o rosto", history)
+    assert prompt is not None
+    assert "dando tchau" in prompt
+    assert "exact facial identity" in prompt
+
+
+def test_image_followup_recognizes_filename_only_history_but_requires_real_reference():
+    history = [
+        {"role": "user", "content": "Gere uma foto de uma mulher adulta"},
+        {"role": "assistant", "content": "MYRA: MYRA_00022_.png\\nNa imagem, a pessoa está sorrindo."},
+    ]
+    prompt = TelegramBot._extract_image_followup_prompt("Ela dando tchau, não mude o rosto", history)
+    assert prompt is not None
+    assert "dando tchau" in prompt
+
+
+def test_last_generated_image_reference_persists_across_bot_restart(tmp_path, monkeypatch):
+    import tasks.telegram_bot as module
+    reference_file = tmp_path / "last-image-refs.json"
+    monkeypatch.setattr(module, "CHAT_IMAGE_REFERENCE_FILE", reference_file)
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=FakeHTTP())
+    data_url = "data:image/png;base64,ZmFrZQ=="
+    bot._persist_last_generated_image("123", data_url)
+    restored = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=FakeHTTP())
+    assert restored._last_generated_image["123"] == data_url
+
+
+def test_telegram_chat_activity_is_forwarded_to_widget_and_cleared():
+    http = FakeHTTP()
+    bot = TelegramBot(token="test-token", allowed_chat_ids={"123"}, http=http)
+    bot._route_text_message = lambda chat_id, user_text: None
+
+    bot._route_text_message_guarded("123", "Olá, MYRA")
+
+    activity = [
+        call[2]["active"]
+        for call in http.calls
+        if call[0] == "POST" and call[1].endswith("/chat_activity")
+    ]
+    assert activity == [True, False]

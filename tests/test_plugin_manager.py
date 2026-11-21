@@ -72,7 +72,7 @@ def test_rejects_tool_type_and_requested_permissions():
     with zipfile.ZipFile(rebuilt, "w") as archive:
         for name, data in files.items():
             archive.writestr(name, data)
-    with pytest.raises(ValueError, match="apenas plugins declarativos"):
+    with pytest.raises(ValueError, match="entry_point incompatível"):
         pm.validate_archive(rebuilt.getvalue())
 
 
@@ -211,3 +211,33 @@ def test_enabled_skill_content_is_available_as_bounded_local_context(monkeypatch
     assert active[0]["id"] == "example.context-skill"
     assert "Only declarative text" in active[0]["content"]
     assert pm.get_enabled_instructions(max_total_bytes=4) == [{"id": "example.context-skill", "name": "Safe Skill", "content": "# In"}]
+
+
+def test_builtin_myra_catalog_packages_are_installable_and_valid():
+    catalog = pm.get_catalog()
+    installable = {item["id"] for item in catalog["plugins"] if item.get("installable")}
+    assert installable == set(pm.BUILTIN_PACKAGES)
+    for plugin_id in installable:
+        payload = pm.build_builtin_package(plugin_id)
+        manifest, members, digest = pm.validate_archive(payload)
+        assert manifest["id"] == plugin_id
+        assert manifest["type"] == "skill"
+        assert len(members) == 4
+        assert len(digest) == 64
+
+
+def test_builtin_package_download_route(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+    import agent
+
+    monkeypatch.setenv("MYRA_PLUGIN_DIR", str(tmp_path / "download-plugins"))
+    monkeypatch.setattr(agent, "_telegram_startup", lambda: None)
+    monkeypatch.setattr(agent, "_telegram_shutdown", lambda: None)
+    with TestClient(agent.app) as client:
+        response = client.get("/plugins/catalog/myra.code-review/package")
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/zip")
+        manifest, _, _ = pm.validate_archive(response.content)
+        assert manifest["id"] == "myra.code-review"
+        missing = client.get("/plugins/catalog/myra.not-real/package")
+        assert missing.status_code == 404

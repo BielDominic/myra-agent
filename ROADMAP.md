@@ -149,7 +149,8 @@
 - [ ] Runtime seguro de plugins executáveis, permissões por capacidade, ativação real, sandbox e rollback.
 - [ ] Migrar as ferramentas e skills já existentes do Open WebUI para a interface nativa, preservando BrowserAgent e integrações atuais.
 - [ ] Code Studio com editor de linguagem completo, console, logs, testes, árvore de projeto e preview responsivo.
-- [ ] Integração de imagens no chat, anexos multimodais e análise visual.
+- [x] Telegram: geracao/edicao local de imagens via ComfyUI, entrega real por `sendPhoto`, recebimento de fotos/documentos e analise visual; parser natural PT/EN ampliado e testado (79 testes).
+- [ ] Interface nativa: anexos multimodais, geracao/edicao inline, galeria de resultados e sincronizacao com historico local.
 - [x] STT/TTS locais com Whisper Small + Kokoro ONNX, selecao de modelos/vozes e transcricao de audio.
 - [ ] Memória de projeto, sumarização contextual, busca semântica e controles de retenção.
 - [x] Reorganizar backups, notas de contexto, relatórios de fase e scripts de patch em pastas dedicadas, preservando os arquivos locais.
@@ -191,11 +192,14 @@
 - [x] Comando de voz enviado automaticamente recebe resposta falada mesmo com leitura global desativada.
 - [x] WAV gerado e validado para pt-BR, en-US e en-GB; selecao de vozes validada.
 - [x] Round-trip TTS -> STT testado em portugues e ingles com modelo local small.
-- [ ] Teste real de microfone/alto-falante no Tauri/WebView com dispositivo fisico.
+- [x] VAD local por RMS no Web Audio, segmentacao por silencio (850 ms), limite de trecho (8 s), cancelamento de eco e supressao de ruido do microfone.
+- [x] Prototipo de ativacao "Hey MYRA" via Whisper local, com variantes de transcricao, som de confirmacao e indicador visual (desligado/escutando/processando/ativado/erro); preferencia persistida em `/runtime/config`.
+- [x] Cancelamento da requisicao de transcricao ao desativar a escuta, evitando que um resultado atrasado envie um comando depois de desligar o microfone.
+- [ ] Teste real de microfone/alto-falante no Tauri/WebView com dispositivo fisico; ainda nao homologado.
+- [ ] Detector KWS dedicado para "Hey MYRA" (o prototipo atual segmenta fala e usa Whisper; nao e um detector de palavra-chave em tempo real).
+- [ ] Testes de falsas ativacoes, ruido ambiente, distancia, sotaques e limiar configuravel.
+- [ ] Selecao de microfone/saida, controle de volume e interrupcao de fala.
 - [ ] Validar instalacao limpa, primeiro arranque sem internet e reinicio do Windows sem baixar modelos.
-- [ ] VAD/segmentacao por silencio, selecao de microfone/saida, controle de volume e wake word local com testes de falsas ativacoes.
-- [ ] VAD/silencio, eco, interrupcao, selecao de microfone/saida e volume.
-- [ ] Wake word local "MYRA" com limiar configuravel e testes contra ativacoes falsas; permanece desativada.
 
 #### FASE 26 - Ciclo Autonomo Completo
 ![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
@@ -329,16 +333,17 @@
 - [ ] (Pos-distribuicao) Implementar/validar APNs push; exige Team ID, chave APNs e registro do dispositivo, ainda nao configurados.
 
 #### FASE 31 - Interface Propria
-![Bloqueada](https://img.shields.io/badge/-BLOQUEADA-red?style=flat-square)
+![Em progresso](https://img.shields.io/badge/-EM_PROGRESSO-yellow?style=flat-square)
 
-**Bloqueada por:** FASE 27 (overlay) + FASE 30 (distribuicao)
+**Estado real em 2026-11-21:** workspace desktop nativo HTML/CSS/JS em uso; nao e Svelte/SolidJS. A interface principal nao depende do Open WebUI para abrir o chat e executar as funcoes locais, mas ainda existem componentes de compatibilidade no repositorio.
 
 - [ ] Design (Figma)
-- [ ] Frontend Svelte/SolidJS
-- [ ] WebSocket com agent.py
-- [ ] Chat com markdown
-- [ ] Painel de tasks em execucao
-- [ ] Migracao do Open WebUI
+- [x] Frontend desktop nativo HTML/CSS/JavaScript (decisao arquitetural; migracao Svelte/SolidJS nao adotada)
+- [ ] WebSocket com agent.py (estado e tarefas ainda usam polling em partes da interface)
+- [ ] Chat com markdown completo (mensagens ainda nao oferecem renderizador Markdown completo)
+- [x] Painel de tasks em execucao no widget flutuante, com etapas, pausa/retomada/cancelamento ligados ao backend
+- [ ] Migracao e remocao integral de toda compatibilidade Open WebUI (chat desktop nativo ativo; compatibilidade residual documentada)
+
 
 ---
 
@@ -1301,6 +1306,32 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 - [ ] Validar o novo fluxo completo em instalação limpa do Windows (core, opt-in ML, Ollama e primeiro modelo).
 - [ ] Validar instalação e setup equivalentes no macOS; os endpoints de Ollama/winget são específicos do Windows nesta etapa.
 
+## 2026-11-20 — Telegram image follow-up routing
+
+- [x] Recognize short composition follow-ups such as “Corpo todo” only when the latest assistant turn is a generated image.
+- [x] Reuse the original image prompt and add a full-body/head-to-toe/wider-framing instruction; route directly to local ComfyUI rather than the general chat model.
+- [x] Avoid changing unrelated conversations; regression tests cover both positive and negative context.
+- [x] Telegram test suite: 81 passed; installed backend and installer source synchronized; backend restarted and Telegram/ComfyUI health checked.
+
+## 2026-11-20 — Desktop image generation UX repair
+
+- [x] Removed the forced first-run setup screen from startup; setup remains available from the sidebar but no longer hides chat and its image tools.
+- [x] Fixed the desktop image-generation request to use the tested 512×768, 25-step profile for the RTX A2000 4 GB GPU.
+- [x] Added generator health checks, useful API errors, prompt retention on failure, and verification that the returned image loads before it is saved in conversation history.
+- [x] Fixed eager loading for detached generated-image elements.
+- [x] Playwright end-to-end test: clean first-run profile, visible composer and enabled image button, click Generate, real local ComfyUI generation, image visible in chat, no JS errors.
+- [ ] Package and publish a new Windows installer/release after final acceptance.
+
+## 2026-11-20 — Photorealistic image generation and prompt fidelity
+
+- [x] Installed Realistic Vision V6.0 B1 fp16 SD 1.5 checkpoint and the recommended Stability AI VAE locally; DreamShaper remains available as fallback.
+- [x] Added local CPU-only Qwen literal translation, preserving requested attributes (including explicit hair color and clothing/nudity state) without inventing settings or poses; Ollama failure falls back to the untouched original prompt.
+- [x] Added prompt provenance fields to generation results: original prompt, processed prompt and enhancement status.
+- [x] Tuned sampler to DPM++ 2M SDE / Karras, 25–30 steps, CFG 5.5; added conditional negative prompting so nudity is not suppressed when explicitly requested and is not introduced into unrelated portraits.
+- [x] Verified model and VAE files by SHA-256, ComfyUI model availability, and real 512×768 generations on the RTX A2000 4 GB profile; confirmed the literal translator maps “Gere a imagem de uma loira pelada” to “A nude blonde woman” without adding a beach or tan.
+- [x] Added regression coverage for prompt translation, fallback behavior, explicit nudity preservation, external VAE wiring and the photorealistic sampler.
+- [ ] Validate real Telegram generation from the user's exact natural-language request and assess visual fidelity across multiple prompt types; no universal semantic image verifier is claimed.
+
 ## 2026-11-19 — Telegram image flow, Windows updater and plugin status clarity
 
 - [x] Telegram accepts `/image`, `/imagine`, `/gerar`, `/image_status` and natural-language image requests; generation runs in a background worker so polling/chat can continue.
@@ -1340,3 +1371,16 @@ Detailed status and validation evidence: `PHASE28_MOBILE.md`.
 - [x] Installer preparation provisions and validates every model before packaging; setup refuses to continue if either offline speech model is missing.
 - [x] Verified offline wheelhouse resolution in a fresh Python 3.14 environment; TTS WAV generation passed for three language profiles and STT round-trip passed for Portuguese and English.
 - [ ] Physical microphone/speaker validation in the Tauri WebView and clean offline install/reboot test remain.
+
+
+
+### Voice - local activation phrase (initial implementation)
+- [x] Desktop activation flow using the local microphone and browser-side energy VAD.
+- [x] Verify "Hey MYRA" with local Faster-Whisper; common ASR variants include "Hey Mira", "Ei MYRA" and "Oi MYRA".
+- [x] After activation, capture the next speech segment, transcribe locally and submit according to auto_send.
+- [x] Explicit enable/disable control; microphone tracks are released when disabled or when the window closes.
+- [ ] Validate with a physical microphone, distance, ambient noise and false-trigger testing.
+- [ ] Evaluate a dedicated low-latency keyword-spotting model if Whisper CPU/latency is excessive.
+- [ ] Rebuild and package the Windows installer with the updated interface.
+
+Technical note: this initial version uses browser voice-activity detection plus local Whisper transcription as the wake-phrase verifier. It is not yet a dedicated KWS model; audio is not sent to cloud services.

@@ -8,7 +8,7 @@ const _invoke = window.__TAURI__.core.invoke;
 
 // ---------- Estado ----------
 const state = {
-    theme:   localStorage.getItem('myra-theme')   || 'dark',
+    theme:   localStorage.getItem('myra-widget-theme-v1') || 'dark',
     sound:   localStorage.getItem('myra-sound')   !== 'off',
     compact: localStorage.getItem('myra-compact') === 'on',
     dnd:     localStorage.getItem('myra-dnd')     === 'on',
@@ -35,6 +35,10 @@ async function applyWindowSize(mode) {
         : mode === 'settings' ? null
         : (document.body.dataset.runningMode === 'pill' ? 'pill' : 'running');
     setTimeout(() => {
+        const island = document.getElementById('island');
+        // A delayed idle/card resize must never override the settings panel.
+        if (island?.classList.contains('settings') && mode !== 'settings') return;
+        if (!island?.classList.contains('settings') && mode === 'settings') return;
         const request = size
             ? _invoke('set_widget_size', { size })
             : _invoke('resize_window', { width: s.w, height: s.h });
@@ -43,8 +47,52 @@ async function applyWindowSize(mode) {
 }
 
 // ---------- Tema ----------
-function applyTheme() {
+function markWidgetSettingsDirty() {
+    const status = document.getElementById('widget-settings-save-status');
+    if (status) status.textContent = 'Alterações pendentes. Clique em Salvar ajustes.';
+}
+function saveWidgetSettings() {
+    const opacity = document.getElementById('opacity');
+    const values = {
+        'myra-widget-theme-v1': state.theme,
+        'myra-sound': state.sound ? 'on' : 'off',
+        'myra-compact': state.compact ? 'on' : 'off',
+        'myra-gpu-monitor': state.gpuMonitor ? 'on' : 'off',
+        'myra-dnd': state.dnd ? 'on' : 'off',
+        'myra-color': state.color,
+        'myra-opacity': opacity?.value || '100',
+        'myra-travado': window.__myraTravadoDraft ? 'on' : 'off',
+        'myra-running-mode': window.__myraRunningModeDraft || document.body.dataset.runningMode || 'full',
+        'myra-ontop': state.onTop ? 'on' : 'off'
+    };
+    Object.entries(values).forEach(([key, value]) => localStorage.setItem(key, value));
+    window.__myraSaveAvatarSettings?.();
+    applyTheme({ persist: true, broadcast: true });
+    applyOnTop();
+    applyCompact();
+    // Salvar as preferências não pode recolher a janela enquanto o painel de
+    // configurações está aberto. O tamanho compacto só se aplica ao sair.
+    const island = document.getElementById('island');
+    if (island?.classList.contains('settings')) {
+        if (typeof setWindowSize === 'function') setWindowSize('settings');
+        else applyWindowSize('settings');
+    }
+    const status = document.getElementById('widget-settings-save-status');
+    if (status) status.textContent = 'Ajustes do widget salvos.';
+}
+function applyTheme(options = {}) {
+    const persist = options.persist === true;
+    const broadcast = options.broadcast === true;
     document.body.dataset.theme = state.theme;
+    try {
+        if (persist) localStorage.setItem('myra-widget-theme-v1', state.theme);
+        // Somente o botão Salvar publica o tema para a outra janela.
+        if (broadcast && typeof BroadcastChannel !== 'undefined') {
+            const channel = new BroadcastChannel('myra-widget-theme-sync');
+            channel.postMessage({ type: 'widget-theme', theme: state.theme });
+            channel.close();
+        }
+    } catch (_) {}
     const btn = document.getElementById('btn-theme');
     if (btn) btn.classList.toggle('active', state.theme === 'light');
     if (btn) btn.textContent = state.theme === 'light' ? 'Tema claro' : 'Tema escuro';
@@ -287,6 +335,11 @@ function closeSettings() {
 
 // ---------- Binds ----------
 function bindButtons() {
+    document.getElementById('btn-save-settings')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        saveWidgetSettings();
+    });
+
     // Engrenagem -> abre settings
     document.getElementById('btn-open-settings')?.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -306,41 +359,44 @@ function bindButtons() {
         window.__TAURI__.window.getCurrentWindow().close();
     });
 
+    // Sempre no topo: pré-visualização local; só o botão Salvar altera a janela nativa.
+    const topButton = document.getElementById('btn-always-on-top');
+    const syncTopButton = () => { if (topButton) { topButton.textContent = state.onTop ? 'Ativado' : 'Desativado'; topButton.classList.toggle('active', state.onTop); } };
+    syncTopButton();
+    topButton?.addEventListener('click', (e) => { e.stopPropagation(); state.onTop = !state.onTop; syncTopButton(); markWidgetSettingsDirty(); });
+
     // Tema
     document.getElementById('btn-theme')?.addEventListener('click', (e) => {
         e.stopPropagation();
         state.theme = state.theme === 'dark' ? 'light' : 'dark';
-        localStorage.setItem('myra-theme', state.theme);
-        applyTheme(); playSound('pop');
+        applyTheme(); markWidgetSettingsDirty(); playSound('pop');
     });
 
     // Som
     document.getElementById('btn-sound')?.addEventListener('click', (e) => {
         e.stopPropagation();
         state.sound = !state.sound;
-        localStorage.setItem('myra-sound', state.sound ? 'on' : 'off');
         const b = document.getElementById('btn-sound');
         if (b) {
             b.classList.toggle('active', state.sound);
             b.textContent = state.sound ? 'Ativado' : 'Desativado';
         }
         if (state.sound) playSound('pop');
+        markWidgetSettingsDirty();
     });
 
     // Compacto
     document.getElementById('btn-compact')?.addEventListener('click', (e) => {
         e.stopPropagation();
         state.compact = !state.compact;
-        localStorage.setItem('myra-compact', state.compact ? 'on' : 'off');
-        applyCompact(); playSound('pop');
+        applyCompact(); markWidgetSettingsDirty(); playSound('pop');
     });
 
     // Monitor de GPU
     document.getElementById('btn-gpu-monitor')?.addEventListener('click', (e) => {
         e.stopPropagation();
         state.gpuMonitor = !state.gpuMonitor;
-        localStorage.setItem('myra-gpu-monitor', state.gpuMonitor ? 'on' : 'off');
-        applyGpuMonitor();
+        applyGpuMonitor(); markWidgetSettingsDirty();
         if (state.gpuMonitor) pollGpu();
     });
 
@@ -348,15 +404,13 @@ function bindButtons() {
     document.getElementById('btn-dnd')?.addEventListener('click', (e) => {
         e.stopPropagation();
         state.dnd = !state.dnd;
-        localStorage.setItem('myra-dnd', state.dnd ? 'on' : 'off');
-        applyDnd(); playSound('pop');
+        applyDnd(); markWidgetSettingsDirty(); playSound('pop');
     });
 
     // Cor do mascote
     document.getElementById('mascot-color')?.addEventListener('input', (e) => {
         state.color = e.target.value;
-        localStorage.setItem('myra-color', state.color);
-        applyColor();
+        applyColor(); markWidgetSettingsDirty();
     });
 }
 
@@ -372,8 +426,8 @@ function setupOpacity() {
     if (opacityValue) opacityValue.textContent = saved + '%';
     el.addEventListener('input', () => {
         island.style.opacity = el.value / 100;
-        localStorage.setItem('myra-opacity', el.value);
         if (opacityValue) opacityValue.textContent = el.value + '%';
+        markWidgetSettingsDirty();
     });
 }
 

@@ -74,6 +74,7 @@ GRUPOS_ESPERADOS = {
         "responder", "save_note", "read_notes",
     }),
     "rea": frozenset({"rea_analyze_javascript", "rea_status", "rea_catalog", "rea_mcp_list_tools", "rea_mcp_call"}),
+    "geracao_imagem": frozenset({"myra_generate_image"}),
 }
 
 TAMANHOS_ESPERADOS = {
@@ -85,12 +86,13 @@ TAMANHOS_ESPERADOS = {
     "web_youtube_estruturado": 6,
     "utilitarios_sistema": 7,
     "rea": 5,
+    "geracao_imagem": 1,
 }
 
 NOMES_ESPERADOS = frozenset(
     nome for grupo in GRUPOS_ESPERADOS.values() for nome in grupo
 )
-TOTAL_FERRAMENTAS = 63
+TOTAL_FERRAMENTAS = 64
 
 # Aliases legados (rotas HTTP antigas) que o registo do planner ja nao expoe.
 LEGADOS_ESPERADOS = frozenset({
@@ -167,7 +169,7 @@ class RegistoRealTestCase(_BaseRegisto):
         self.assertEqual(AGENT.executar_task.__module__, simple_task.__name__)
 
     # -- item (1): conjunto exacto, ordenado --------------------------------
-    def test_registo_exato_de_63_ferramentas(self):
+    def test_registo_exato_de_64_ferramentas(self):
         reais = sorted(simple_task.FERRAMENTAS_DISPONIVEIS)
         self.assertEqual(
             len(reais), TOTAL_FERRAMENTAS,
@@ -184,7 +186,7 @@ class RegistoRealTestCase(_BaseRegisto):
             "ferramentas em falta no registo",
         )
 
-    def test_grupos_somam_63_e_nao_se_sobrepoem(self):
+    def test_grupos_somam_64_e_nao_se_sobrepoem(self):
         todos: list[str] = []
         for grupo, nomes in GRUPOS_ESPERADOS.items():
             with self.subTest(grupo=grupo):

@@ -24,6 +24,11 @@ class YouTubeChromeRoutingTests(unittest.TestCase):
         self.assertEqual(parsed.netloc, "www.youtube.com")
         self.assertEqual(parse_qs(parsed.query)["search_query"], ["ALEE"])
 
+    def test_open_youtube_directly_from_simple_command(self):
+        result = simple_task._decidir_proximo_passo("abra o youtube", [])
+        self.assertEqual(result["ferramenta"], "browser_new_tab")
+        self.assertEqual(result["args"]["url"], "https://www.youtube.com")
+
     def test_does_not_trigger_without_youtube(self):
         result = simple_task._decidir_proximo_passo(
             "pesquise ALEE na internet", []
